@@ -1,0 +1,660 @@
+﻿[WARNING] 
+[WARNING] Some problems were encountered while building the effective settings
+[WARNING] Unrecognised tag: 'profile' (position: START_TAG seen ...<!-- java\u7248\u672c -->\n\t<profile>... @265:11)  @ D:\123\apache-maven-3.9.9-bin\apache-maven-3.9.9\conf\settings.xml, line 265, column 11
+[WARNING] 
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] -------------------< com.citytrip:citytrip-backend >--------------------
+[INFO] Building citytrip-backend 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- clean:3.2.0:clean (default-clean) @ citytrip-backend ---
+[INFO] Deleting F:\dachuang\backend\target
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ citytrip-backend ---
+[INFO] Copying 1 resource from src\main\resources to target\classes
+[INFO] Copying 0 resource from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.11.0:compile (default-compile) @ citytrip-backend ---
+[INFO] Changes detected - recompiling the module! :source
+[INFO] Compiling 27 source files with javac [debug release 17] to target\classes
+[INFO] -------------------------------------------------------------
+[ERROR] COMPILATION ERROR : 
+[INFO] -------------------------------------------------------------
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/LocalTravelTimeServiceImpl.java:[22,17] 找不到符号
+  符号:   方法 getLatitude()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 from
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/LocalTravelTimeServiceImpl.java:[22,47] 找不到符号
+  符号:   方法 getLongitude()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 from
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/LocalTravelTimeServiceImpl.java:[23,19] 找不到符号
+  符号:   方法 getLatitude()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 to
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/LocalTravelTimeServiceImpl.java:[23,47] 找不到符号
+  符号:   方法 getLongitude()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 to
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/LocalTravelTimeServiceImpl.java:[27,45] 找不到符号
+  符号:   方法 getLatitude()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 from
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/LocalTravelTimeServiceImpl.java:[28,43] 找不到符号
+  符号:   方法 getLatitude()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 to
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/LocalTravelTimeServiceImpl.java:[30,39] 找不到符号
+  符号:   方法 getLongitude()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 from
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/LocalTravelTimeServiceImpl.java:[30,89] 找不到符号
+  符号:   方法 getLongitude()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 to
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/common/Result.java:[13,15] 找不到符号
+  符号:   方法 setCode(int)
+  位置: 类型为com.citytrip.common.Result<T>的变量 result
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/common/Result.java:[14,15] 找不到符号
+  符号:   方法 setMsg(java.lang.String)
+  位置: 类型为com.citytrip.common.Result<T>的变量 result
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/common/Result.java:[15,15] 找不到符号
+  符号:   方法 setData(T)
+  位置: 类型为com.citytrip.common.Result<T>的变量 result
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/common/Result.java:[25,15] 找不到符号
+  符号:   方法 setCode(int)
+  位置: 类型为com.citytrip.common.Result<T>的变量 result
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/common/Result.java:[26,15] 找不到符号
+  符号:   方法 setMsg(java.lang.String)
+  位置: 类型为com.citytrip.common.Result<T>的变量 result
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[42,40] 找不到符号
+  符号:   方法 getIsRainy()
+  位置: 类型为com.citytrip.model.dto.GenerateReqDTO的变量 req
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[42,61] 找不到符号
+  符号:   方法 getIndoor()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 poi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[42,88] 找不到符号
+  符号:   方法 getIndoor()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 poi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[43,23] 找不到符号
+  符号:   方法 getRainFriendly()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 poi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[43,56] 找不到符号
+  符号:   方法 getRainFriendly()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 poi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[46,31] 找不到符号
+  符号:   方法 getWalkingLevel()
+  位置: 类型为com.citytrip.model.dto.GenerateReqDTO的变量 req
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[46,68] 找不到符号
+  符号:   方法 getWalkingLevel()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 poi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[54,31] 找不到符号
+  符号:   方法 getPriorityScore()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 poi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[54,64] 找不到符号
+  符号:   方法 getPriorityScore()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 poi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[55,20] 找不到符号
+  符号:   方法 getThemes()
+  位置: 类型为com.citytrip.model.dto.GenerateReqDTO的变量 req
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[55,48] 找不到符号
+  符号:   方法 getThemes()
+  位置: 类型为com.citytrip.model.dto.GenerateReqDTO的变量 req
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[55,77] 找不到符号
+  符号:   方法 getTags()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 poi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[56,40] 找不到符号
+  符号:   方法 getThemes()
+  位置: 类型为com.citytrip.model.dto.GenerateReqDTO的变量 req
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[57,28] 找不到符号
+  符号:   方法 getTags()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 poi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[60,20] 找不到符号
+  符号:   方法 getCompanionType()
+  位置: 类型为com.citytrip.model.dto.GenerateReqDTO的变量 req
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[60,54] 找不到符号
+  符号:   方法 getSuitableFor()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 poi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[60,86] 找不到符号
+  符号:   方法 getSuitableFor()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 poi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[60,116] 找不到符号
+  符号:   方法 getCompanionType()
+  位置: 类型为com.citytrip.model.dto.GenerateReqDTO的变量 req
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[63,40] 找不到符号
+  符号:   方法 getIsNight()
+  位置: 类型为com.citytrip.model.dto.GenerateReqDTO的变量 req
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[63,61] 找不到符号
+  符号:   方法 getNightAvailable()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 poi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[63,96] 找不到符号
+  符号:   方法 getNightAvailable()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 poi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[66,16] 找不到符号
+  符号:   方法 setTempScore(double)
+  位置: 类型为com.citytrip.model.entity.Poi的变量 poi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[69,54] 找不到符号
+  符号:   方法 getTempScore()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 p2
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[69,73] 找不到符号
+  符号:   方法 getTempScore()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 p1
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[72,53] 找不到符号
+  符号:   方法 getStartTime()
+  位置: 类型为com.citytrip.model.dto.GenerateReqDTO的变量 req
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[73,53] 找不到符号
+  符号:   方法 getEndTime()
+  位置: 类型为com.citytrip.model.dto.GenerateReqDTO的变量 req
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[80,36] 找不到符号
+  符号:   方法 getStayDuration()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 nextPoint
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[80,74] 找不到符号
+  符号:   方法 getStayDuration()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 nextPoint
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[100,38] 找不到符号
+  符号:   方法 getTempScore()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 a
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[100,66] 找不到符号
+  符号:   方法 getDistrict()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 justAdded
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[100,101] 找不到符号
+  符号:   方法 getDistrict()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 justAdded
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[100,124] 找不到符号
+  符号:   方法 getDistrict()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 a
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[101,38] 找不到符号
+  符号:   方法 getTempScore()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 b
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[101,66] 找不到符号
+  符号:   方法 getDistrict()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 justAdded
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[101,101] 找不到符号
+  符号:   方法 getDistrict()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 justAdded
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[101,124] 找不到符号
+  符号:   方法 getDistrict()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 b
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[115,49] 找不到符号
+  符号:   方法 getCurrentNodes()
+  位置: 类型为com.citytrip.model.dto.ReplaceReqDTO的变量 req
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[116,28] 找不到符号
+  符号:   方法 getTargetPoiId()
+  位置: 类型为com.citytrip.model.dto.ReplaceReqDTO的变量 req
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[118,59] 方法引用无效
+  找不到符号
+    符号:   方法 getPoiId()
+    位置: 类 com.citytrip.model.vo.ItineraryNodeVO
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[122,52] 找不到符号
+  符号:   方法 getId()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 p
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[127,63] 找不到符号
+  符号:   方法 getDistrict()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 targetPoi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[127,98] 找不到符号
+  符号:   方法 getDistrict()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 targetPoi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[127,121] 找不到符号
+  符号:   方法 getDistrict()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 a
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[128,63] 找不到符号
+  符号:   方法 getDistrict()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 targetPoi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[128,98] 找不到符号
+  符号:   方法 getDistrict()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 targetPoi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[128,121] 找不到符号
+  符号:   方法 getDistrict()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 b
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[132,62] 找不到符号
+  符号:   方法 getCategory()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 targetPoi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[132,97] 找不到符号
+  符号:   方法 getCategory()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 targetPoi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[132,120] 找不到符号
+  符号:   方法 getCategory()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 a
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[133,62] 找不到符号
+  符号:   方法 getCategory()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 targetPoi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[133,97] 找不到符号
+  符号:   方法 getCategory()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 targetPoi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[133,120] 找不到符号
+  符号:   方法 getCategory()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 b
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[148,21] 找不到符号
+  符号:   方法 getPoiId()
+  位置: 类型为com.citytrip.model.vo.ItineraryNodeVO的变量 node
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[149,37] 找不到符号
+  符号:   方法 getId()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 newPoi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[150,39] 找不到符号
+  符号:   方法 getName()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 newPoi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[151,40] 找不到符号
+  符号:   方法 getCategory()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 newPoi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[152,40] 找不到符号
+  符号:   方法 getDistrict()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 newPoi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[153,36] 找不到符号
+  符号:   方法 getAvgCost()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 newPoi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[154,44] 找不到符号
+  符号:   方法 getStayDuration()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 newPoi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[155,21] 找不到符号
+  符号:   方法 setSysReason(java.lang.String)
+  位置: 类型为com.citytrip.model.vo.ItineraryNodeVO的变量 node
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[161,48] 找不到符号
+  符号:   方法 getOriginalReq()
+  位置: 类型为com.citytrip.model.dto.ReplaceReqDTO的变量 req
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[167,42] 找不到符号
+  符号:   方法 getCurrentNodes()
+  位置: 类型为com.citytrip.model.dto.ReplanReqDTO的变量 req
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[169,17] 找不到符号
+  符号:   方法 setSuccess(boolean)
+  位置: 类型为com.citytrip.model.dto.ReplanRespDTO的变量 resp
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[170,17] 找不到符号
+  符号:   方法 setMessage(java.lang.String)
+  位置: 类型为com.citytrip.model.dto.ReplanRespDTO的变量 resp
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[175,56] 找不到符号
+  符号:   方法 getPoiId()
+  位置: 类型为com.citytrip.model.vo.ItineraryNodeVO的变量 n
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[175,79] 对于collect(java.util.stream.Collector<java.lang.CharSequence,capture#1, 共 ?,java.lang.String>), 找不到合适的方法
+    方法 java.util.stream.Stream.<R>collect(java.util.function.Supplier<R>,java.util.function.BiConsumer<R,? super java.lang.Object>,java.util.function.BiConsumer<R,R>)不适用
+      (无法推断类型变量 R
+        (实际参数列表和形式参数列表长度不同))
+    方法 java.util.stream.Stream.<R,A>collect(java.util.stream.Collector<? super java.lang.Object,A,R>)不适用
+      (无法推断类型变量 R,A
+        (参数不匹配; java.util.stream.Collector<java.lang.CharSequence,capture#2, 共 ?,java.lang.String>无法转换为java.util.stream.Collector<? super java.lang.Object,A,R>))
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[180,41] 方法引用无效
+  找不到符号
+    符号:   方法 getDistrict()
+    位置: 类 com.citytrip.model.vo.ItineraryNodeVO
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[182,56] 找不到符号
+  符号:   方法 getPoiId()
+  位置: 类型为com.citytrip.model.vo.ItineraryNodeVO的变量 n
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[182,79] 对于collect(java.util.stream.Collector<java.lang.CharSequence,capture#3, 共 ?,java.lang.String>), 找不到合适的方法
+    方法 java.util.stream.Stream.<R>collect(java.util.function.Supplier<R>,java.util.function.BiConsumer<R,? super java.lang.Object>,java.util.function.BiConsumer<R,R>)不适用
+      (无法推断类型变量 R
+        (实际参数列表和形式参数列表长度不同))
+    方法 java.util.stream.Stream.<R,A>collect(java.util.stream.Collector<? super java.lang.Object,A,R>)不适用
+      (无法推断类型变量 R,A
+        (参数不匹配; java.util.stream.Collector<java.lang.CharSequence,capture#4, 共 ?,java.lang.String>无法转换为java.util.stream.Collector<? super java.lang.Object,A,R>))
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[185,54] 找不到符号
+  符号:   方法 getOriginalReq()
+  位置: 类型为com.citytrip.model.dto.ReplanReqDTO的变量 req
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[188,17] 找不到符号
+  符号:   方法 setSuccess(boolean)
+  位置: 类型为com.citytrip.model.dto.ReplanRespDTO的变量 resp
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[189,17] 找不到符号
+  符号:   方法 setChanged(boolean)
+  位置: 类型为com.citytrip.model.dto.ReplanRespDTO的变量 resp
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[190,17] 找不到符号
+  符号:   方法 setMessage(java.lang.String)
+  位置: 类型为com.citytrip.model.dto.ReplanRespDTO的变量 resp
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[191,17] 找不到符号
+  符号:   方法 setReason(java.lang.String)
+  位置: 类型为com.citytrip.model.dto.ReplanRespDTO的变量 resp
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[192,17] 找不到符号
+  符号:   方法 setItinerary(com.citytrip.model.vo.ItineraryVO)
+  位置: 类型为com.citytrip.model.dto.ReplanRespDTO的变量 resp
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[194,18] 找不到符号
+  符号:   方法 setRecommendReason(java.lang.String)
+  位置: 类型为com.citytrip.model.vo.ItineraryVO的变量 newVo
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[195,18] 找不到符号
+  符号:   方法 setTips(java.lang.String)
+  位置: 类型为com.citytrip.model.vo.ItineraryVO的变量 newVo
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[197,17] 找不到符号
+  符号:   方法 setSuccess(boolean)
+  位置: 类型为com.citytrip.model.dto.ReplanRespDTO的变量 resp
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[198,17] 找不到符号
+  符号:   方法 setChanged(boolean)
+  位置: 类型为com.citytrip.model.dto.ReplanRespDTO的变量 resp
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[199,17] 找不到符号
+  符号:   方法 setMessage(java.lang.String)
+  位置: 类型为com.citytrip.model.dto.ReplanRespDTO的变量 resp
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[200,17] 找不到符号
+  符号:   方法 setItinerary(com.citytrip.model.vo.ItineraryVO)
+  位置: 类型为com.citytrip.model.dto.ReplanRespDTO的变量 resp
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[213,47] 找不到符号
+  符号:   方法 getStartTime()
+  位置: 类型为com.citytrip.model.dto.GenerateReqDTO的变量 req
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[220,17] 找不到符号
+  符号:   方法 setStepOrder(int)
+  位置: 类型为com.citytrip.model.vo.ItineraryNodeVO的变量 node
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[221,30] 找不到符号
+  符号:   方法 getId()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 poi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[222,32] 找不到符号
+  符号:   方法 getName()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 poi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[223,33] 找不到符号
+  符号:   方法 getCategory()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 poi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[224,33] 找不到符号
+  符号:   方法 getDistrict()
+  位置: 类型为com.citytrip.model.entity.Poi的变量 poi
+[INFO] 100 errors 
+[INFO] -------------------------------------------------------------
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD FAILURE
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  2.614 s
+[INFO] Finished at: 2026-03-17T14:35:02+08:00
+[INFO] ------------------------------------------------------------------------
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-compiler-plugin:3.11.0:compile (default-compile) on project citytrip-backend: Compilation failure: Compilation failure: 
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/LocalTravelTimeServiceImpl.java:[22,17] 找不到符号
+[ERROR]   符号:   方法 getLatitude()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 from
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/LocalTravelTimeServiceImpl.java:[22,47] 找不到符号
+[ERROR]   符号:   方法 getLongitude()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 from
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/LocalTravelTimeServiceImpl.java:[23,19] 找不到符号
+[ERROR]   符号:   方法 getLatitude()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 to
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/LocalTravelTimeServiceImpl.java:[23,47] 找不到符号
+[ERROR]   符号:   方法 getLongitude()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 to
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/LocalTravelTimeServiceImpl.java:[27,45] 找不到符号
+[ERROR]   符号:   方法 getLatitude()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 from
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/LocalTravelTimeServiceImpl.java:[28,43] 找不到符号
+[ERROR]   符号:   方法 getLatitude()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 to
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/LocalTravelTimeServiceImpl.java:[30,39] 找不到符号
+[ERROR]   符号:   方法 getLongitude()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 from
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/LocalTravelTimeServiceImpl.java:[30,89] 找不到符号
+[ERROR]   符号:   方法 getLongitude()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 to
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/common/Result.java:[13,15] 找不到符号
+[ERROR]   符号:   方法 setCode(int)
+[ERROR]   位置: 类型为com.citytrip.common.Result<T>的变量 result
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/common/Result.java:[14,15] 找不到符号
+[ERROR]   符号:   方法 setMsg(java.lang.String)
+[ERROR]   位置: 类型为com.citytrip.common.Result<T>的变量 result
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/common/Result.java:[15,15] 找不到符号
+[ERROR]   符号:   方法 setData(T)
+[ERROR]   位置: 类型为com.citytrip.common.Result<T>的变量 result
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/common/Result.java:[25,15] 找不到符号
+[ERROR]   符号:   方法 setCode(int)
+[ERROR]   位置: 类型为com.citytrip.common.Result<T>的变量 result
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/common/Result.java:[26,15] 找不到符号
+[ERROR]   符号:   方法 setMsg(java.lang.String)
+[ERROR]   位置: 类型为com.citytrip.common.Result<T>的变量 result
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[42,40] 找不到符号
+[ERROR]   符号:   方法 getIsRainy()
+[ERROR]   位置: 类型为com.citytrip.model.dto.GenerateReqDTO的变量 req
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[42,61] 找不到符号
+[ERROR]   符号:   方法 getIndoor()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 poi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[42,88] 找不到符号
+[ERROR]   符号:   方法 getIndoor()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 poi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[43,23] 找不到符号
+[ERROR]   符号:   方法 getRainFriendly()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 poi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[43,56] 找不到符号
+[ERROR]   符号:   方法 getRainFriendly()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 poi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[46,31] 找不到符号
+[ERROR]   符号:   方法 getWalkingLevel()
+[ERROR]   位置: 类型为com.citytrip.model.dto.GenerateReqDTO的变量 req
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[46,68] 找不到符号
+[ERROR]   符号:   方法 getWalkingLevel()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 poi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[54,31] 找不到符号
+[ERROR]   符号:   方法 getPriorityScore()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 poi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[54,64] 找不到符号
+[ERROR]   符号:   方法 getPriorityScore()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 poi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[55,20] 找不到符号
+[ERROR]   符号:   方法 getThemes()
+[ERROR]   位置: 类型为com.citytrip.model.dto.GenerateReqDTO的变量 req
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[55,48] 找不到符号
+[ERROR]   符号:   方法 getThemes()
+[ERROR]   位置: 类型为com.citytrip.model.dto.GenerateReqDTO的变量 req
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[55,77] 找不到符号
+[ERROR]   符号:   方法 getTags()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 poi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[56,40] 找不到符号
+[ERROR]   符号:   方法 getThemes()
+[ERROR]   位置: 类型为com.citytrip.model.dto.GenerateReqDTO的变量 req
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[57,28] 找不到符号
+[ERROR]   符号:   方法 getTags()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 poi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[60,20] 找不到符号
+[ERROR]   符号:   方法 getCompanionType()
+[ERROR]   位置: 类型为com.citytrip.model.dto.GenerateReqDTO的变量 req
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[60,54] 找不到符号
+[ERROR]   符号:   方法 getSuitableFor()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 poi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[60,86] 找不到符号
+[ERROR]   符号:   方法 getSuitableFor()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 poi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[60,116] 找不到符号
+[ERROR]   符号:   方法 getCompanionType()
+[ERROR]   位置: 类型为com.citytrip.model.dto.GenerateReqDTO的变量 req
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[63,40] 找不到符号
+[ERROR]   符号:   方法 getIsNight()
+[ERROR]   位置: 类型为com.citytrip.model.dto.GenerateReqDTO的变量 req
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[63,61] 找不到符号
+[ERROR]   符号:   方法 getNightAvailable()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 poi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[63,96] 找不到符号
+[ERROR]   符号:   方法 getNightAvailable()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 poi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[66,16] 找不到符号
+[ERROR]   符号:   方法 setTempScore(double)
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 poi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[69,54] 找不到符号
+[ERROR]   符号:   方法 getTempScore()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 p2
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[69,73] 找不到符号
+[ERROR]   符号:   方法 getTempScore()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 p1
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[72,53] 找不到符号
+[ERROR]   符号:   方法 getStartTime()
+[ERROR]   位置: 类型为com.citytrip.model.dto.GenerateReqDTO的变量 req
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[73,53] 找不到符号
+[ERROR]   符号:   方法 getEndTime()
+[ERROR]   位置: 类型为com.citytrip.model.dto.GenerateReqDTO的变量 req
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[80,36] 找不到符号
+[ERROR]   符号:   方法 getStayDuration()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 nextPoint
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[80,74] 找不到符号
+[ERROR]   符号:   方法 getStayDuration()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 nextPoint
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[100,38] 找不到符号
+[ERROR]   符号:   方法 getTempScore()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 a
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[100,66] 找不到符号
+[ERROR]   符号:   方法 getDistrict()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 justAdded
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[100,101] 找不到符号
+[ERROR]   符号:   方法 getDistrict()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 justAdded
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[100,124] 找不到符号
+[ERROR]   符号:   方法 getDistrict()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 a
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[101,38] 找不到符号
+[ERROR]   符号:   方法 getTempScore()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 b
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[101,66] 找不到符号
+[ERROR]   符号:   方法 getDistrict()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 justAdded
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[101,101] 找不到符号
+[ERROR]   符号:   方法 getDistrict()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 justAdded
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[101,124] 找不到符号
+[ERROR]   符号:   方法 getDistrict()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 b
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[115,49] 找不到符号
+[ERROR]   符号:   方法 getCurrentNodes()
+[ERROR]   位置: 类型为com.citytrip.model.dto.ReplaceReqDTO的变量 req
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[116,28] 找不到符号
+[ERROR]   符号:   方法 getTargetPoiId()
+[ERROR]   位置: 类型为com.citytrip.model.dto.ReplaceReqDTO的变量 req
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[118,59] 方法引用无效
+[ERROR]   找不到符号
+[ERROR]     符号:   方法 getPoiId()
+[ERROR]     位置: 类 com.citytrip.model.vo.ItineraryNodeVO
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[122,52] 找不到符号
+[ERROR]   符号:   方法 getId()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 p
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[127,63] 找不到符号
+[ERROR]   符号:   方法 getDistrict()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 targetPoi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[127,98] 找不到符号
+[ERROR]   符号:   方法 getDistrict()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 targetPoi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[127,121] 找不到符号
+[ERROR]   符号:   方法 getDistrict()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 a
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[128,63] 找不到符号
+[ERROR]   符号:   方法 getDistrict()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 targetPoi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[128,98] 找不到符号
+[ERROR]   符号:   方法 getDistrict()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 targetPoi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[128,121] 找不到符号
+[ERROR]   符号:   方法 getDistrict()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 b
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[132,62] 找不到符号
+[ERROR]   符号:   方法 getCategory()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 targetPoi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[132,97] 找不到符号
+[ERROR]   符号:   方法 getCategory()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 targetPoi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[132,120] 找不到符号
+[ERROR]   符号:   方法 getCategory()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 a
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[133,62] 找不到符号
+[ERROR]   符号:   方法 getCategory()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 targetPoi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[133,97] 找不到符号
+[ERROR]   符号:   方法 getCategory()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 targetPoi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[133,120] 找不到符号
+[ERROR]   符号:   方法 getCategory()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 b
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[148,21] 找不到符号
+[ERROR]   符号:   方法 getPoiId()
+[ERROR]   位置: 类型为com.citytrip.model.vo.ItineraryNodeVO的变量 node
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[149,37] 找不到符号
+[ERROR]   符号:   方法 getId()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 newPoi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[150,39] 找不到符号
+[ERROR]   符号:   方法 getName()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 newPoi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[151,40] 找不到符号
+[ERROR]   符号:   方法 getCategory()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 newPoi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[152,40] 找不到符号
+[ERROR]   符号:   方法 getDistrict()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 newPoi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[153,36] 找不到符号
+[ERROR]   符号:   方法 getAvgCost()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 newPoi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[154,44] 找不到符号
+[ERROR]   符号:   方法 getStayDuration()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 newPoi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[155,21] 找不到符号
+[ERROR]   符号:   方法 setSysReason(java.lang.String)
+[ERROR]   位置: 类型为com.citytrip.model.vo.ItineraryNodeVO的变量 node
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[161,48] 找不到符号
+[ERROR]   符号:   方法 getOriginalReq()
+[ERROR]   位置: 类型为com.citytrip.model.dto.ReplaceReqDTO的变量 req
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[167,42] 找不到符号
+[ERROR]   符号:   方法 getCurrentNodes()
+[ERROR]   位置: 类型为com.citytrip.model.dto.ReplanReqDTO的变量 req
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[169,17] 找不到符号
+[ERROR]   符号:   方法 setSuccess(boolean)
+[ERROR]   位置: 类型为com.citytrip.model.dto.ReplanRespDTO的变量 resp
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[170,17] 找不到符号
+[ERROR]   符号:   方法 setMessage(java.lang.String)
+[ERROR]   位置: 类型为com.citytrip.model.dto.ReplanRespDTO的变量 resp
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[175,56] 找不到符号
+[ERROR]   符号:   方法 getPoiId()
+[ERROR]   位置: 类型为com.citytrip.model.vo.ItineraryNodeVO的变量 n
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[175,79] 对于collect(java.util.stream.Collector<java.lang.CharSequence,capture#1, 共 ?,java.lang.String>), 找不到合适的方法
+[ERROR]     方法 java.util.stream.Stream.<R>collect(java.util.function.Supplier<R>,java.util.function.BiConsumer<R,? super java.lang.Object>,java.util.function.BiConsumer<R,R>)不适用
+[ERROR]       (无法推断类型变量 R
+[ERROR]         (实际参数列表和形式参数列表长度不同))
+[ERROR]     方法 java.util.stream.Stream.<R,A>collect(java.util.stream.Collector<? super java.lang.Object,A,R>)不适用
+[ERROR]       (无法推断类型变量 R,A
+[ERROR]         (参数不匹配; java.util.stream.Collector<java.lang.CharSequence,capture#2, 共 ?,java.lang.String>无法转换为java.util.stream.Collector<? super java.lang.Object,A,R>))
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[180,41] 方法引用无效
+[ERROR]   找不到符号
+[ERROR]     符号:   方法 getDistrict()
+[ERROR]     位置: 类 com.citytrip.model.vo.ItineraryNodeVO
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[182,56] 找不到符号
+[ERROR]   符号:   方法 getPoiId()
+[ERROR]   位置: 类型为com.citytrip.model.vo.ItineraryNodeVO的变量 n
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[182,79] 对于collect(java.util.stream.Collector<java.lang.CharSequence,capture#3, 共 ?,java.lang.String>), 找不到合适的方法
+[ERROR]     方法 java.util.stream.Stream.<R>collect(java.util.function.Supplier<R>,java.util.function.BiConsumer<R,? super java.lang.Object>,java.util.function.BiConsumer<R,R>)不适用
+[ERROR]       (无法推断类型变量 R
+[ERROR]         (实际参数列表和形式参数列表长度不同))
+[ERROR]     方法 java.util.stream.Stream.<R,A>collect(java.util.stream.Collector<? super java.lang.Object,A,R>)不适用
+[ERROR]       (无法推断类型变量 R,A
+[ERROR]         (参数不匹配; java.util.stream.Collector<java.lang.CharSequence,capture#4, 共 ?,java.lang.String>无法转换为java.util.stream.Collector<? super java.lang.Object,A,R>))
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[185,54] 找不到符号
+[ERROR]   符号:   方法 getOriginalReq()
+[ERROR]   位置: 类型为com.citytrip.model.dto.ReplanReqDTO的变量 req
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[188,17] 找不到符号
+[ERROR]   符号:   方法 setSuccess(boolean)
+[ERROR]   位置: 类型为com.citytrip.model.dto.ReplanRespDTO的变量 resp
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[189,17] 找不到符号
+[ERROR]   符号:   方法 setChanged(boolean)
+[ERROR]   位置: 类型为com.citytrip.model.dto.ReplanRespDTO的变量 resp
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[190,17] 找不到符号
+[ERROR]   符号:   方法 setMessage(java.lang.String)
+[ERROR]   位置: 类型为com.citytrip.model.dto.ReplanRespDTO的变量 resp
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[191,17] 找不到符号
+[ERROR]   符号:   方法 setReason(java.lang.String)
+[ERROR]   位置: 类型为com.citytrip.model.dto.ReplanRespDTO的变量 resp
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[192,17] 找不到符号
+[ERROR]   符号:   方法 setItinerary(com.citytrip.model.vo.ItineraryVO)
+[ERROR]   位置: 类型为com.citytrip.model.dto.ReplanRespDTO的变量 resp
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[194,18] 找不到符号
+[ERROR]   符号:   方法 setRecommendReason(java.lang.String)
+[ERROR]   位置: 类型为com.citytrip.model.vo.ItineraryVO的变量 newVo
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[195,18] 找不到符号
+[ERROR]   符号:   方法 setTips(java.lang.String)
+[ERROR]   位置: 类型为com.citytrip.model.vo.ItineraryVO的变量 newVo
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[197,17] 找不到符号
+[ERROR]   符号:   方法 setSuccess(boolean)
+[ERROR]   位置: 类型为com.citytrip.model.dto.ReplanRespDTO的变量 resp
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[198,17] 找不到符号
+[ERROR]   符号:   方法 setChanged(boolean)
+[ERROR]   位置: 类型为com.citytrip.model.dto.ReplanRespDTO的变量 resp
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[199,17] 找不到符号
+[ERROR]   符号:   方法 setMessage(java.lang.String)
+[ERROR]   位置: 类型为com.citytrip.model.dto.ReplanRespDTO的变量 resp
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[200,17] 找不到符号
+[ERROR]   符号:   方法 setItinerary(com.citytrip.model.vo.ItineraryVO)
+[ERROR]   位置: 类型为com.citytrip.model.dto.ReplanRespDTO的变量 resp
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[213,47] 找不到符号
+[ERROR]   符号:   方法 getStartTime()
+[ERROR]   位置: 类型为com.citytrip.model.dto.GenerateReqDTO的变量 req
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[220,17] 找不到符号
+[ERROR]   符号:   方法 setStepOrder(int)
+[ERROR]   位置: 类型为com.citytrip.model.vo.ItineraryNodeVO的变量 node
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[221,30] 找不到符号
+[ERROR]   符号:   方法 getId()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 poi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[222,32] 找不到符号
+[ERROR]   符号:   方法 getName()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 poi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[223,33] 找不到符号
+[ERROR]   符号:   方法 getCategory()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 poi
+[ERROR] /F:/dachuang/backend/src/main/java/com/citytrip/service/impl/ItineraryServiceImpl.java:[224,33] 找不到符号
+[ERROR]   符号:   方法 getDistrict()
+[ERROR]   位置: 类型为com.citytrip.model.entity.Poi的变量 poi
+[ERROR] -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException

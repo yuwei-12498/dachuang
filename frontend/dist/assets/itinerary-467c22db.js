@@ -1,0 +1,1 @@
+import{I as e}from"./index-2da4d70d.js";function a(r){return e({url:"/api/itinerary/generate",method:"post",data:r})}function n(r){return e({url:"/api/itinerary/replace",method:"post",data:r})}function i(r){return e({url:"/api/itinerary/replan",method:"post",data:r})}export{i as a,n as b,a as r};
