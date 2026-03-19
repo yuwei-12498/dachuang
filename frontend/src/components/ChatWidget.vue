@@ -120,11 +120,23 @@ const handleSend = async () => {
   
   loading.value = true
   try {
-    const contextStr = sessionStorage.getItem('original_req_form') || ''
-    const res = await reqAskChat({
+    const contextStr = sessionStorage.getItem('original_req_form')
+    let contextObj = null
+    if (contextStr) {
+      try {
+        contextObj = JSON.parse(contextStr)
+      } catch (e) {
+        console.error('Failed to parse context', e)
+      }
+    }
+    const reqPayload = {
       question: question,
-      context: contextStr
-    })
+      context: contextObj
+    }
+    console.log('【前端拦截】1. 准备调用 api/chat/qa，参数:', reqPayload)
+    
+    const res = await reqAskChat(reqPayload)
+    console.log('【前端拦截】2. 后端成功返回结果:', res)
     
     // 压入回复
     messageList.value.push({
@@ -139,6 +151,7 @@ const handleSend = async () => {
     }
     
   } catch (err) {
+    console.error('【前端拦截】3. 调用异常:', err)
     messageList.value.push({
       role: 'assistant',
       content: '抱歉，本地网络暂时断开，我没能听清你的问题。'

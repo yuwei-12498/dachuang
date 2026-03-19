@@ -157,6 +157,7 @@
 <script setup>
 import { reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { reqGenerateItinerary } from '@/api/itinerary'
 import HomeAiPanel from '@/components/HomeAiPanel.vue'
 
@@ -220,7 +221,13 @@ const onSubmit = async () => {
         sessionStorage.setItem('original_req_form', JSON.stringify(form))
         router.push('/result')
       } catch (err) {
-        // 请求拦截器处理
+        // 区分超时错误和其他错误，给用户更明确的提示
+        if (err && err.code === 'ECONNABORTED') {
+          ElMessage.error('行程生成超时，AI 正在努力思考中，请稍后重试～')
+        } else if (err && err.message) {
+          // 接口业务错误（非 200）已由 request.js 拦截器弹出，此处兜底
+          ElMessage.error('生成失败，请检查网络后重试')
+        }
       } finally {
         loading.value = false
       }

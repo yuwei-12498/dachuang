@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 @Service
@@ -212,7 +213,8 @@ public class ItineraryServiceImpl implements ItineraryService {
         List<ItineraryNodeVO> nodes = new ArrayList<>();
         int startMinute = parseTimeMinutes(req.getStartTime(), 9 * 60);
         BigDecimal totalCost = BigDecimal.ZERO;
-        
+
+        // 阶段1：只做基础信息组装，不调 LLM，避免循环内串行阻塞
         Poi prevPoi = null;
         for (int i = 0; i < selectedPois.size(); i++) {
             Poi poi = selectedPois.get(i);
@@ -224,15 +226,13 @@ public class ItineraryServiceImpl implements ItineraryService {
             node.setDistrict(poi.getDistrict());
             node.setStayDuration(poi.getStayDuration() != null ? poi.getStayDuration() : 60);
             node.setCost(poi.getAvgCost() != null ? poi.getAvgCost() : BigDecimal.ZERO);
-            node.setSysReason(llmService.explainPoiChoice(req, node));
-            
+
             int travelTime = 0;
             if (prevPoi != null) {
                 travelTime = travelTimeService.estimateTravelTimeMinutes(prevPoi, poi);
             }
             node.setTravelTime(travelTime);
             startMinute += travelTime;
-            
             node.setStartTime(formatTime(startMinute));
             startMinute += node.getStayDuration();
             node.setEndTime(formatTime(startMinute));
@@ -242,14 +242,53 @@ public class ItineraryServiceImpl implements ItineraryService {
             prevPoi = poi;
         }
 
+        // 阶段2：并行化所有 LLM 调用，最坏耗时从 N×20s 降至约 1×20s
+        // 为每个节点并行生成 sysReason
+        List<CompletableFuture<Void>> futures = new ArrayList<>();
+        for (ItineraryNodeVO node : nodes) {
+            final ItineraryNodeVO n = node;
+            futures.add(CompletableFuture.runAsync(() -> {
+                try {
+                    n.setSysReason(llmService.explainPoiChoice(req, n));
+                } catch (Exception e) {
+                    n.setSysReason("这个地方值得一去！");
+                }
+            }));
+        }
+
+        // recommendReason 和 tips 也并行生成
+        final List<ItineraryNodeVO> finalNodes = nodes;
+        final String[] recommendReason = {""};
+        final String[] tips = {""};
+
+        CompletableFuture<Void> reasonFuture = CompletableFuture.runAsync(() -> {
+            try {
+                recommendReason[0] = llmService.explainItinerary(req, finalNodes);
+            } catch (Exception e) {
+                recommendReason[0] = "根据您的偏好为您定制了这条路线。";
+            }
+        });
+        CompletableFuture<Void> tipsFuture = CompletableFuture.runAsync(() -> {
+            try {
+                tips[0] = llmService.generateTips(req);
+            } catch (Exception e) {
+                tips[0] = "出行前请确认景点营业时间，建议提前规划交通方式。";
+            }
+        });
+
+        futures.add(reasonFuture);
+        futures.add(tipsFuture);
+
+        // 等待所有并行任务完成
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+
         ItineraryVO vo = new ItineraryVO();
         vo.setNodes(nodes);
         vo.setTotalCost(totalCost);
-        // 总时长 = 最后一个点结束时间 - 第一个点开始时间
         int firstStart = nodes.isEmpty() ? startMinute : parseTimeMinutes(req.getStartTime(), 9 * 60);
-        vo.setTotalDuration(nodes.isEmpty() ? 0 : (startMinute - firstStart)); 
-        vo.setRecommendReason(llmService.explainItinerary(req, nodes));
-        vo.setTips(llmService.generateTips(req));
+        vo.setTotalDuration(nodes.isEmpty() ? 0 : (startMinute - firstStart));
+        vo.setRecommendReason(recommendReason[0]);
+        vo.setTips(tips[0]);
 
         return vo;
     }

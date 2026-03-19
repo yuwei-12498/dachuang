@@ -4,7 +4,7 @@ import { ElMessage } from 'element-plus'
 // 创建 Axios 实例，复用配置
 const service = axios.create({
   baseURL: '', // Vite 的 proxy 会处理 /api 前缀拦截
-  timeout: 15000
+  timeout: 60000
 })
 
 // 响应拦截器：统一处理后端返回格式 Result<T>
