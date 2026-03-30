@@ -2,7 +2,20 @@
 CREATE DATABASE IF NOT EXISTS `city_trip_db` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE `city_trip_db`;
 
--- 2. 创建POI表
+-- 2. 创建用户表
+DROP TABLE IF EXISTS `trip_user`;
+CREATE TABLE `trip_user` (
+  `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+  `username` VARCHAR(50) NOT NULL COMMENT '登录用户名',
+  `password_hash` VARCHAR(64) NOT NULL COMMENT '密码哈希',
+  `password_salt` VARCHAR(32) NOT NULL COMMENT '密码盐值',
+  `nickname` VARCHAR(50) NOT NULL COMMENT '显示昵称',
+  `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  UNIQUE KEY `uk_trip_user_username` (`username`)
+) ENGINE=InnoDB COMMENT='系统用户表';
+
+-- 3. 创建POI表
 DROP TABLE IF EXISTS `poi`;
 CREATE TABLE `poi` (
   `id` BIGINT AUTO_INCREMENT PRIMARY KEY,

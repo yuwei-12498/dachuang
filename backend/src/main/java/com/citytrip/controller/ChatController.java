@@ -1,5 +1,6 @@
 package com.citytrip.controller;
 
+import com.citytrip.annotation.LoginRequired;
 import com.citytrip.common.Result;
 import com.citytrip.model.dto.ChatReqDTO;
 import com.citytrip.model.vo.ChatVO;
@@ -18,6 +19,7 @@ public class ChatController {
     @Autowired
     private ChatService chatService;
 
+    @LoginRequired
     @PostMapping("/qa")
     public Result<ChatVO> askQuestion(@RequestBody ChatReqDTO req) {
         log.info("【ChatController】收到前端发来的聊天请求, question={}, context={}", req.getQuestion(), req.getContext());

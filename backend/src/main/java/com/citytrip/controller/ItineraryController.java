@@ -1,5 +1,6 @@
 package com.citytrip.controller;
 
+import com.citytrip.annotation.LoginRequired;
 import com.citytrip.common.Result;
 import com.citytrip.model.dto.GenerateReqDTO;
 import com.citytrip.model.dto.ReplaceReqDTO;
@@ -17,18 +18,21 @@ public class ItineraryController {
     @Autowired
     private ItineraryService itineraryService;
 
+    @LoginRequired
     @PostMapping("/generate")
     public Result<ItineraryVO> generateItinerary(@RequestBody GenerateReqDTO req) {
         ItineraryVO vo = itineraryService.generateUserItinerary(req);
         return Result.success(vo);
     }
 
+    @LoginRequired
     @PostMapping("/replace")
     public Result<ItineraryVO> replacePoi(@RequestBody ReplaceReqDTO req) {
         ItineraryVO vo = itineraryService.replaceNode(req);
         return Result.success(vo);
     }
 
+    @LoginRequired
     @PostMapping("/replan")
     public Result<ReplanRespDTO> replanItinerary(@RequestBody ReplanReqDTO req) {
         ReplanRespDTO resp = itineraryService.replan(req);

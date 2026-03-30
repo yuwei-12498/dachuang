@@ -8,7 +8,6 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.LocalTime;
-import java.time.LocalDateTime;
 
 @Data
 @TableName("poi")
@@ -24,17 +23,16 @@ public class Poi {
     private LocalTime openTime;
     private LocalTime closeTime;
     private BigDecimal avgCost;
-    private Integer stayDuration; // 建议停留时间，单位分钟
-    private Integer indoor; // 1 室内 0 室外
-    private Integer nightAvailable; // 1 支持夜游 0 否
-    private Integer rainFriendly; // 1 雨天友好 0 否
-    private String walkingLevel; // 步数强度：低/中/高
-    private String tags; // 文化,历史,美食等
-    private String suitableFor; // 亲子,情侣,朋友等
+    private Integer stayDuration;
+    private Integer indoor;
+    private Integer nightAvailable;
+    private Integer rainFriendly;
+    private String walkingLevel;
+    private String tags;
+    private String suitableFor;
     private String description;
-    private BigDecimal priorityScore; // 基础热度打分
+    private BigDecimal priorityScore;
 
-    // 数据库中不存在此字段，仅用于行程生成过程中的动态打分
     @TableField(exist = false)
     private Double tempScore;
 }

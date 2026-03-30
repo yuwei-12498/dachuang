@@ -3,19 +3,20 @@
     <div class="core-container">
       <div class="section-header text-center">
         <h2 class="section-title">定制专属行程</h2>
-        <p class="section-subtitle">只需三个步骤，为你的成都之行画下完美的闭环</p>
+        <p class="section-subtitle">告诉我们你的时间、预算和偏好，我们会为你整理一条更顺路、更省心的成都玩法。</p>
       </div>
 
       <div class="main-card">
-        <el-row :gutter="40">
+        <el-row :gutter="28" class="core-layout">
           <!-- 左侧：表单配置区 -->
-          <el-col :md="14" :lg="15">
-            <el-form ref="formRef" :model="form" :rules="rules" label-position="top" size="large" class="custom-form">
+          <el-col :md="14" :lg="15" class="form-col">
+            <div ref="formPaneRef" class="form-pane">
+            <el-form ref="formRef" :model="form" :rules="rules" label-position="top" class="custom-form">
               
               <!-- ================= 第1组：基础信息 ================= -->
               <div class="form-section">
                 <div class="sub-section-title">基础时间分配</div>
-                <el-row :gutter="40">
+                <el-row :gutter="24">
                   <el-col :xs="24" :sm="12">
                     <el-form-item label="出行模板推荐" prop="tripDays">
                       <el-radio-group v-model="form.tripDays" class="full-width-radio">
@@ -26,7 +27,7 @@
                     </el-form-item>
                   </el-col>
                   <el-col :xs="24" :sm="12">
-                    <el-row :gutter="10">
+                    <el-row :gutter="8">
                       <el-col :span="12">
                         <el-form-item label="每日出发时间" prop="startTime">
                           <el-time-select
@@ -56,7 +57,7 @@
                   </el-col>
                 </el-row>
 
-                <el-row :gutter="40">
+                <el-row :gutter="24">
                   <el-col :xs="24" :sm="12">
                     <el-form-item label="预算等级" prop="budgetLevel">
                       <el-select v-model="form.budgetLevel" placeholder="选择预算等级" style="width: 100%">
@@ -86,7 +87,7 @@
                   </el-checkbox-group>
                 </el-form-item>
 
-                <el-row :gutter="40" style="margin-top: 24px;">
+                <el-row :gutter="24" class="compact-row">
                   <el-col :xs="24" :sm="12">
                     <el-form-item label="同行类型" prop="companionType">
                       <el-radio-group v-model="form.companionType">
@@ -114,7 +115,7 @@
               <!-- ================= 第3组：场景设置 ================= -->
               <div class="form-section">
                 <div class="sub-section-title">场景探索</div>
-                <el-row :gutter="40">
+                <el-row :gutter="24">
                   <el-col :xs="24" :sm="12">
                     <el-form-item label="是否遭遇雨天?" class="switch-item">
                       <el-switch v-model="form.isRainy" active-text="优先安排室内" inactive-text="晴天出行" />
@@ -130,22 +131,26 @@
 
               <!-- ================= 底部操作 ================= -->
               <div class="form-actions">
+                <div v-if="!authState.user" class="login-reminder">
+                  登录后即可生成专属行程，我们会根据你的偏好给出更贴合的游玩建议。
+                </div>
                 <el-button 
                   type="primary" 
                   size="large" 
                   class="submit-btn" 
                   @click="onSubmit" 
                   :loading="loading">
-                  开始生成行程
+                  {{ authState.user ? '开始生成行程' : '登录后开启行程推荐' }}
                 </el-button>
               </div>
 
             </el-form>
+            </div>
           </el-col>
           
           <!-- 右侧：独立的 AI旅行助手 模块 -->
           <el-col :md="10" :lg="9" class="ai-panel-col">
-            <HomeAiPanel :currentForm="form" />
+            <HomeAiPanel :currentForm="form" :style="aiPanelStyle" />
           </el-col>
 
         </el-row>
@@ -155,15 +160,21 @@
 </template>
 
 <script setup>
-import { reactive, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { reqGenerateItinerary } from '@/api/itinerary'
 import HomeAiPanel from '@/components/HomeAiPanel.vue'
+import { useAuthState } from '@/store/auth'
 
+const route = useRoute()
 const router = useRouter()
+const authState = useAuthState()
 const formRef = ref()
+const formPaneRef = ref(null)
 const loading = ref(false)
+const panelHeight = ref(0)
+let formPaneObserver = null
 
 const form = reactive({
   tripDays: 1.0,
@@ -189,6 +200,29 @@ const rules = {
   ]
 }
 
+const syncPanelHeight = () => {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  if (window.innerWidth < 992 || !formPaneRef.value) {
+    panelHeight.value = 0
+    return
+  }
+
+  panelHeight.value = Math.ceil(formPaneRef.value.getBoundingClientRect().height)
+}
+
+const aiPanelStyle = computed(() => {
+  if (!panelHeight.value) {
+    return {}
+  }
+
+  return {
+    height: `${panelHeight.value}px`
+  }
+})
+
 watch(() => form.tripDays, (newVal) => {
   if (newVal === 0.5) {
     form.startTime = '09:00'
@@ -210,7 +244,44 @@ watch(() => form.endTime, (newVal) => {
   }
 })
 
+onMounted(() => {
+  nextTick(syncPanelHeight)
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('resize', syncPanelHeight)
+  }
+
+  if (typeof ResizeObserver !== 'undefined' && formPaneRef.value) {
+    formPaneObserver = new ResizeObserver(() => {
+      syncPanelHeight()
+    })
+    formPaneObserver.observe(formPaneRef.value)
+  }
+})
+
+onBeforeUnmount(() => {
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('resize', syncPanelHeight)
+  }
+
+  if (formPaneObserver) {
+    formPaneObserver.disconnect()
+    formPaneObserver = null
+  }
+})
+
 const onSubmit = async () => {
+  if (!authState.user) {
+    ElMessage.warning('登录后即可生成专属行程，我们会为你推荐更顺路、更贴心的玩法。')
+    router.push({
+      path: '/auth',
+      query: {
+        redirect: route.fullPath
+      }
+    })
+    return
+  }
+
   if (!formRef.value) return
   await formRef.value.validate(async (valid) => {
     if (valid) {
@@ -224,6 +295,14 @@ const onSubmit = async () => {
         // 区分超时错误和其他错误，给用户更明确的提示
         if (err && err.code === 'ECONNABORTED') {
           ElMessage.error('行程生成超时，AI 正在努力思考中，请稍后重试～')
+        } else if (err && err.code === 401) {
+          ElMessage.warning('登录状态已失效，请重新登录后再继续规划。')
+          router.push({
+            path: '/auth',
+            query: {
+              redirect: route.fullPath
+            }
+          })
         } else if (err && err.message) {
           // 接口业务错误（非 200）已由 request.js 拦截器弹出，此处兜底
           ElMessage.error('生成失败，请检查网络后重试')
@@ -238,7 +317,7 @@ const onSubmit = async () => {
 
 <style scoped>
 .core-section {
-  padding: 80px 24px;
+  padding: 28px 20px 36px;
   background-color: #ffffff;
 }
 
@@ -248,7 +327,7 @@ const onSubmit = async () => {
 }
 
 .section-header {
-  margin-bottom: 50px;
+  margin-bottom: 18px;
 }
 
 .text-center {
@@ -256,29 +335,39 @@ const onSubmit = async () => {
 }
 
 .section-title {
-  font-size: 32px;
+  font-size: 28px;
   font-weight: 800;
   color: #1f2d3d;
-  margin: 0 0 16px 0;
+  margin: 0 0 10px 0;
 }
 
 .section-subtitle {
-  font-size: 16px;
+  font-size: 14px;
   color: #606266;
   margin: 0;
+  max-width: 680px;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.6;
 }
 
 .main-card {
   width: 100%;
   background: #ffffff;
-  border-radius: 16px;
-  box-shadow: 0 4px 32px rgba(0, 0, 0, 0.04);
+  border-radius: 20px;
+  box-shadow: 0 18px 40px rgba(31, 45, 61, 0.06);
   border: 1px solid rgba(228, 231, 237, 0.6);
-  padding: 40px 50px;
+  padding: 22px 24px;
   box-sizing: border-box;
 }
 
+.core-layout {
+  align-items: stretch;
+}
+
+.form-col,
 .ai-panel-col {
+  display: flex;
   margin-top: 24px;
 }
 
@@ -288,15 +377,28 @@ const onSubmit = async () => {
   }
 }
 
+.custom-form {
+  width: 100%;
+}
+
+.form-pane {
+  width: 100%;
+}
+
+.ai-panel-col :deep(.home-ai-panel) {
+  width: 100%;
+  min-height: 0;
+}
+
 .form-section {
-  margin-bottom: 24px;
+  margin-bottom: 10px;
 }
 
 .sub-section-title {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
   color: #475669;
-  margin-bottom: 24px;
+  margin-bottom: 12px;
   position: relative;
   padding-left: 12px;
 }
@@ -316,7 +418,20 @@ const onSubmit = async () => {
 .custom-form :deep(.el-form-item__label) {
   font-weight: 500;
   color: #475669;
-  padding-bottom: 8px;
+  padding-bottom: 4px;
+  line-height: 1.35;
+}
+
+.custom-form :deep(.el-form-item) {
+  margin-bottom: 14px;
+}
+
+.custom-form :deep(.el-divider--horizontal) {
+  margin: 8px 0 12px;
+}
+
+.compact-row {
+  margin-top: 10px;
 }
 
 .full-width-radio {
@@ -335,9 +450,10 @@ const onSubmit = async () => {
 .theme-checkbox-group :deep(.el-checkbox-button__inner) {
   border-radius: 4px !important;
   border: 1px solid #dcdfe6;
-  margin-right: 12px;
-  margin-bottom: 12px;
-  box-shadow: none !important;
+   margin-right: 8px;
+   margin-bottom: 8px;
+   padding: 8px 14px;
+   box-shadow: none !important;
 }
 
 .theme-checkbox-group :deep(.el-checkbox-button.is-checked .el-checkbox-button__inner) {
@@ -345,27 +461,44 @@ const onSubmit = async () => {
 }
 
 .custom-form :deep(.el-radio.is-bordered) {
-  margin-right: 12px;
-  margin-bottom: 12px;
-  margin-left: 0 !important; 
+  margin-right: 8px;
+  margin-bottom: 8px;
+  margin-left: 0 !important;
+  height: 38px;
+  padding: 0 12px;
+}
+
+.custom-form :deep(.el-radio__label) {
+  font-size: 13px;
 }
 
 .switch-item :deep(.el-form-item__content) {
-  height: 40px;
+  height: 34px;
   display: flex;
   align-items: center;
 }
 
 .form-actions {
-  margin-top: 40px;
+  margin-top: 16px;
   display: flex;
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
+  gap: 10px;
+}
+
+.login-reminder {
+  max-width: 420px;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #6c7d90;
 }
 
 .submit-btn {
-  width: 280px;
-  height: 48px;
-  font-size: 16px;
+  width: 260px;
+  height: 44px;
+  font-size: 15px;
   font-weight: 600;
   border-radius: 24px;
   transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
@@ -379,7 +512,7 @@ const onSubmit = async () => {
 
 @media (max-width: 768px) {
   .main-card {
-    padding: 24px 20px;
+    padding: 20px 16px;
   }
   .submit-btn {
     width: 100%;

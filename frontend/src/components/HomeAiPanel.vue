@@ -1,34 +1,34 @@
 <template>
-  <div class="home-ai-panel">
+  <div class="home-ai-panel" @wheel.stop.prevent="handleWheelScroll">
     <div class="panel-header">
       <div class="ai-avatar">AI</div>
       <div class="ai-title-wrap">
         <h3 class="panel-title">行“城”向导</h3>
-        <span class="panel-subtitle">你可以随时向我提问</span>
+        <span class="panel-subtitle">{{ authState.user ? '说说你的偏好，我来帮你理顺游玩思路' : '登录后即可获得更贴合你的路线建议' }}</span>
       </div>
     </div>
 
     <div class="panel-body" ref="chatBodyRef">
       <div class="msg-list">
-        <template v-for="(msg, index) in messages" :key="index">
+        <template v-for="(msg, index) in chatState.messages" :key="index">
           <div class="msg-item" :class="msg.role === 'user' ? 'msg-user' : 'msg-ai'">
             <div class="bubble">{{ msg.content }}</div>
           </div>
         </template>
-        <div v-if="loading" class="msg-item msg-ai">
+        <div v-if="chatState.loading" class="msg-item msg-ai">
           <div class="bubble loading-dots">思考中<span>.</span><span>.</span><span>.</span></div>
         </div>
       </div>
     </div>
 
-    <div class="panel-quick-tips" v-if="quickTips.length > 0">
-      <p class="tips-title">大家都在问：</p>
+    <div class="panel-quick-tips" v-if="chatState.currentTips.length > 0">
+      <p class="tips-title">不妨先从这些问题开始：</p>
       <div class="tips-container">
-        <el-tag 
-          v-for="(tip, idx) in quickTips" 
-          :key="idx" 
-          class="tip-tag" 
-          size="small" 
+        <el-tag
+          v-for="(tip, idx) in chatState.currentTips"
+          :key="idx"
+          class="tip-tag"
+          size="small"
           effect="light"
           @click="sendQuestion(tip)">
           {{ tip }}
@@ -36,27 +36,33 @@
       </div>
     </div>
 
-    <div class="panel-footer">
-      <el-input 
-        v-model="inputVal" 
-        placeholder="例如：宽窄巷子最佳拍照点在哪？" 
+    <div class="panel-footer" v-if="authState.user">
+      <el-input
+        v-model="inputVal"
+        placeholder="例如：宽窄巷子最佳拍照点在哪？"
         @keyup.enter="handleSend"
         class="chat-input"
-        clearable
-      >
+        clearable>
         <template #append>
-          <el-button @click="handleSend" type="primary" :disabled="!inputVal.trim() || loading">发送</el-button>
+          <el-button @click="handleSend" type="primary" :disabled="!inputVal.trim() || chatState.loading">发送</el-button>
         </template>
       </el-input>
+    </div>
+
+    <div v-else class="panel-footer login-footer">
+      <p class="login-copy">登录后就能向 AI 询问景点灵感、路线建议和出行提醒，帮你把一天安排得更顺路。</p>
+      <el-button type="primary" round class="login-btn" @click="goLogin">登录后再问</el-button>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, watch, nextTick } from 'vue'
-import { reqAskChat } from '@/api/chat'
+import { nextTick, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import { useAuthState } from '@/store/auth'
+import { askChatQuestion, useChatState } from '@/store/chat'
 
-// 接收外部传进来的当前表单实时数据，用于组合 Context
 const props = defineProps({
   currentForm: {
     type: Object,
@@ -64,75 +70,61 @@ const props = defineProps({
   }
 })
 
+const route = useRoute()
+const router = useRouter()
+const authState = useAuthState()
+const chatState = useChatState()
 const chatBodyRef = ref(null)
 const inputVal = ref('')
-const loading = ref(false)
 
-const messages = ref([
-  {
-    role: 'assistant',
-    content: '你好！我是你的专属旅行顾问。在定制行程前，你有什么想了解的成都景点知识、游玩避坑指南都可以问我哦！'
+const goLogin = () => {
+  router.push({
+    path: '/auth',
+    query: {
+      redirect: route.fullPath
+    }
+  })
+}
+
+const ensureLogin = () => {
+  if (authState.user) {
+    return true
   }
-])
+  ElMessage.warning('登录后即可向 AI 咨询路线灵感、景点建议和避坑提醒。')
+  goLogin()
+  return false
+}
 
-const quickTips = ref([
-  '宽窄巷子最佳拍照点在哪？',
-  '春熙路附近有什么值得逛的？',
-  '雨天适合去哪里？',
-  '带小朋友去哪里玩比较好？'
-])
+const buildContext = () => ({
+  pageType: 'home',
+  preferences: props.currentForm.themes || [],
+  rainy: props.currentForm.isRainy || false,
+  nightMode: props.currentForm.isNight || false,
+  companionType: props.currentForm.companionType || ''
+})
 
 const sendQuestion = (q) => {
+  if (!ensureLogin()) return
   inputVal.value = q
   handleSend()
 }
 
 const handleSend = async () => {
-  if (!inputVal.value.trim() || loading.value) return
-  
+  if (!ensureLogin()) return
+
   const question = inputVal.value.trim()
+  if (!question || chatState.loading) return
+
   inputVal.value = ''
-  
-  messages.value.push({ role: 'user', content: question })
-  quickTips.value = [] // 提问后清空快捷提示，等待新提示返回
-  scrollToBottom()
-  
-  loading.value = true
-  
+
   try {
-    // 组装结构化上下文
-    const ctx = {
-      pageType: 'home',
-      preferences: props.currentForm.themes || [],
-      rainy: props.currentForm.isRainy || false,
-      nightMode: props.currentForm.isNight || false,
-      companionType: props.currentForm.companionType || ''
-    }
-    
-    const res = await reqAskChat({
-      question: question,
-      context: ctx // 传入对象给后端进行针对性回答
-    })
-    
-    messages.value.push({
-      role: 'assistant',
-      content: res.answer
-    })
-    
-    if (res.relatedTips && res.relatedTips.length > 0) {
-      quickTips.value = res.relatedTips
-    } else {
-      quickTips.value = ['成都有哪些必吃美食？', '有什么适合一日游的路线？']
-    }
-    
+    await askChatQuestion(question, buildContext())
   } catch (err) {
-    messages.value.push({
-      role: 'assistant',
-      content: '暂时无法连接到知识库，请稍后再试。'
-    })
-    quickTips.value = ['重新连接']
+    if (err && err.code === 401) {
+      ElMessage.warning('登录状态已失效，请重新登录后继续提问。')
+      goLogin()
+    }
   } finally {
-    loading.value = false
     scrollToBottom()
   }
 }
@@ -144,6 +136,25 @@ const scrollToBottom = () => {
     }
   })
 }
+
+const handleWheelScroll = (event) => {
+  const container = chatBodyRef.value
+  if (!container) return
+
+  const maxScrollTop = container.scrollHeight - container.clientHeight
+  if (maxScrollTop <= 0) return
+
+  const nextScrollTop = Math.max(0, Math.min(maxScrollTop, container.scrollTop + event.deltaY))
+  container.scrollTop = nextScrollTop
+}
+
+watch(() => chatState.messages.length, () => {
+  scrollToBottom()
+})
+
+watch(() => chatState.loading, () => {
+  scrollToBottom()
+})
 </script>
 
 <style scoped>
@@ -151,17 +162,18 @@ const scrollToBottom = () => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  min-height: 540px;
+  min-height: 0;
   background: linear-gradient(to bottom, #f8faff, #ffffff);
-  border-radius: 12px;
+  border-radius: 18px;
   border: 1px solid #e4e7ed;
   overflow: hidden;
+  box-shadow: 0 16px 32px rgba(31, 45, 61, 0.06);
 }
 
 .panel-header {
   display: flex;
   align-items: center;
-  padding: 16px 20px;
+  padding: 12px 16px;
   background: #ffffff;
   border-bottom: 1px solid #ebeef5;
 }
@@ -170,7 +182,7 @@ const scrollToBottom = () => {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #409EFF, #66b1ff);
+  background: linear-gradient(135deg, #409eff, #66b1ff);
   color: #fff;
   display: flex;
   align-items: center;
@@ -178,7 +190,7 @@ const scrollToBottom = () => {
   font-weight: bold;
   font-size: 16px;
   margin-right: 12px;
-  box-shadow: 0 4px 10px rgba(64,158,255,0.3);
+  box-shadow: 0 4px 10px rgba(64, 158, 255, 0.3);
 }
 
 .ai-title-wrap {
@@ -188,27 +200,30 @@ const scrollToBottom = () => {
 
 .panel-title {
   margin: 0;
-  font-size: 16px;
+  font-size: 15px;
   color: #303133;
   font-weight: 600;
 }
 
 .panel-subtitle {
-  font-size: 12px;
+  font-size: 11px;
   color: #909399;
   margin-top: 2px;
 }
 
 .panel-body {
   flex: 1;
-  padding: 20px;
+  min-height: 0;
+  padding: 12px 14px;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .msg-list {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 .msg-item {
@@ -227,15 +242,15 @@ const scrollToBottom = () => {
 }
 
 .bubble {
-  padding: 10px 16px;
+  padding: 8px 12px;
   border-radius: 12px;
-  font-size: 14px;
-  line-height: 1.6;
+  font-size: 13px;
+  line-height: 1.55;
   word-break: break-all;
 }
 
 .msg-user .bubble {
-  background-color: #409EFF;
+  background-color: #409eff;
   color: white;
   border-bottom-right-radius: 4px;
 }
@@ -245,18 +260,18 @@ const scrollToBottom = () => {
   color: #303133;
   border: 1px solid #ebeef5;
   border-bottom-left-radius: 4px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
 }
 
 .panel-quick-tips {
-  padding: 12px 20px;
+  padding: 8px 14px;
   background: #fafbfc;
   border-top: 1px solid #ebeef5;
 }
 
 .tips-title {
-  margin: 0 0 8px 0;
-  font-size: 12px;
+  margin: 0 0 6px 0;
+  font-size: 11px;
   color: #909399;
 }
 
@@ -271,29 +286,66 @@ const scrollToBottom = () => {
   border-radius: 14px;
   padding: 0 12px;
   border-color: #d9ecff;
-  color: #409EFF;
+  color: #409eff;
   transition: all 0.2s;
 }
 
 .tip-tag:hover {
-  background-color: #409EFF;
+  background-color: #409eff;
   color: #ffffff;
 }
 
 .panel-footer {
-  padding: 16px 20px;
+  padding: 10px 14px;
   background: #ffffff;
   border-top: 1px solid #ebeef5;
+}
+
+.login-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.login-copy {
+  margin: 0;
+  color: #6a7a8d;
+  line-height: 1.6;
+  font-size: 13px;
+}
+
+.login-btn {
+  box-shadow: 0 8px 18px rgba(64, 158, 255, 0.16);
+}
+
+@media (max-width: 991px) {
+  .home-ai-panel {
+    min-height: 420px;
+  }
 }
 
 .loading-dots span {
   animation: typing 1.4s infinite ease-in-out both;
 }
-.loading-dots span:nth-child(1) { animation-delay: -0.32s; }
-.loading-dots span:nth-child(2) { animation-delay: -0.16s; }
+
+.loading-dots span:nth-child(1) {
+  animation-delay: -0.32s;
+}
+
+.loading-dots span:nth-child(2) {
+  animation-delay: -0.16s;
+}
 
 @keyframes typing {
-  0%, 80%, 100% { transform: scale(0); opacity: 0; }
-  40% { transform: scale(1); opacity: 1; }
+  0%, 80%, 100% {
+    transform: scale(0);
+    opacity: 0;
+  }
+
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 </style>
