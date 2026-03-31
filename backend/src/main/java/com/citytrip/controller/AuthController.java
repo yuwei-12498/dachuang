@@ -2,13 +2,16 @@ package com.citytrip.controller;
 
 import com.citytrip.annotation.LoginRequired;
 import com.citytrip.common.AuthConstants;
-import com.citytrip.common.Result;
+import com.citytrip.common.UnauthorizedException;
 import com.citytrip.model.dto.LoginReqDTO;
 import com.citytrip.model.dto.RegisterReqDTO;
 import com.citytrip.model.vo.UserSessionVO;
 import com.citytrip.service.UserService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -16,7 +19,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping("/api")
 public class AuthController {
 
     private final UserService userService;
@@ -25,46 +28,38 @@ public class AuthController {
         this.userService = userService;
     }
 
-    @PostMapping("/register")
-    public Result<UserSessionVO> register(@RequestBody RegisterReqDTO req, HttpServletRequest request) {
-        try {
-            UserSessionVO vo = userService.register(req);
-            saveLoginSession(request.getSession(true), vo.getId());
-            return Result.success(vo);
-        } catch (IllegalArgumentException e) {
-            return Result.error(400, e.getMessage());
-        }
+    @PostMapping("/users")
+    public ResponseEntity<UserSessionVO> register(@RequestBody RegisterReqDTO req, HttpServletRequest request) {
+        UserSessionVO vo = userService.register(req);
+        saveLoginSession(request.getSession(true), vo.getId());
+        return ResponseEntity.status(HttpStatus.CREATED).body(vo);
     }
 
-    @PostMapping("/login")
-    public Result<UserSessionVO> login(@RequestBody LoginReqDTO req, HttpServletRequest request) {
-        try {
-            UserSessionVO vo = userService.login(req);
-            saveLoginSession(request.getSession(true), vo.getId());
-            return Result.success(vo);
-        } catch (IllegalArgumentException e) {
-            return Result.error(401, e.getMessage());
-        }
+    @PostMapping("/sessions")
+    public UserSessionVO login(@RequestBody LoginReqDTO req, HttpServletRequest request) {
+        UserSessionVO vo = userService.login(req);
+        saveLoginSession(request.getSession(true), vo.getId());
+        return vo;
     }
 
-    @PostMapping("/logout")
-    public Result<Void> logout(HttpSession session) {
+    @DeleteMapping("/sessions/current")
+    public ResponseEntity<Void> logout(HttpSession session) {
         if (session != null) {
             session.invalidate();
         }
-        return Result.success();
+        return ResponseEntity.noContent().build();
     }
 
     @LoginRequired
-    @GetMapping("/me")
-    public Result<UserSessionVO> me(HttpSession session) {
+    @GetMapping("/users/me")
+    public UserSessionVO me(HttpSession session) {
         Long userId = (Long) session.getAttribute(AuthConstants.LOGIN_USER_ID);
         UserSessionVO vo = userService.getSessionUser(userId);
         if (vo == null) {
             session.invalidate();
-            return Result.error(401, "登录状态已失效，请重新登录");
+            throw new UnauthorizedException("登录状态已失效，请重新登录");
         }
-        return Result.success(vo);
+        return vo;
     }
 
     private void saveLoginSession(HttpSession session, Long userId) {

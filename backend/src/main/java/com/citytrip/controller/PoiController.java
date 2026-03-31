@@ -1,31 +1,53 @@
 package com.citytrip.controller;
 
-import com.citytrip.common.Result;
+import com.citytrip.common.NotFoundException;
 import com.citytrip.model.entity.Poi;
 import com.citytrip.service.PoiService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/poi")
+@RequestMapping("/api/pois")
 public class PoiController {
 
-    @Autowired
-    private PoiService poiService;
+    private final PoiService poiService;
 
-    @GetMapping("/list")
-    public Result<List<Poi>> list() {
-        return Result.success(poiService.list());
+    public PoiController(PoiService poiService) {
+        this.poiService = poiService;
+    }
+
+    @GetMapping
+    public List<Poi> list(@RequestParam(value = "tripDate", required = false) String tripDate) {
+        List<Poi> pois = poiService.list();
+        poiService.enrichOperatingStatus(pois, parseTripDate(tripDate));
+        return pois;
     }
 
     @GetMapping("/{id}")
-    public Result<Poi> detail(@PathVariable("id") Long id) {
-        Poi poi = poiService.getById(id);
+    public Poi detail(@PathVariable("id") Long id,
+                      @RequestParam(value = "tripDate", required = false) String tripDate) {
+        Poi poi = poiService.getDetailWithStatus(id, parseTripDate(tripDate));
         if (poi == null) {
-            return Result.error("未找到对应景点信息");
+            throw new NotFoundException("未找到对应景点。");
         }
-        return Result.success(poi);
+        return poi;
+    }
+
+    private LocalDate parseTripDate(String tripDate) {
+        if (tripDate == null || tripDate.isBlank()) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(tripDate);
+        } catch (DateTimeParseException ex) {
+            return null;
+        }
     }
 }

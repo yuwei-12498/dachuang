@@ -16,6 +16,14 @@
 
       <div class="navbar-right">
         <el-button
+          v-if="authState.user && !isHistory"
+          round
+          class="ghost-btn"
+          @click="goHistory">
+          历史行程
+        </el-button>
+
+        <el-button
           v-if="isHome"
           type="primary"
           round
@@ -48,6 +56,9 @@
               <el-dropdown-item disabled>
                 当前账号：{{ authState.user.username }}
               </el-dropdown-item>
+              <el-dropdown-item command="history">
+                历史行程与收藏
+              </el-dropdown-item>
               <el-dropdown-item command="logout" divided>
                 退出登录
               </el-dropdown-item>
@@ -79,6 +90,7 @@ const router = useRouter()
 const authState = useAuthState()
 
 const isHome = computed(() => route.path === '/')
+const isHistory = computed(() => route.path === '/history')
 const displayName = computed(() => authState.user?.nickname || authState.user?.username || '')
 const userInitial = computed(() => {
   const value = displayName.value
@@ -103,14 +115,23 @@ const goAuth = () => {
   })
 }
 
+const goHistory = () => {
+  router.push('/history')
+}
+
 const handleUserCommand = async (command) => {
+  if (command === 'history') {
+    goHistory()
+    return
+  }
+
   if (command !== 'logout') {
     return
   }
 
   await clearAuthUser()
   ElMessage.success('已退出登录')
-  if (route.path === '/auth') {
+  if (route.path !== '/') {
     router.replace('/')
   }
 }

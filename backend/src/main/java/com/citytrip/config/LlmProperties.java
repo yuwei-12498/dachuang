@@ -4,8 +4,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "llm")
 public class LlmProperties {
-    private String provider = "low";
-    private boolean fallbackToMock = true;
+    private String provider = "real";
+    private boolean fallbackToMock = false;
     private int timeoutSeconds = 20;
     private OpenAiProperties openai = new OpenAiProperties();
 

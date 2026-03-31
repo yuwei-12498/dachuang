@@ -15,6 +15,12 @@ const routes = [
     meta: { title: '您的专属行程', requiresAuth: true }
   },
   {
+    path: '/history',
+    name: 'History',
+    component: () => import('@/views/History.vue'),
+    meta: { title: '历史行程与收藏', requiresAuth: true }
+  },
+  {
     path: '/auth',
     name: 'Auth',
     component: () => import('@/views/Auth.vue'),

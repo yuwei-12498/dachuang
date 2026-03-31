@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 
 @Data
@@ -22,6 +23,11 @@ public class Poi {
     private BigDecimal longitude;
     private LocalTime openTime;
     private LocalTime closeTime;
+    private String closedWeekdays;
+    private Integer temporarilyClosed;
+    private String statusNote;
+    private String statusSource;
+    private LocalDateTime statusUpdatedAt;
     private BigDecimal avgCost;
     private Integer stayDuration;
     private Integer indoor;
@@ -35,4 +41,16 @@ public class Poi {
 
     @TableField(exist = false)
     private Double tempScore;
+
+    @TableField(exist = false)
+    private String operatingStatus;
+
+    @TableField(exist = false)
+    private Boolean availableOnTripDate;
+
+    @TableField(exist = false)
+    private Boolean statusStale;
+
+    @TableField(exist = false)
+    private String availabilityNote;
 }

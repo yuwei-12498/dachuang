@@ -1,6 +1,7 @@
 package com.citytrip.service;
 
 import com.citytrip.model.dto.ChatReqDTO;
+import com.citytrip.model.vo.ChatStatusVO;
 import com.citytrip.model.vo.ChatVO;
 
 /**
@@ -8,4 +9,6 @@ import com.citytrip.model.vo.ChatVO;
  */
 public interface ChatService {
     ChatVO answerQuestion(ChatReqDTO req);
+
+    ChatStatusVO getStatus();
 }

@@ -2,157 +2,173 @@
   <section class="core-section" id="core">
     <div class="core-container">
       <div class="section-header text-center">
-        <h2 class="section-title">定制专属行程</h2>
-        <p class="section-subtitle">告诉我们你的时间、预算和偏好，我们会为你整理一条更顺路、更省心的成都玩法。</p>
+        <h2 class="section-title">{{ text.title }}</h2>
+        <p class="section-subtitle">{{ text.subtitle }}</p>
       </div>
 
       <div class="main-card">
         <el-row :gutter="28" class="core-layout">
-          <!-- 左侧：表单配置区 -->
           <el-col :md="14" :lg="15" class="form-col">
             <div ref="formPaneRef" class="form-pane">
-            <el-form ref="formRef" :model="form" :rules="rules" label-position="top" class="custom-form">
-              
-              <!-- ================= 第1组：基础信息 ================= -->
-              <div class="form-section">
-                <div class="sub-section-title">基础时间分配</div>
-                <el-row :gutter="24">
-                  <el-col :xs="24" :sm="12">
-                    <el-form-item label="出行模板推荐" prop="tripDays">
-                      <el-radio-group v-model="form.tripDays" class="full-width-radio">
-                        <el-radio-button :label="0.5">半天闲逛</el-radio-button>
-                        <el-radio-button :label="1.0">全天游玩</el-radio-button>
-                        <el-radio-button :label="2.0">两日深度</el-radio-button>
-                      </el-radio-group>
-                    </el-form-item>
-                  </el-col>
-                  <el-col :xs="24" :sm="12">
-                    <el-row :gutter="8">
-                      <el-col :span="12">
-                        <el-form-item label="每日出发时间" prop="startTime">
-                          <el-time-select
-                            v-model="form.startTime"
-                            start="06:00"
-                            step="00:30"
-                            end="14:00"
-                            placeholder="出发时间"
-                            style="width: 100%"
+              <el-form ref="formRef" :model="form" :rules="rules" label-position="top" class="custom-form">
+                <div class="form-section">
+                  <div class="sub-section-title">{{ text.sectionBasic }}</div>
+                  <el-row :gutter="24">
+                    <el-col :xs="24" :sm="12">
+                      <el-form-item :label="text.tripMode" prop="tripDays">
+                        <el-radio-group v-model="form.tripDays" class="full-width-radio">
+                          <el-radio-button
+                            v-for="option in tripDayOptions"
+                            :key="option.value"
+                            :label="option.value"
+                          >
+                            {{ option.label }}
+                          </el-radio-button>
+                        </el-radio-group>
+                      </el-form-item>
+                    </el-col>
+                    <el-col :xs="24" :sm="12">
+                      <el-form-item :label="text.tripDate" prop="tripDate">
+                        <el-date-picker
+                          v-model="form.tripDate"
+                          type="date"
+                          value-format="YYYY-MM-DD"
+                          :placeholder="text.tripDatePlaceholder"
+                          style="width: 100%"
+                        />
+                      </el-form-item>
+                    </el-col>
+                  </el-row>
+
+                  <el-row :gutter="24">
+                    <el-col :xs="24" :sm="12">
+                      <el-form-item :label="text.startTime" prop="startTime">
+                        <el-time-select
+                          v-model="form.startTime"
+                          start="06:00"
+                          step="00:30"
+                          end="14:00"
+                          :placeholder="text.startTime"
+                          style="width: 100%"
+                        />
+                      </el-form-item>
+                    </el-col>
+                    <el-col :xs="24" :sm="12">
+                      <el-form-item :label="text.endTime" prop="endTime">
+                        <el-time-select
+                          v-model="form.endTime"
+                          :min-time="form.startTime"
+                          start="11:00"
+                          step="00:30"
+                          end="23:30"
+                          :placeholder="text.endTime"
+                          style="width: 100%"
+                        />
+                      </el-form-item>
+                    </el-col>
+                  </el-row>
+
+                  <el-row :gutter="24">
+                    <el-col :xs="24" :sm="12">
+                      <el-form-item :label="text.budget" prop="budgetLevel">
+                        <el-select v-model="form.budgetLevel" :placeholder="text.budgetPlaceholder" style="width: 100%">
+                          <el-option
+                            v-for="option in budgetOptions"
+                            :key="option.value"
+                            :label="option.label"
+                            :value="option.value"
                           />
-                        </el-form-item>
-                      </el-col>
-                      <el-col :span="12">
-                        <el-form-item label="每日结束回家" prop="endTime">
-                          <el-time-select
-                            v-model="form.endTime"
-                            :min-time="form.startTime"
-                            start="11:00"
-                            step="00:30"
-                            end="23:30"
-                            placeholder="结束时间"
-                            style="width: 100%"
-                          />
-                        </el-form-item>
-                      </el-col>
-                    </el-row>
-                  </el-col>
-                </el-row>
-
-                <el-row :gutter="24">
-                  <el-col :xs="24" :sm="12">
-                    <el-form-item label="预算等级" prop="budgetLevel">
-                      <el-select v-model="form.budgetLevel" placeholder="选择预算等级" style="width: 100%">
-                        <el-option label="低 (0~100元/人)" value="低" />
-                        <el-option label="中 (100~300元/人)" value="中" />
-                        <el-option label="高 (300元以上/人)" value="高" />
-                      </el-select>
-                    </el-form-item>
-                  </el-col>
-                </el-row>
-              </div>
-
-              <el-divider border-style="dashed" />
-
-              <!-- ================= 第2组：偏好设置 ================= -->
-              <div class="form-section">
-                <div class="sub-section-title">偏好设置</div>
-                
-                <el-form-item label="主题偏好 (可多选)" prop="themes">
-                  <el-checkbox-group v-model="form.themes" class="theme-checkbox-group">
-                    <el-checkbox-button label="文化">历史文化</el-checkbox-button>
-                    <el-checkbox-button label="美食">特色美食</el-checkbox-button>
-                    <el-checkbox-button label="自然">自然风光</el-checkbox-button>
-                    <el-checkbox-button label="购物">商业购物</el-checkbox-button>
-                    <el-checkbox-button label="网红">网红打卡</el-checkbox-button>
-                    <el-checkbox-button label="休闲">休闲放松</el-checkbox-button>
-                  </el-checkbox-group>
-                </el-form-item>
-
-                <el-row :gutter="24" class="compact-row">
-                  <el-col :xs="24" :sm="12">
-                    <el-form-item label="同行类型" prop="companionType">
-                      <el-radio-group v-model="form.companionType">
-                        <el-radio label="独自" border>独自漫游</el-radio>
-                        <el-radio label="朋友" border>三五好友</el-radio>
-                        <el-radio label="情侣" border>情侣约会</el-radio>
-                        <el-radio label="亲子" border>家庭亲子</el-radio>
-                      </el-radio-group>
-                    </el-form-item>
-                  </el-col>
-                  <el-col :xs="24" :sm="12">
-                    <el-form-item label="步行强度期望" prop="walkingLevel">
-                      <el-radio-group v-model="form.walkingLevel">
-                        <el-radio label="低">低 (少走路、多休息)</el-radio>
-                        <el-radio label="中">中 (正常散步游览)</el-radio>
-                        <el-radio label="高">高 (能走、接受爬山)</el-radio>
-                      </el-radio-group>
-                    </el-form-item>
-                  </el-col>
-                </el-row>
-              </div>
-
-              <el-divider border-style="dashed" />
-
-              <!-- ================= 第3组：场景设置 ================= -->
-              <div class="form-section">
-                <div class="sub-section-title">场景探索</div>
-                <el-row :gutter="24">
-                  <el-col :xs="24" :sm="12">
-                    <el-form-item label="是否遭遇雨天?" class="switch-item">
-                      <el-switch v-model="form.isRainy" active-text="优先安排室内" inactive-text="晴天出行" />
-                    </el-form-item>
-                  </el-col>
-                  <el-col :xs="24" :sm="12">
-                    <el-form-item label="是否体验夜游?" class="switch-item">
-                      <el-switch v-model="form.isNight" active-text="需要夜跑/夜市" inactive-text="傍晚结束" />
-                    </el-form-item>
-                  </el-col>
-                </el-row>
-              </div>
-
-              <!-- ================= 底部操作 ================= -->
-              <div class="form-actions">
-                <div v-if="!authState.user" class="login-reminder">
-                  登录后即可生成专属行程，我们会根据你的偏好给出更贴合的游玩建议。
+                        </el-select>
+                      </el-form-item>
+                    </el-col>
+                  </el-row>
                 </div>
-                <el-button 
-                  type="primary" 
-                  size="large" 
-                  class="submit-btn" 
-                  @click="onSubmit" 
-                  :loading="loading">
-                  {{ authState.user ? '开始生成行程' : '登录后开启行程推荐' }}
-                </el-button>
-              </div>
 
-            </el-form>
+                <el-divider border-style="dashed" />
+
+                <div class="form-section">
+                  <div class="sub-section-title">{{ text.sectionPreference }}</div>
+
+                  <el-form-item :label="text.themes" prop="themes">
+                    <el-checkbox-group v-model="form.themes" class="theme-checkbox-group">
+                      <el-checkbox-button
+                        v-for="option in themeOptions"
+                        :key="option.value"
+                        :label="option.value"
+                      >
+                        {{ option.label }}
+                      </el-checkbox-button>
+                    </el-checkbox-group>
+                  </el-form-item>
+
+                  <el-row :gutter="24" class="compact-row">
+                    <el-col :xs="24" :sm="12">
+                      <el-form-item :label="text.companion" prop="companionType">
+                        <el-radio-group v-model="form.companionType">
+                          <el-radio
+                            v-for="option in companionOptions"
+                            :key="option.value"
+                            :label="option.value"
+                            border
+                          >
+                            {{ option.label }}
+                          </el-radio>
+                        </el-radio-group>
+                      </el-form-item>
+                    </el-col>
+                    <el-col :xs="24" :sm="12">
+                      <el-form-item :label="text.walking" prop="walkingLevel">
+                        <el-radio-group v-model="form.walkingLevel">
+                          <el-radio
+                            v-for="option in walkingOptions"
+                            :key="option.value"
+                            :label="option.value"
+                          >
+                            {{ option.label }}
+                          </el-radio>
+                        </el-radio-group>
+                      </el-form-item>
+                    </el-col>
+                  </el-row>
+                </div>
+
+                <el-divider border-style="dashed" />
+
+                <div class="form-section">
+                  <div class="sub-section-title">{{ text.sectionScene }}</div>
+                  <el-row :gutter="24">
+                    <el-col :xs="24" :sm="12">
+                      <el-form-item :label="text.rainy" class="switch-item">
+                        <el-switch v-model="form.isRainy" :active-text="text.rainyOn" :inactive-text="text.rainyOff" />
+                      </el-form-item>
+                    </el-col>
+                    <el-col :xs="24" :sm="12">
+                      <el-form-item :label="text.night" class="switch-item">
+                        <el-switch v-model="form.isNight" :active-text="text.nightOn" :inactive-text="text.nightOff" />
+                      </el-form-item>
+                    </el-col>
+                  </el-row>
+                </div>
+
+                <div class="form-actions">
+                  <div v-if="!authState.user" class="login-reminder">{{ text.loginReminder }}</div>
+                  <el-button
+                    type="primary"
+                    size="large"
+                    class="submit-btn"
+                    @click="onSubmit"
+                    :loading="loading"
+                  >
+                    {{ authState.user ? text.submit : text.submitNeedLogin }}
+                  </el-button>
+                </div>
+              </el-form>
             </div>
           </el-col>
-          
-          <!-- 右侧：独立的 AI旅行助手 模块 -->
+
           <el-col :md="10" :lg="9" class="ai-panel-col">
             <HomeAiPanel :currentForm="form" :style="aiPanelStyle" />
           </el-col>
-
         </el-row>
       </div>
     </div>
@@ -166,6 +182,76 @@ import { ElMessage } from 'element-plus'
 import { reqGenerateItinerary } from '@/api/itinerary'
 import HomeAiPanel from '@/components/HomeAiPanel.vue'
 import { useAuthState } from '@/store/auth'
+import { getDefaultTripDate, saveItinerarySnapshot } from '@/store/itinerary'
+
+const text = {
+  title: '\u5B9A\u5236\u4E13\u5C5E\u884C\u7A0B',
+  subtitle: '\u544A\u8BC9\u6211\u4EEC\u4F60\u7684\u65F6\u95F4\u3001\u9884\u7B97\u548C\u504F\u597D\uFF0C\u7CFB\u7EDF\u4F1A\u5E2E\u4F60\u6574\u7406\u4E00\u6761\u66F4\u987A\u8DEF\u3001\u66F4\u7701\u5FC3\u7684\u6210\u90FD\u73A9\u6CD5\u3002',
+  sectionBasic: '\u57FA\u7840\u65F6\u95F4\u5B89\u6392',
+  sectionPreference: '\u504F\u597D\u8BBE\u7F6E',
+  sectionScene: '\u573A\u666F\u63A2\u7D22',
+  tripMode: '\u51FA\u884C\u6A21\u5F0F',
+  tripDate: '\u51FA\u884C\u65E5\u671F',
+  tripDatePlaceholder: '\u9009\u62E9\u51FA\u884C\u65E5\u671F',
+  startTime: '\u51FA\u53D1\u65F6\u95F4',
+  endTime: '\u7ED3\u675F\u65F6\u95F4',
+  budget: '\u9884\u7B97\u7B49\u7EA7',
+  budgetPlaceholder: '\u9009\u62E9\u9884\u7B97\u7B49\u7EA7',
+  themes: '\u4E3B\u9898\u504F\u597D\uFF08\u53EF\u591A\u9009\uFF09',
+  companion: '\u540C\u884C\u7C7B\u578B',
+  walking: '\u6B65\u884C\u5F3A\u5EA6',
+  rainy: '\u662F\u5426\u9047\u5230\u96E8\u5929',
+  rainyOn: '\u4F18\u5148\u5B89\u6392\u5BA4\u5185',
+  rainyOff: '\u6674\u5929\u51FA\u884C',
+  night: '\u662F\u5426\u4F53\u9A8C\u591C\u6E38',
+  nightOn: '\u9700\u8981\u591C\u666F / \u591C\u5E02',
+  nightOff: '\u508D\u665A\u7ED3\u675F',
+  loginReminder: '\u767B\u5F55\u540E\u5373\u53EF\u751F\u6210\u4E13\u5C5E\u884C\u7A0B\uFF0C\u7CFB\u7EDF\u4F1A\u6839\u636E\u4F60\u7684\u504F\u597D\u7ED9\u51FA\u66F4\u8D34\u5408\u7684\u6E38\u73A9\u5EFA\u8BAE\u3002',
+  submit: '\u5F00\u59CB\u751F\u6210\u884C\u7A0B',
+  submitNeedLogin: '\u767B\u5F55\u540E\u5F00\u542F\u884C\u7A0B\u63A8\u8350',
+  dateRequired: '\u8BF7\u9009\u62E9\u51FA\u884C\u65E5\u671F',
+  themeRequired: '\u8BF7\u81F3\u5C11\u9009\u62E9\u4E00\u4E2A\u504F\u597D\u4E3B\u9898',
+  startRequired: '\u8BF7\u9009\u62E9\u51FA\u53D1\u65F6\u95F4',
+  endRequired: '\u8BF7\u9009\u62E9\u7ED3\u675F\u65F6\u95F4',
+  loginWarning: '\u767B\u5F55\u540E\u624D\u80FD\u751F\u6210\u4E13\u5C5E\u884C\u7A0B\u3002',
+  timeoutError: '\u884C\u7A0B\u751F\u6210\u8D85\u65F6\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5\u3002',
+  authExpired: '\u767B\u5F55\u72B6\u6001\u5DF2\u5931\u6548\uFF0C\u8BF7\u91CD\u65B0\u767B\u5F55\u540E\u518D\u7EE7\u7EED\u89C4\u5212\u3002',
+  generateFailed: '\u751F\u6210\u5931\u8D25\uFF0C\u8BF7\u68C0\u67E5\u7F51\u7EDC\u540E\u91CD\u8BD5\u3002'
+}
+
+const tripDayOptions = [
+  { label: '\u534A\u5929\u95F2\u901B', value: 0.5 },
+  { label: '\u5168\u5929\u6E38\u73A9', value: 1.0 },
+  { label: '\u4E24\u65E5\u6DF1\u5EA6', value: 2.0 }
+]
+
+const budgetOptions = [
+  { label: '\u4F4E\u9884\u7B97\uFF080~100\u5143/\u4EBA\uFF09', value: '\u4F4E' },
+  { label: '\u4E2D\u9884\u7B97\uFF08100~300\u5143/\u4EBA\uFF09', value: '\u4E2D' },
+  { label: '\u9AD8\u9884\u7B97\uFF08300\u5143\u4EE5\u4E0A/\u4EBA\uFF09', value: '\u9AD8' }
+]
+
+const themeOptions = [
+  { label: '\u5386\u53F2\u6587\u5316', value: '\u6587\u5316' },
+  { label: '\u7279\u8272\u7F8E\u98DF', value: '\u7F8E\u98DF' },
+  { label: '\u81EA\u7136\u98CE\u5149', value: '\u81EA\u7136' },
+  { label: '\u5546\u4E1A\u8D2D\u7269', value: '\u8D2D\u7269' },
+  { label: '\u7F51\u7EA2\u6253\u5361', value: '\u7F51\u7EA2' },
+  { label: '\u4F11\u95F2\u653E\u677E', value: '\u4F11\u95F2' }
+]
+
+const companionOptions = [
+  { label: '\u72EC\u81EA\u6F2B\u6E38', value: '\u72EC\u81EA' },
+  { label: '\u4E09\u4E94\u597D\u53CB', value: '\u670B\u53CB' },
+  { label: '\u60C5\u4FA3\u7EA6\u4F1A', value: '\u60C5\u4FA3' },
+  { label: '\u5BB6\u5EAD\u4EB2\u5B50', value: '\u4EB2\u5B50' }
+]
+
+const walkingOptions = [
+  { label: '\u4F4E\uFF08\u5C11\u8D70\u8DEF\u3001\u591A\u4F11\u606F\uFF09', value: '\u4F4E' },
+  { label: '\u4E2D\uFF08\u6B63\u5E38\u6563\u6B65\u6E38\u89C8\uFF09', value: '\u4E2D' },
+  { label: '\u9AD8\uFF08\u80FD\u8D70\u3001\u63A5\u53D7\u722C\u5C71\uFF09', value: '\u9AD8' }
+]
 
 const route = useRoute()
 const router = useRouter()
@@ -178,49 +264,35 @@ let formPaneObserver = null
 
 const form = reactive({
   tripDays: 1.0,
+  tripDate: getDefaultTripDate(),
   startTime: '09:00',
   endTime: '18:00',
-  budgetLevel: '中',
+  budgetLevel: '\u4E2D',
   themes: [],
   isRainy: false,
   isNight: true,
-  walkingLevel: '中',
-  companionType: '朋友'
+  walkingLevel: '\u4E2D',
+  companionType: '\u670B\u53CB'
 })
 
 const rules = {
-  themes: [
-    { type: 'array', required: true, message: '请至少选择一个偏好主题', trigger: 'change' }
-  ],
-  startTime: [
-    { required: true, message: '请选择出发时间', trigger: 'change' }
-  ],
-  endTime: [
-    { required: true, message: '请选择结束时间', trigger: 'change' }
-  ]
+  tripDate: [{ required: true, message: text.dateRequired, trigger: 'change' }],
+  themes: [{ type: 'array', required: true, message: text.themeRequired, trigger: 'change' }],
+  startTime: [{ required: true, message: text.startRequired, trigger: 'change' }],
+  endTime: [{ required: true, message: text.endRequired, trigger: 'change' }]
 }
 
 const syncPanelHeight = () => {
-  if (typeof window === 'undefined') {
-    return
-  }
-
+  if (typeof window === 'undefined') return
   if (window.innerWidth < 992 || !formPaneRef.value) {
     panelHeight.value = 0
     return
   }
-
   panelHeight.value = Math.ceil(formPaneRef.value.getBoundingClientRect().height)
 }
 
 const aiPanelStyle = computed(() => {
-  if (!panelHeight.value) {
-    return {}
-  }
-
-  return {
-    height: `${panelHeight.value}px`
-  }
+  return panelHeight.value ? { height: `${panelHeight.value}px` } : {}
 })
 
 watch(() => form.tripDays, (newVal) => {
@@ -234,27 +306,18 @@ watch(() => form.tripDays, (newVal) => {
 })
 
 watch(() => form.endTime, (newVal) => {
-  if (newVal) {
-    const hour = parseInt(newVal.split(':')[0])
-    if (hour >= 19) {
-      form.isNight = true
-    } else {
-      form.isNight = false
-    }
-  }
+  if (!newVal) return
+  const hour = parseInt(newVal.split(':')[0], 10)
+  form.isNight = hour >= 19
 })
 
 onMounted(() => {
   nextTick(syncPanelHeight)
-
   if (typeof window !== 'undefined') {
     window.addEventListener('resize', syncPanelHeight)
   }
-
   if (typeof ResizeObserver !== 'undefined' && formPaneRef.value) {
-    formPaneObserver = new ResizeObserver(() => {
-      syncPanelHeight()
-    })
+    formPaneObserver = new ResizeObserver(syncPanelHeight)
     formPaneObserver.observe(formPaneRef.value)
   }
 })
@@ -263,7 +326,6 @@ onBeforeUnmount(() => {
   if (typeof window !== 'undefined') {
     window.removeEventListener('resize', syncPanelHeight)
   }
-
   if (formPaneObserver) {
     formPaneObserver.disconnect()
     formPaneObserver = null
@@ -272,46 +334,38 @@ onBeforeUnmount(() => {
 
 const onSubmit = async () => {
   if (!authState.user) {
-    ElMessage.warning('登录后即可生成专属行程，我们会为你推荐更顺路、更贴心的玩法。')
+    ElMessage.warning(text.loginWarning)
     router.push({
       path: '/auth',
-      query: {
-        redirect: route.fullPath
-      }
+      query: { redirect: route.fullPath }
     })
     return
   }
 
   if (!formRef.value) return
-  await formRef.value.validate(async (valid) => {
-    if (valid) {
-      loading.value = true
-      try {
-        const responseData = await reqGenerateItinerary(form)
-        sessionStorage.setItem('current_itinerary', JSON.stringify(responseData))
-        sessionStorage.setItem('original_req_form', JSON.stringify(form))
-        router.push('/result')
-      } catch (err) {
-        // 区分超时错误和其他错误，给用户更明确的提示
-        if (err && err.code === 'ECONNABORTED') {
-          ElMessage.error('行程生成超时，AI 正在努力思考中，请稍后重试～')
-        } else if (err && err.code === 401) {
-          ElMessage.warning('登录状态已失效，请重新登录后再继续规划。')
-          router.push({
-            path: '/auth',
-            query: {
-              redirect: route.fullPath
-            }
-          })
-        } else if (err && err.message) {
-          // 接口业务错误（非 200）已由 request.js 拦截器弹出，此处兜底
-          ElMessage.error('生成失败，请检查网络后重试')
-        }
-      } finally {
-        loading.value = false
-      }
+  const valid = await formRef.value.validate().catch(() => false)
+  if (!valid) return
+
+  loading.value = true
+  try {
+    const responseData = await reqGenerateItinerary(form)
+    saveItinerarySnapshot(responseData)
+    router.push('/result')
+  } catch (err) {
+    if (err && err.code === 'ECONNABORTED') {
+      ElMessage.error(text.timeoutError)
+    } else if (err && err.code === 401) {
+      ElMessage.warning(text.authExpired)
+      router.push({
+        path: '/auth',
+        query: { redirect: route.fullPath }
+      })
+    } else {
+      ElMessage.error(text.generateFailed)
     }
-  })
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 
@@ -344,10 +398,8 @@ const onSubmit = async () => {
 .section-subtitle {
   font-size: 14px;
   color: #606266;
-  margin: 0;
+  margin: 0 auto;
   max-width: 680px;
-  margin-left: auto;
-  margin-right: auto;
   line-height: 1.6;
 }
 
@@ -377,16 +429,13 @@ const onSubmit = async () => {
   }
 }
 
-.custom-form {
-  width: 100%;
-}
-
-.form-pane {
+.custom-form,
+.form-pane,
+.ai-panel-col :deep(.home-ai-panel) {
   width: 100%;
 }
 
 .ai-panel-col :deep(.home-ai-panel) {
-  width: 100%;
   min-height: 0;
 }
 
@@ -450,10 +499,10 @@ const onSubmit = async () => {
 .theme-checkbox-group :deep(.el-checkbox-button__inner) {
   border-radius: 4px !important;
   border: 1px solid #dcdfe6;
-   margin-right: 8px;
-   margin-bottom: 8px;
-   padding: 8px 14px;
-   box-shadow: none !important;
+  margin-right: 8px;
+  margin-bottom: 8px;
+  padding: 8px 14px;
+  box-shadow: none !important;
 }
 
 .theme-checkbox-group :deep(.el-checkbox-button.is-checked .el-checkbox-button__inner) {
@@ -514,6 +563,7 @@ const onSubmit = async () => {
   .main-card {
     padding: 20px 16px;
   }
+
   .submit-btn {
     width: 100%;
   }

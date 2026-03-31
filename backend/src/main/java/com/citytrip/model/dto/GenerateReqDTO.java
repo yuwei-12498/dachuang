@@ -7,6 +7,7 @@ import java.util.List;
 @Data
 public class GenerateReqDTO {
     private Double tripDays;
+    private String tripDate;
     private String budgetLevel;
     private List<String> themes;
     private Boolean isRainy;

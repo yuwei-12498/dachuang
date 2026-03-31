@@ -1,17 +1,16 @@
 import request from './request'
 
-// 1. 分页或查询所有点位 (预留)
 export function reqGetPoiList() {
   return request({
-    url: '/api/poi/list',
+    url: '/api/pois',
     method: 'get'
   })
 }
 
-// 2. 查询单一 POI 详情
-export function reqGetPoiDetail(id) {
+export function reqGetPoiDetail(id, tripDate) {
   return request({
-    url: `/api/poi/${id}`,
-    method: 'get'
+    url: `/api/pois/${id}`,
+    method: 'get',
+    params: tripDate ? { tripDate } : {}
   })
 }

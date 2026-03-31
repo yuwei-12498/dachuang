@@ -1,5 +1,7 @@
 package com.citytrip.service.impl;
 
+import com.citytrip.common.BadRequestException;
+import com.citytrip.common.UnauthorizedException;
 import com.citytrip.mapper.UserMapper;
 import com.citytrip.model.dto.LoginReqDTO;
 import com.citytrip.model.dto.RegisterReqDTO;
@@ -29,7 +31,7 @@ public class UserServiceImpl implements UserService {
 
         User existing = userMapper.selectByUsername(username);
         if (existing != null) {
-            throw new IllegalArgumentException("用户名已存在");
+            throw new BadRequestException("用户名已存在");
         }
 
         String salt = PasswordUtils.generateSalt();
@@ -48,17 +50,17 @@ public class UserServiceImpl implements UserService {
         String password = req == null ? null : req.getPassword();
 
         if (!StringUtils.hasText(username) || !StringUtils.hasText(password)) {
-            throw new IllegalArgumentException("用户名和密码不能为空");
+            throw new BadRequestException("用户名和密码不能为空");
         }
 
         User user = userMapper.selectByUsername(username);
         if (user == null) {
-            throw new IllegalArgumentException("用户名或密码错误");
+            throw new UnauthorizedException("用户名或密码错误");
         }
 
         String passwordHash = PasswordUtils.hashPassword(password, user.getPasswordSalt());
         if (!passwordHash.equals(user.getPasswordHash())) {
-            throw new IllegalArgumentException("用户名或密码错误");
+            throw new UnauthorizedException("用户名或密码错误");
         }
 
         return toSessionVO(user);
@@ -76,25 +78,25 @@ public class UserServiceImpl implements UserService {
 
     private void validateRegister(String username, String nickname, String password) {
         if (!StringUtils.hasText(username)) {
-            throw new IllegalArgumentException("用户名不能为空");
+            throw new BadRequestException("用户名不能为空");
         }
         if (!StringUtils.hasText(nickname)) {
-            throw new IllegalArgumentException("昵称不能为空");
+            throw new BadRequestException("昵称不能为空");
         }
         if (!StringUtils.hasText(password)) {
-            throw new IllegalArgumentException("密码不能为空");
+            throw new BadRequestException("密码不能为空");
         }
         if (username.length() < 4 || username.length() > 20) {
-            throw new IllegalArgumentException("用户名长度需为 4 到 20 位");
+            throw new BadRequestException("用户名长度需在 4 到 20 位之间");
         }
         if (!username.matches("^[A-Za-z0-9_]+$")) {
-            throw new IllegalArgumentException("用户名仅支持字母、数字和下划线");
+            throw new BadRequestException("用户名仅支持字母、数字和下划线");
         }
         if (nickname.length() < 2 || nickname.length() > 20) {
-            throw new IllegalArgumentException("昵称长度需为 2 到 20 位");
+            throw new BadRequestException("昵称长度需在 2 到 20 位之间");
         }
         if (password.length() < 6 || password.length() > 20) {
-            throw new IllegalArgumentException("密码长度需为 6 到 20 位");
+            throw new BadRequestException("密码长度需在 6 到 20 位之间");
         }
     }
 

@@ -2,11 +2,21 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { fileURLToPath, URL } from 'node:url'
 
-// https://vitejs.dev/config/
 export default defineConfig({
   plugins: [vue()],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vue: ['vue', 'vue-router'],
+          elementPlus: ['element-plus', '@element-plus/icons-vue'],
+          leaflet: ['leaflet']
+        }
+      }
+    }
+  },
   server: {
-    host: '0.0.0.0', // 监听所有地址，解决无法通过 localhost 访问的问题
+    host: '0.0.0.0',
     port: 3000,
     proxy: {
       '/api': {
@@ -17,6 +27,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      '@/store/chat': fileURLToPath(new URL('./src/chatStore.js', import.meta.url)),
       '@': fileURLToPath(new URL('./src', import.meta.url))
     }
   }

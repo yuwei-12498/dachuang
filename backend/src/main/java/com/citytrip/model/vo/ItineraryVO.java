@@ -1,14 +1,26 @@
 package com.citytrip.model.vo;
 
+import com.citytrip.model.dto.GenerateReqDTO;
 import lombok.Data;
+
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
 public class ItineraryVO {
-    private Integer totalDuration; // 总计耗时(分钟)
-    private BigDecimal totalCost;  // 预计总开销
-    private String recommendReason;// 大模型生成的综合推荐理由
-    private String tips;           // 大模型生成的综合友情提示
-    private List<ItineraryNodeVO> nodes; // 具体游览点位列表
+    private Long id;
+    private String customTitle;
+    private Integer totalDuration;
+    private BigDecimal totalCost;
+    private String recommendReason;
+    private String tips;
+    private Boolean favorited;
+    private LocalDateTime favoriteTime;
+    private GenerateReqDTO originalReq;
+    private List<String> alerts;
+    private LocalDateTime lastSavedAt;
+    private String selectedOptionKey;
+    private List<ItineraryOptionVO> options;
+    private List<ItineraryNodeVO> nodes;
 }

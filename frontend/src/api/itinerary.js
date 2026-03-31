@@ -1,28 +1,65 @@
 import request from './request'
 
-// 1. 生成初始行程
 export function reqGenerateItinerary(data) {
   return request({
-    url: '/api/itinerary/generate',
+    url: '/api/itineraries',
     method: 'post',
     data
   })
 }
 
-// 2. 替换某个行程点并重新生成时间轴
-export function reqReplacePoi(data) {
+export function reqListItineraries(params = {}) {
   return request({
-    url: '/api/itinerary/replace',
-    method: 'post',
+    url: '/api/itineraries',
+    method: 'get',
+    params,
+    skipErrorMessage: true
+  })
+}
+
+export function reqGetItinerary(id) {
+  return request({
+    url: `/api/itineraries/${id}`,
+    method: 'get',
+    skipErrorMessage: true
+  })
+}
+
+export async function reqGetLatestItinerary() {
+  const list = await reqListItineraries({ limit: 1 })
+  if (!Array.isArray(list) || list.length === 0) {
+    return null
+  }
+  return reqGetItinerary(list[0].id)
+}
+
+export function reqReplacePoi({ itineraryId, targetPoiId, ...data }) {
+  return request({
+    url: `/api/itineraries/${itineraryId}/nodes/${targetPoiId}/replacement`,
+    method: 'patch',
     data
   })
 }
 
-// 3.// 智能顺滑重排（多次尝试）
-export function reqReplanItinerary(data) {
+export function reqReplanItinerary({ itineraryId, ...data }) {
   return request({
-    url: '/api/itinerary/replan',
-    method: 'post',
+    url: `/api/itineraries/${itineraryId}/replan`,
+    method: 'patch',
     data
+  })
+}
+
+export function reqFavoriteItinerary(id, data = {}) {
+  return request({
+    url: `/api/itineraries/${id}/favorite`,
+    method: 'put',
+    data
+  })
+}
+
+export function reqUnfavoriteItinerary(id) {
+  return request({
+    url: `/api/itineraries/${id}/favorite`,
+    method: 'delete'
   })
 }

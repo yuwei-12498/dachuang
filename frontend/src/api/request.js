@@ -8,28 +8,23 @@ const service = axios.create({
 })
 
 service.interceptors.response.use(
-  response => {
-    const res = response.data
-    const skipErrorMessage = Boolean(response.config && response.config.skipErrorMessage)
-
-    if (res.code !== 200) {
-      if (!skipErrorMessage) {
-        ElMessage.error(res.msg || '服务端错误')
-      }
-      const error = new Error(res.msg || 'Error')
-      error.code = res.code
-      error.data = res.data
-      return Promise.reject(error)
-    }
-
-    return res.data
-  },
+  response => response.data,
   error => {
     console.error('API Error: ', error)
     const skipErrorMessage = Boolean(error.config && error.config.skipErrorMessage)
+    const status = error.response?.status
+    const message = error.response?.data?.message || error.message || '服务异常'
+
+    error.code = status || error.code
+
     if (!skipErrorMessage) {
-      ElMessage.error('网络连接异常或后端服务未启动')
+      if (status) {
+        ElMessage.error(message)
+      } else {
+        ElMessage.error('网络连接异常或后端服务未启动')
+      }
     }
+
     return Promise.reject(error)
   }
 )

@@ -1,6 +1,7 @@
 package com.citytrip.service.impl;
 
 import com.citytrip.model.dto.ChatReqDTO;
+import com.citytrip.model.vo.ChatStatusVO;
 import com.citytrip.model.vo.ChatVO;
 import com.citytrip.service.ChatService;
 import org.springframework.stereotype.Service;
@@ -10,6 +11,20 @@ import java.util.List;
 
 @Service
 public class MockChatServiceImpl implements ChatService {
+
+    @Override
+    public ChatStatusVO getStatus() {
+        ChatStatusVO vo = new ChatStatusVO();
+        vo.setProvider("mock");
+        vo.setConfigured(true);
+        vo.setRealModelAvailable(false);
+        vo.setFallbackToMock(true);
+        vo.setTimeoutSeconds(0);
+        vo.setModel("mock");
+        vo.setBaseUrl("local-mock");
+        vo.setMessage("当前聊天服务正在使用本地 Mock 响应。");
+        return vo;
+    }
 
     @Override
     public ChatVO answerQuestion(ChatReqDTO req) {

@@ -7,7 +7,6 @@ import java.util.List;
 
 @Data
 public class ReplaceReqDTO {
-    private Long targetPoiId;
     private List<ItineraryNodeVO> currentNodes;
     private GenerateReqDTO originalReq;
 }

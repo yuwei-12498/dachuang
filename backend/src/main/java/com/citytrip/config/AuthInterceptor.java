@@ -1,6 +1,7 @@
 package com.citytrip.config;
 
 import com.citytrip.annotation.LoginRequired;
+import com.citytrip.common.ApiErrorResponse;
 import com.citytrip.common.AuthConstants;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
@@ -10,8 +11,6 @@ import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.Map;
 
 @Component
 public class AuthInterceptor implements HandlerInterceptor {
@@ -40,12 +39,13 @@ public class AuthInterceptor implements HandlerInterceptor {
             return true;
         }
 
-        Map<String, Object> body = new HashMap<>();
-        body.put("code", 401);
-        body.put("msg", "请先登录");
-        body.put("data", null);
+        ApiErrorResponse body = new ApiErrorResponse(
+                HttpServletResponse.SC_UNAUTHORIZED,
+                "请先登录",
+                request.getRequestURI()
+        );
 
-        response.setStatus(HttpServletResponse.SC_OK);
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
         response.setContentType("application/json;charset=UTF-8");
         response.getWriter().write(objectMapper.writeValueAsString(body));

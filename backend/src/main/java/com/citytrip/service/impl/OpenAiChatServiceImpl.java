@@ -2,6 +2,7 @@ package com.citytrip.service.impl;
 
 import com.citytrip.config.LlmProperties;
 import com.citytrip.model.dto.ChatReqDTO;
+import com.citytrip.model.vo.ChatStatusVO;
 import com.citytrip.model.vo.ChatVO;
 import com.citytrip.service.ChatService;
 import org.slf4j.Logger;
@@ -49,6 +50,22 @@ public class OpenAiChatServiceImpl implements ChatService {
         return vo;
     }
 
+    @Override
+    public ChatStatusVO getStatus() {
+        ChatStatusVO vo = new ChatStatusVO();
+        vo.setProvider("real");
+        vo.setConfigured(llmProperties.canTryReal());
+        vo.setRealModelAvailable(llmProperties.canTryReal());
+        vo.setFallbackToMock(llmProperties.isFallbackToMock());
+        vo.setTimeoutSeconds(llmProperties.getTimeoutSeconds());
+        vo.setModel(llmProperties.getOpenai().getModel());
+        vo.setBaseUrl(llmProperties.getOpenai().getBaseUrl());
+        vo.setMessage(llmProperties.canTryReal()
+                ? "真实大模型配置已就绪。"
+                : "真实大模型配置不完整，请检查 API Key、Base URL 和模型开关。");
+        return vo;
+    }
+
     private String buildSystemPrompt() {
         return "你是“行城有数”的成都旅游智能助手。回答要自然、简洁、具体，优先结合用户上下文给出建议。"
                 + "如果信息不确定，不要编造门票价格和营业时间。"
@@ -66,7 +83,7 @@ public class OpenAiChatServiceImpl implements ChatService {
             sb.append("是否夜游：").append(Boolean.TRUE.equals(ctx.getNightMode()) ? "是" : "否").append("\n");
             sb.append("同行类型：").append(safe(ctx.getCompanionType())).append("\n");
         }
-        sb.append("请直接回答问题，并尽量给出2条适合继续追问的简短建议。");
+        sb.append("请直接回答问题，并尽量给出 2 条适合继续追问的简短建议。");
         return sb.toString();
     }
 
@@ -121,13 +138,14 @@ public class OpenAiChatServiceImpl implements ChatService {
             }
             return choice.getMessage().getContent();
         } catch (HttpStatusCodeException e) {
-            log.warn("真实大模型调用失败，HTTP状态码={}，响应体={}", e.getStatusCode().value(), e.getResponseBodyAsString());
+            log.warn("Real model request failed with status={}, body={}",
+                    e.getStatusCode().value(), e.getResponseBodyAsString());
             throw new IllegalStateException(describeHttpFailure(e), e);
         } catch (ResourceAccessException e) {
-            log.warn("真实大模型调用超时或网络异常: {}", e.getMessage());
+            log.warn("Real model request timeout or network failure: {}", e.getMessage());
             throw new IllegalStateException("OpenAI request timeout or network error", e);
         } catch (Exception e) {
-            log.warn("真实大模型调用异常: {}", e.getMessage(), e);
+            log.warn("Real model request failed: {}", e.getMessage(), e);
             throw new IllegalStateException("OpenAI request failed: " + e.getMessage(), e);
         }
     }
@@ -137,6 +155,15 @@ public class OpenAiChatServiceImpl implements ChatService {
         String body = e.getResponseBodyAsString();
         if (code == 429) {
             return "OpenAI request limited or quota exhausted";
+        }
+        if ((code == 400 || code == 404) && body != null) {
+            String lower = body.toLowerCase();
+            if (lower.contains("model")) {
+                return "OpenAI model is unavailable or unsupported";
+            }
+            if (lower.contains("api key") || lower.contains("unauthorized") || lower.contains("invalid")) {
+                return "OpenAI credentials are invalid";
+            }
         }
         if (code >= 500) {
             return "OpenAI service unavailable";
