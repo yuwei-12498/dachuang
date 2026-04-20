@@ -1,0 +1,55 @@
+<view class="admin-page">
+  <view class="top-nav">
+    <view class="nav-btn" bindtap="onSearch">刷新</view>
+    <navigator class="nav-btn" url="/pages/admin-pois/index">POI 管理</navigator>
+    <navigator class="nav-btn" url="/pages/home/index">返回首页</navigator>
+  </view>
+
+  <view class="manage-card">
+    <view class="card-title">用户信息总览</view>
+
+    <view class="filter-row">
+      <input class="search-input" placeholder="搜索用户名" value="{{searchQuery}}" bindinput="onSearchInput" confirm-type="search" bindconfirm="onSearch" />
+      <view class="search-btn" bindtap="onSearch">搜索</view>
+    </view>
+
+    <view wx:if="{{loading}}" class="loading-tip">加载中...</view>
+
+    <view wx:if="{{!loading && tableData.length}}" class="table-wrap">
+      <view wx:for="{{tableData}}" wx:key="id" class="table-row">
+        <view class="row-head">
+          <text>#{{item.id}} {{item.username}}</text>
+          <text class="badge {{item.role === 1 ? 'danger' : ''}}">{{item.role === 1 ? "管理员" : "普通用户"}}</text>
+        </view>
+        <view class="row-sub">昵称：{{item.nickname || "--"}} · 注册：{{item.createTime || "--"}}</view>
+        <view class="row-sub">状态：{{item.status === 1 ? "正常" : "已冻结"}}</view>
+        <view class="action-row">
+          <view
+            wx:if="{{item.status === 1 && item.role !== 1}}"
+            class="action-btn freeze"
+            data-id="{{item.id}}"
+            data-username="{{item.username}}"
+            data-status="0"
+            bindtap="toggleStatus"
+          >冻结账号</view>
+          <view
+            wx:if="{{item.status !== 1}}"
+            class="action-btn unfreeze"
+            data-id="{{item.id}}"
+            data-username="{{item.username}}"
+            data-status="1"
+            bindtap="toggleStatus"
+          >解封账号</view>
+        </view>
+      </view>
+    </view>
+
+    <view wx:if="{{!loading && !tableData.length}}" class="empty-tip">暂无用户数据</view>
+
+    <view class="pager">
+      <view class="pager-btn" bindtap="prevPage">上一页</view>
+      <text>第 {{currentPage}} 页 / 共 {{maxPage}} 页</text>
+      <view class="pager-btn" bindtap="nextPage">下一页</view>
+    </view>
+  </view>
+</view>

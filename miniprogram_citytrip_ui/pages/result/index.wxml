@@ -1,0 +1,144 @@
+<view class="result-page page-shell">
+  <view wx:if="{{itinerary}}" class="result-shell">
+    <view class="hero-card">
+      <view class="hero-main">
+        <text class="eyebrow">你的已保存行程</text>
+        <text class="hero-title">{{heroTitleText}}</text>
+        <text class="hero-copy">{{heroDateText}}</text>
+      </view>
+      <view class="hero-actions">
+        <view class="pill" bindtap="goBack">返回首页</view>
+        <view class="pill" bindtap="goHistory">历史行程</view>
+        <view class="pill {{itinerary.favorited ? 'warning' : ''}} {{favoriteLoading ? 'disabled' : ''}}" bindtap="handleFavorite">{{favoriteLoading ? (itinerary.favorited ? "取消中..." : "收藏中...") : (itinerary.favorited ? "取消收藏" : "收藏行程")}}</view>
+        <view class="pill primary {{replanning ? 'disabled' : ''}}" bindtap="handleReplan">{{replanning ? "重排中..." : "换一版路线"}}</view>
+      </view>
+    </view>
+
+    <view wx:if="{{displayOptions.length}}" class="option-panel">
+      <view class="panel-header">
+        <view>
+          <text class="eyebrow">方案对比</text>
+          <text class="panel-title">先比较，再决定用哪条路线出发</text>
+          <text class="panel-copy">每个方案都给出推荐理由与取舍说明，方便你明确为什么选它。</text>
+        </view>
+        <view class="option-counter">候选方案 {{displayOptions.length}}</view>
+      </view>
+
+      <view class="option-grid">
+        <view
+          wx:for="{{displayOptions}}"
+          wx:key="optionKey"
+          class="option-card {{item.optionKey === activeOptionKey ? 'active' : ''}}"
+          data-key="{{item.optionKey}}"
+          bindtap="handleSelectOption"
+        >
+          <view class="option-head">
+            <view>
+              <text class="option-label">{{item.title}}</text>
+              <text class="option-sub">{{item.subtitle}}</text>
+            </view>
+            <text class="option-state">{{item.stateText}}</text>
+          </view>
+          <text class="option-summary">{{item.summary}}</text>
+          <view class="option-metrics">
+            <text>总时长 {{item.durationText}}</text>
+            <text>总花费 ¥{{item.costText}}</text>
+            <text>点位 {{item.stopText}}</text>
+          </view>
+          <text class="option-copy"><text class="strong">推荐：</text>{{item.recommendReason}}</text>
+          <text class="option-copy muted"><text class="strong">不优先：</text>{{item.notRecommendReason}}</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="stats-grid">
+      <view class="stat-card">
+        <text>总时长</text>
+        <text class="stat-value">{{activeDurationText}}</text>
+      </view>
+      <view class="stat-card">
+        <text>预计花费</text>
+        <text class="stat-value">{{activeCostText}}</text>
+      </view>
+      <view class="stat-card">
+        <text>推荐点位</text>
+        <text class="stat-value">{{activeStopCount}}</text>
+      </view>
+    </view>
+
+    <view class="copy-grid">
+      <view class="copy-card">
+        <text class="eyebrow">为什么推荐这个</text>
+        <text>{{reasonText}}</text>
+      </view>
+      <view class="copy-card">
+        <text class="eyebrow">为什么不优先选别的</text>
+        <text>{{compareText}}</text>
+      </view>
+      <view class="copy-card">
+        <text class="eyebrow">执行提醒</text>
+        <text>{{itinerary.tips}}</text>
+      </view>
+    </view>
+
+    <view wx:if="{{activeAlerts.length}}" class="alert-strip">
+      <text wx:for="{{activeAlerts}}" wx:key="index" class="alert-chip">{{item}}</text>
+    </view>
+
+    <view class="map-card">
+      <view class="map-head">
+        <view>
+          <text class="eyebrow">路线地图</text>
+          <text class="map-title">把这条路线放到地图上看</text>
+          <text class="map-copy">按当前推荐顺序展示站点位置与连线，方便你快速判断顺路程度。</text>
+        </view>
+      </view>
+      <map
+        wx:if="{{mapData.showMap}}"
+        class="map-canvas"
+        latitude="{{mapData.latitude}}"
+        longitude="{{mapData.longitude}}"
+        markers="{{mapData.markers}}"
+        polyline="{{mapData.polyline}}"
+        show-location="true"
+      />
+      <view wx:else class="map-empty">当前路线缺少足够坐标信息，暂时无法绘制地图。</view>
+      <view class="stop-strip">
+        <view wx:for="{{activeNodes}}" wx:key="poiId" class="stop-pill">
+          <text class="stop-index">{{index + 1}}</text>
+          <text class="stop-name">{{item.poiName}}</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="timeline-wrap">
+      <view wx:for="{{activeNodes}}" wx:key="poiId" class="timeline-item">
+        <text class="timeline-time">{{item.startTime}} - {{item.endTime}}</text>
+        <view class="stop-card">
+          <view class="stop-head">
+            <view>
+              <text class="stop-kicker">第 {{item.stepOrder}} 站</text>
+              <text class="stop-title">{{item.poiName}}</text>
+            </view>
+            <view class="stop-tags">
+              <text class="tag">{{item.category}}</text>
+              <text class="tag light">{{item.district}}</text>
+            </view>
+          </view>
+          <text class="stop-copy">{{item.sysReason}}</text>
+          <text wx:if="{{item.statusNote}}" class="stop-note">{{item.statusNote}}</text>
+          <view class="meta-row">
+            <text>路上：{{item.travelText}}</text>
+            <text>停留：{{item.stayText}}</text>
+            <text>花费：{{item.costText}}</text>
+          </view>
+          <view class="detail-btn" data-poiid="{{item.poiId}}" bindtap="goToDetail">查看详情并替换</view>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:else class="empty-state">暂时没有找到行程，请先回首页生成。</view>
+
+  <chat-widget id="chatWidget" showWidget="{{true}}" />
+</view>

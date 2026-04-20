@@ -1,0 +1,63 @@
+<view class="auth-page">
+  <view class="auth-shell">
+    <view class="auth-intro">
+      <view class="intro-badge">登录后开启专属推荐</view>
+      <view class="intro-title">
+        让每一次出发
+        <text>都更懂你的期待</text>
+      </view>
+      <view class="intro-desc">
+        登录后你可以向 AI 询问路线灵感、生成更贴合偏好的推荐行程，也能把喜欢的玩法慢慢沉淀下来。
+      </view>
+      <view class="intro-points">
+        <view class="point-item">
+          <view class="point-icon">01</view>
+          <view class="point-copy">
+            <text class="point-title">推荐更贴心</text>
+            <text>告诉我们你想怎么玩，系统会尽量安排更顺路、体验更好的游玩节奏。</text>
+          </view>
+        </view>
+        <view class="point-item">
+          <view class="point-icon">02</view>
+          <view class="point-copy">
+            <text class="point-title">出行更省心</text>
+            <text>登录后可继续和 AI 对话，行程规划不中断。</text>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view class="auth-card">
+      <view class="card-head">
+        <view class="head-kicker">开启专属旅程</view>
+        <view class="card-title">{{activeTab === "login" ? "登录后继续规划" : "创建账号，开始你的路线灵感"}}</view>
+        <view class="card-sub">{{activeTab === "login" ? "登录后即可向 AI 询问路线建议，并生成你的专属行程。" : "注册成功后将自动登录，立即解锁 AI 问答与行程推荐。"}}</view>
+      </view>
+
+      <view class="tab-row">
+        <view class="tab-item {{activeTab === 'login' ? 'active' : ''}}" data-tab="login" bindtap="switchTab">登录</view>
+        <view class="tab-item {{activeTab === 'register' ? 'active' : ''}}" data-tab="register" bindtap="switchTab">注册</view>
+      </view>
+
+      <view wx:if="{{activeTab === 'login'}}" class="form-body">
+        <view class="field-label">用户名</view>
+        <input class="field-input" placeholder="请输入用户名" value="{{loginForm.username}}" data-form="loginForm" data-field="username" bindinput="onInput" />
+        <view class="field-label">密码</view>
+        <input class="field-input" password placeholder="请输入密码" value="{{loginForm.password}}" data-form="loginForm" data-field="password" bindinput="onInput" />
+        <button class="submit-btn" loading="{{loginLoading}}" disabled="{{loginLoading}}" bindtap="handleLogin">登录并开始规划</button>
+      </view>
+
+      <view wx:if="{{activeTab === 'register'}}" class="form-body">
+        <view class="field-label">用户名</view>
+        <input class="field-input" placeholder="4~20 位字母、数字或下划线" value="{{registerForm.username}}" data-form="registerForm" data-field="username" bindinput="onInput" />
+        <view class="field-label">昵称</view>
+        <input class="field-input" placeholder="请输入昵称" value="{{registerForm.nickname}}" data-form="registerForm" data-field="nickname" bindinput="onInput" />
+        <view class="field-label">密码</view>
+        <input class="field-input" password placeholder="6~20 位密码" value="{{registerForm.password}}" data-form="registerForm" data-field="password" bindinput="onInput" />
+        <view class="field-label">确认密码</view>
+        <input class="field-input" password placeholder="请再次输入密码" value="{{registerForm.confirmPassword}}" data-form="registerForm" data-field="confirmPassword" bindinput="onInput" />
+        <button class="submit-btn" loading="{{registerLoading}}" disabled="{{registerLoading}}" bindtap="handleRegister">注册并开启推荐</button>
+      </view>
+    </view>
+  </view>
+</view>

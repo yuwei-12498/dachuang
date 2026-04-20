@@ -1,0 +1,52 @@
+<view class="home-ai-panel">
+  <view class="panel-header">
+    <view class="ai-avatar">AI</view>
+    <view class="ai-title-wrap">
+      <text class="panel-title">行城向导</text>
+      <text class="panel-subtitle">{{user ? "说说你的偏好，我来帮你理顺游玩思路" : "登录后即可获得更贴合你的路线建议"}}</text>
+    </view>
+  </view>
+
+  <scroll-view class="panel-body" scroll-y="true">
+    <view class="msg-list">
+      <block wx:for="{{messages}}" wx:key="index">
+        <view class="msg-item {{item.role === 'user' ? 'msg-user' : 'msg-ai'}}">
+          <view class="bubble">{{item.content}}</view>
+        </view>
+      </block>
+      <view wx:if="{{loading}}" class="msg-item msg-ai">
+        <view class="bubble">思考中...</view>
+      </view>
+    </view>
+  </scroll-view>
+
+  <view wx:if="{{currentTips.length > 0}}" class="panel-quick-tips">
+    <text class="tips-title">不妨先从这些问题开始：</text>
+    <view class="tips-container">
+      <text
+        wx:for="{{currentTips}}"
+        wx:key="index"
+        class="tip-tag"
+        data-tip="{{item}}"
+        bindtap="sendByTip"
+      >{{item}}</text>
+    </view>
+  </view>
+
+  <view wx:if="{{user}}" class="panel-footer">
+    <input
+      class="chat-input"
+      placeholder="例如：宽窄巷子最佳拍照点在哪？"
+      value="{{inputVal}}"
+      bindinput="onInput"
+      bindconfirm="handleSend"
+      confirm-type="send"
+    />
+    <view class="send-btn {{(!inputVal || loading) ? 'disabled' : ''}}" bindtap="handleSend">发送</view>
+  </view>
+
+  <view wx:else class="panel-footer login-footer">
+    <text class="login-copy">登录后就能向 AI 询问景点灵感、路线建议和出行提醒，帮你把一天安排得更顺路。</text>
+    <view class="login-btn" bindtap="goLogin">登录后再问</view>
+  </view>
+</view>

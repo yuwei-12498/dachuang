@@ -1,0 +1,77 @@
+<view class="history-page page-shell">
+  <view class="history-shell">
+    <view class="hero-card">
+      <view>
+        <text class="eyebrow">历史行程与收藏</text>
+        <text class="hero-title">把你满意的路线沉淀下来</text>
+        <text class="hero-copy">这里会展示你生成过的路线记录，也可以把喜欢的路线标记为收藏，方便后续继续调整。</text>
+      </view>
+      <view class="hero-btn" bindtap="goHome">继续规划新路线</view>
+    </view>
+
+    <view class="stats-grid">
+      <view class="stat-card">
+        <text>历史行程</text>
+        <text class="stat-value">{{allCount}}</text>
+      </view>
+      <view class="stat-card">
+        <text>收藏路线</text>
+        <text class="stat-value">{{favoriteCount}}</text>
+      </view>
+      <view class="stat-card">
+        <text>最近更新</text>
+        <text class="stat-value">{{latestLabel}}</text>
+      </view>
+    </view>
+
+    <view class="filter-bar">
+      <view class="filter-pill {{activeFilter === 'all' ? 'active' : ''}}" data-filter="all" bindtap="switchFilter">全部行程</view>
+      <view class="filter-pill {{activeFilter === 'favorite' ? 'active' : ''}}" data-filter="favorite" bindtap="switchFilter">我的收藏</view>
+    </view>
+
+    <view wx:if="{{loading}}" class="loading-tip">加载中...</view>
+
+    <view wx:if="{{!loading && displayList.length}}" class="history-list">
+      <view wx:for="{{displayList}}" wx:key="id" class="history-card">
+        <view class="card-top">
+          <view class="card-main">
+            <text class="card-kicker">{{item.tripDate || "--"}} / {{item.startTime || "--"}} - {{item.endTime || "--"}}</text>
+            <text class="card-title">{{item.title}}</text>
+            <text class="card-route">{{item.firstPoiName || "未生成起点"}} → {{item.lastPoiName || "未生成终点"}}</text>
+          </view>
+          <view
+            class="favorite-btn {{item.favorited ? 'active' : ''}} {{favoritePendingIds.indexOf(item.id) > -1 ? 'disabled' : ''}}"
+            data-id="{{item.id}}"
+            data-favorited="{{item.favorited}}"
+            data-title="{{item.title}}"
+            bindtap="toggleFavorite"
+          >{{favoritePendingIds.indexOf(item.id) > -1 ? (item.favorited ? "取消中..." : "收藏中...") : (item.favorited ? "已收藏" : "收藏")}}</view>
+        </view>
+
+        <view class="tag-row">
+          <text wx:for="{{item.themes}}" wx:key="index" class="tag">{{item}}</text>
+          <text wx:if="{{item.companionType}}" class="tag light">{{item.companionType}}</text>
+          <text wx:if="{{item.budgetLevel}}" class="tag green">{{item.budgetLevel}}预算</text>
+          <text wx:if="{{item.rainy}}" class="tag orange">雨天场景</text>
+          <text wx:if="{{item.night}}" class="tag pink">夜游</text>
+        </view>
+
+        <view class="meta-row">
+          <text>推荐点位：{{item.nodeCount || 0}}</text>
+          <text>总时长：{{item.durationText}}</text>
+          <text>预算：¥{{item.totalCost || "--"}}</text>
+          <text>更新时间：{{item.updatedText}}</text>
+        </view>
+
+        <view class="actions-row">
+          <view class="action-btn" data-id="{{item.id}}" bindtap="openItinerary">查看路线</view>
+          <view class="action-btn primary" data-id="{{item.id}}" bindtap="openItinerary">继续调整</view>
+        </view>
+      </view>
+    </view>
+
+    <view wx:if="{{!loading && !displayList.length}}" class="empty-tip">{{emptyText}}</view>
+  </view>
+
+  <chat-widget id="chatWidget" showWidget="{{true}}" />
+</view>

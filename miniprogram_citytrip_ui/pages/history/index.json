@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "历史行程",
+  "usingComponents": {
+    "chat-widget": "/components/chat-widget/index"
+  }
+}

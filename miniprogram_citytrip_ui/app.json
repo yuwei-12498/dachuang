@@ -1,0 +1,20 @@
+{
+  "pages": [
+    "pages/home/index",
+    "pages/auth/index",
+    "pages/result/index",
+    "pages/history/index",
+    "pages/detail/index",
+    "pages/admin-users/index",
+    "pages/admin-pois/index"
+  ],
+  "window": {
+    "navigationBarTitleText": "行城有数",
+    "navigationBarBackgroundColor": "#ffffff",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#f7f8fa",
+    "backgroundTextStyle": "light"
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

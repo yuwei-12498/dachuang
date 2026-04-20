@@ -1,0 +1,440 @@
+package com.citytrip.assembler;
+
+import com.citytrip.model.dto.GenerateReqDTO;
+import com.citytrip.model.entity.Poi;
+import com.citytrip.model.vo.ItineraryOptionVO;
+import com.citytrip.model.vo.ItineraryVO;
+import com.citytrip.service.domain.planning.RouteAnalysisService;
+import com.citytrip.service.impl.ItineraryRouteOptimizer;
+import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
+
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+@Component
+public class ItineraryComparisonAssembler {
+
+    private static final int MAX_OPTIONS = 3;
+
+    private final RouteAnalysisService routeAnalysisService;
+
+    public ItineraryComparisonAssembler(RouteAnalysisService routeAnalysisService) {
+        this.routeAnalysisService = routeAnalysisService;
+    }
+
+    public ItineraryVO buildComparedItinerary(List<ItineraryRouteOptimizer.RouteOption> ranked,
+                                              GenerateReqDTO req,
+                                              Map<Long, String> existingReasons,
+                                              String preferredSignature,
+                                              Set<String> excludedOptionSignatures) {
+        List<ItineraryRouteOptimizer.RouteOption> selectedRoutes = selectOptionRoutes(
+                ranked,
+                preferredSignature,
+                excludedOptionSignatures
+        );
+        if (selectedRoutes.isEmpty()) {
+            return buildEmptyItinerary(req);
+        }
+
+        List<RouteAnalysisService.RouteAnalysis> analyses = selectedRoutes.stream()
+                .map(route -> routeAnalysisService.analyzeRoute(route, req, existingReasons))
+                .toList();
+        List<OptionStyle> styles = assignOptionStyles(analyses);
+
+        List<ItineraryOptionVO> options = new ArrayList<>(analyses.size());
+        for (int i = 0; i < analyses.size(); i++) {
+            options.add(toOption(analyses.get(i), analyses, styles.get(i)));
+        }
+
+        String selectedOptionKey = options.get(0).getOptionKey();
+        ItineraryVO itinerary = new ItineraryVO();
+        itinerary.setOriginalReq(req);
+        itinerary.setOptions(options);
+        itinerary.setSelectedOptionKey(selectedOptionKey);
+        applySelectedOption(itinerary, options.get(0));
+        itinerary.setTips(buildComparisonTips(req, options, selectedOptionKey));
+        return itinerary;
+    }
+
+    public ItineraryVO buildEmptyItinerary(GenerateReqDTO req) {
+        ItineraryVO itinerary = new ItineraryVO();
+        itinerary.setOriginalReq(req);
+        itinerary.setOptions(Collections.emptyList());
+        itinerary.setSelectedOptionKey(null);
+        itinerary.setNodes(Collections.emptyList());
+        itinerary.setTotalCost(BigDecimal.ZERO);
+        itinerary.setTotalDuration(0);
+        itinerary.setRecommendReason("当前条件下未找到可执行路线。");
+        itinerary.setAlerts(List.of("可尝试放宽时间窗、降低约束条件或更换出行日期后再生成。"));
+        itinerary.setTips(buildComparisonTips(req, Collections.emptyList(), null));
+        return itinerary;
+    }
+
+    public String buildComparisonTips(GenerateReqDTO req,
+                                      List<ItineraryOptionVO> options,
+                                      String selectedOptionKey) {
+        List<String> parts = new ArrayList<>();
+        if (options == null || options.isEmpty()) {
+            parts.add("当前条件下暂未生成可执行方案，可尝试放宽时间窗或更换出行日期后再生成。");
+        } else {
+            parts.add("系统已按当前时间窗提供 " + options.size() + " 套可执行方案。");
+            if (req != null && req.getTripDays() != null && req.getTripDays() > 1.0D) {
+                parts.add("多日模式会优先提升候选点位覆盖度，但当前结果仍以首日可执行性为主。");
+            }
+            ItineraryOptionVO selected = options.stream()
+                    .filter(option -> Objects.equals(option.getOptionKey(), selectedOptionKey))
+                    .findFirst()
+                    .orElse(options.get(0));
+            if (selected.getAlerts() != null && !selected.getAlerts().isEmpty()) {
+                parts.add("当前默认方案提醒：" + selected.getAlerts().get(0));
+            } else {
+                parts.add("当前默认方案更适合作为首选，你也可以切换为更省钱或更省时的候选路线。");
+            }
+        }
+        if (req != null && StringUtils.hasText(req.getTripDate())) {
+            parts.add("出行日期：" + req.getTripDate() + "。");
+        }
+        return String.join("", parts);
+    }
+
+    private void applySelectedOption(ItineraryVO itinerary, ItineraryOptionVO option) {
+        itinerary.setNodes(option.getNodes());
+        itinerary.setTotalCost(option.getTotalCost());
+        itinerary.setTotalDuration(option.getTotalDuration());
+        itinerary.setRecommendReason(option.getRecommendReason());
+        itinerary.setAlerts(option.getAlerts());
+    }
+
+    private List<ItineraryRouteOptimizer.RouteOption> selectOptionRoutes(List<ItineraryRouteOptimizer.RouteOption> ranked,
+                                                                         String preferredSignature,
+                                                                         Set<String> excludedOptionSignatures) {
+        if (ranked == null || ranked.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<ItineraryRouteOptimizer.RouteOption> filtered = ranked.stream()
+                .filter(route -> route != null && route.path() != null && !route.path().isEmpty())
+                .filter(route -> excludedOptionSignatures == null
+                        || !excludedOptionSignatures.contains(route.signature())
+                        || Objects.equals(route.signature(), preferredSignature))
+                .toList();
+        if (filtered.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<ItineraryRouteOptimizer.RouteOption> selected = new ArrayList<>();
+        if (StringUtils.hasText(preferredSignature)) {
+            filtered.stream()
+                    .filter(route -> Objects.equals(route.signature(), preferredSignature))
+                    .findFirst()
+                    .ifPresent(selected::add);
+        }
+
+        for (ItineraryRouteOptimizer.RouteOption route : filtered) {
+            if (selected.size() >= MAX_OPTIONS) {
+                break;
+            }
+            if (selected.stream().anyMatch(item -> Objects.equals(item.signature(), route.signature()))) {
+                continue;
+            }
+            if (selected.isEmpty() || isDistinctEnough(route, selected)) {
+                selected.add(route);
+            }
+        }
+
+        for (ItineraryRouteOptimizer.RouteOption route : filtered) {
+            if (selected.size() >= MAX_OPTIONS) {
+                break;
+            }
+            if (selected.stream().noneMatch(item -> Objects.equals(item.signature(), route.signature()))) {
+                selected.add(route);
+            }
+        }
+        return selected;
+    }
+
+    private boolean isDistinctEnough(ItineraryRouteOptimizer.RouteOption candidate,
+                                     List<ItineraryRouteOptimizer.RouteOption> selected) {
+        Set<Long> candidateIds = candidate.path().stream().map(Poi::getId).collect(Collectors.toSet());
+        for (ItineraryRouteOptimizer.RouteOption existing : selected) {
+            Set<Long> existingIds = existing.path().stream().map(Poi::getId).collect(Collectors.toSet());
+            long overlapCount = candidateIds.stream().filter(existingIds::contains).count();
+            int divisor = Math.max(1, Math.min(candidateIds.size(), existingIds.size()));
+            double overlap = overlapCount * 1.0D / divisor;
+            if (overlap > 0.75D) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private List<OptionStyle> assignOptionStyles(List<RouteAnalysisService.RouteAnalysis> analyses) {
+        if (analyses.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        int budgetIndex = findIndex(analyses, Comparator.comparing(RouteAnalysisService.RouteAnalysis::totalCost));
+        int efficientIndex = findIndex(analyses, Comparator
+                .comparingInt(RouteAnalysisService.RouteAnalysis::totalTravelTime)
+                .thenComparingInt(RouteAnalysisService.RouteAnalysis::totalDuration));
+        int exploreIndex = findIndex(analyses, Comparator
+                .comparingInt(RouteAnalysisService.RouteAnalysis::themeMatchCount).reversed()
+                .thenComparingInt(RouteAnalysisService.RouteAnalysis::stopCount).reversed()
+                .thenComparingDouble(RouteAnalysisService.RouteAnalysis::utility).reversed());
+        int stableIndex = findIndex(analyses, Comparator
+                .comparingInt(RouteAnalysisService.RouteAnalysis::businessRiskScore)
+                .thenComparingInt(RouteAnalysisService.RouteAnalysis::totalTravelTime));
+
+        List<OptionStyle> styles = new ArrayList<>(analyses.size());
+        styles.add(new OptionStyle("balanced", "均衡方案", "偏好匹配、路线顺滑与可执行性更均衡"));
+        for (int i = 1; i < analyses.size(); i++) {
+            if (i == budgetIndex) {
+                styles.add(new OptionStyle("budget", "省钱方案", "适合预算控制优先的出行场景"));
+            } else if (i == efficientIndex) {
+                styles.add(new OptionStyle("efficient", "高效方案", "优先减少绕路，整体时间效率更高"));
+            } else if (i == stableIndex) {
+                styles.add(new OptionStyle("stable", "稳妥方案", "优先选择营业状态和时间窗风险更低的点位"));
+            } else if (i == exploreIndex) {
+                styles.add(new OptionStyle("explore", "探索方案", "更强调主题覆盖和高分亮点探索"));
+            } else {
+                styles.add(new OptionStyle("alternative-" + (i + 1), "备选方案" + (i + 1), "提供另一种可执行取舍，便于横向比较"));
+            }
+        }
+        return styles;
+    }
+
+    private int findIndex(List<RouteAnalysisService.RouteAnalysis> analyses,
+                          Comparator<RouteAnalysisService.RouteAnalysis> comparator) {
+        RouteAnalysisService.RouteAnalysis best = analyses.stream().min(comparator).orElse(analyses.get(0));
+        return analyses.indexOf(best);
+    }
+
+    private ItineraryOptionVO toOption(RouteAnalysisService.RouteAnalysis analysis,
+                                       List<RouteAnalysisService.RouteAnalysis> analyses,
+                                       OptionStyle style) {
+        ItineraryOptionVO option = new ItineraryOptionVO();
+        option.setOptionKey(style.key());
+        option.setTitle(style.title());
+        option.setSubtitle(style.subtitle());
+        option.setSignature(analysis.route().signature());
+        option.setTotalDuration(analysis.totalDuration());
+        option.setTotalCost(analysis.totalCost());
+        option.setStopCount(analysis.stopCount());
+        option.setTotalTravelTime(analysis.totalTravelTime());
+        option.setBusinessRiskScore(analysis.businessRiskScore());
+        option.setThemeMatchCount(analysis.themeMatchCount());
+        option.setRouteUtility(analysis.utility());
+        option.setNodes(analysis.nodes());
+        option.setAlerts(analysis.alerts());
+        option.setSummary(buildOptionSummary(analysis, analyses));
+        option.setHighlights(buildHighlights(analysis, analyses));
+        option.setTradeoffs(buildTradeoffs(analysis, analyses));
+        option.setRecommendReason(buildRecommendReason(analysis, analyses, style));
+        option.setNotRecommendReason(buildNotRecommendReason(analysis, analyses));
+        return option;
+    }
+
+    private String buildOptionSummary(RouteAnalysisService.RouteAnalysis analysis,
+                                      List<RouteAnalysisService.RouteAnalysis> analyses) {
+        List<String> parts = new ArrayList<>();
+        if (isBestUtility(analysis, analyses)) {
+            parts.add("综合得分最高");
+        }
+        if (isMinCost(analysis, analyses)) {
+            parts.add("总成本最低");
+        }
+        if (isMinTravel(analysis, analyses)) {
+            parts.add("路途耗时最短");
+        }
+        if (isMaxThemeMatch(analysis, analyses)) {
+            parts.add("主题覆盖最集中");
+        }
+        if (isMinRisk(analysis, analyses)) {
+            parts.add("营业风险最低");
+        }
+        if (parts.isEmpty()) {
+            parts.add("另一种仍然可执行的取舍");
+        }
+        return "以" + analysis.nodes().get(0).getPoiName()
+                + "为起点，以" + analysis.nodes().get(analysis.nodes().size() - 1).getPoiName()
+                + "收尾，整体特点是：" + String.join("、", parts) + "。";
+    }
+
+    private List<String> buildHighlights(RouteAnalysisService.RouteAnalysis analysis,
+                                         List<RouteAnalysisService.RouteAnalysis> analyses) {
+        List<String> tags = new ArrayList<>();
+        if (isBestUtility(analysis, analyses)) {
+            tags.add("综合最均衡");
+        }
+        if (isMinCost(analysis, analyses)) {
+            tags.add("预算压力最低");
+        }
+        if (isMinTravel(analysis, analyses)) {
+            tags.add("路途耗时最短");
+        }
+        if (isMaxThemeMatch(analysis, analyses)) {
+            tags.add("主题覆盖最强");
+        }
+        if (isMinRisk(analysis, analyses)) {
+            tags.add("营业风险最低");
+        }
+        if (analysis.uniqueDistrictCount() > 1) {
+            tags.add("区域覆盖更广");
+        }
+        return tags.stream().limit(4).toList();
+    }
+
+    private List<String> buildTradeoffs(RouteAnalysisService.RouteAnalysis analysis,
+                                        List<RouteAnalysisService.RouteAnalysis> analyses) {
+        List<String> tags = new ArrayList<>();
+        BigDecimal minCost = analyses.stream()
+                .map(RouteAnalysisService.RouteAnalysis::totalCost)
+                .min(BigDecimal::compareTo)
+                .orElse(BigDecimal.ZERO);
+        int minTravel = analyses.stream()
+                .mapToInt(RouteAnalysisService.RouteAnalysis::totalTravelTime)
+                .min()
+                .orElse(0);
+        int minRisk = analyses.stream()
+                .mapToInt(RouteAnalysisService.RouteAnalysis::businessRiskScore)
+                .min()
+                .orElse(0);
+        int maxStops = analyses.stream()
+                .mapToInt(RouteAnalysisService.RouteAnalysis::stopCount)
+                .max()
+                .orElse(analysis.stopCount());
+
+        if (analysis.totalCost().compareTo(minCost.add(new BigDecimal("30"))) > 0) {
+            tags.add("成本更高");
+        }
+        if (analysis.totalTravelTime() > minTravel + 20) {
+            tags.add("路途更长");
+        }
+        if (analysis.businessRiskScore() > minRisk) {
+            tags.add("需再次确认营业状态");
+        }
+        if (analysis.stopCount() < maxStops) {
+            tags.add("点位密度较低");
+        }
+        return tags.stream().limit(3).toList();
+    }
+
+    private String buildRecommendReason(RouteAnalysisService.RouteAnalysis analysis,
+                                        List<RouteAnalysisService.RouteAnalysis> analyses,
+                                        OptionStyle style) {
+        List<String> reasons = new ArrayList<>();
+        if ("balanced".equals(style.key())) {
+            reasons.add("这条路线在偏好匹配、通行顺滑度和可执行性之间更均衡");
+        }
+        if (isBestUtility(analysis, analyses)) {
+            reasons.add("它在候选方案中的综合得分最高");
+        }
+        if (isMinCost(analysis, analyses)) {
+            reasons.add("它的总花费低于其他方案");
+        }
+        if (isMinTravel(analysis, analyses)) {
+            reasons.add("它在路上的耗时更少，绕路情况也更少");
+        }
+        if (isMaxThemeMatch(analysis, analyses)) {
+            reasons.add("它覆盖了更多符合你主题偏好的点位");
+        }
+        if (isMinRisk(analysis, analyses)) {
+            reasons.add("它的营业状态与时间窗风险更低");
+        }
+        if (reasons.isEmpty()) {
+            reasons.add("在当前约束下，它依然是一条稳妥且可执行的路线");
+        }
+        return String.join("；", reasons) + "。";
+    }
+
+    private String buildNotRecommendReason(RouteAnalysisService.RouteAnalysis analysis,
+                                           List<RouteAnalysisService.RouteAnalysis> analyses) {
+        List<String> reasons = new ArrayList<>();
+        BigDecimal minCost = analyses.stream()
+                .map(RouteAnalysisService.RouteAnalysis::totalCost)
+                .min(BigDecimal::compareTo)
+                .orElse(BigDecimal.ZERO);
+        int minTravel = analyses.stream()
+                .mapToInt(RouteAnalysisService.RouteAnalysis::totalTravelTime)
+                .min()
+                .orElse(0);
+        int minRisk = analyses.stream()
+                .mapToInt(RouteAnalysisService.RouteAnalysis::businessRiskScore)
+                .min()
+                .orElse(0);
+        int maxTheme = analyses.stream()
+                .mapToInt(RouteAnalysisService.RouteAnalysis::themeMatchCount)
+                .max()
+                .orElse(analysis.themeMatchCount());
+
+        if (analysis.totalCost().compareTo(minCost.add(new BigDecimal("30"))) > 0) {
+            reasons.add("如果你最看重预算，这条方案花费会更高");
+        }
+        if (analysis.totalTravelTime() > minTravel + 20) {
+            reasons.add("如果你更在意少绕路，这条方案在路上的时间会更长");
+        }
+        if (analysis.businessRiskScore() > minRisk) {
+            reasons.add("如果你最看重稳妥性，部分点位仍建议出发前再次确认营业状态");
+        }
+        if (analysis.themeMatchCount() < maxTheme) {
+            reasons.add("如果你最看重主题纯度，其他方案的主题聚焦度会更高");
+        }
+        if (reasons.isEmpty()) {
+            return "它不太适合只追求单一指标的用户，例如极致省钱或极致刷点。";
+        }
+        return String.join("；", reasons.stream().limit(2).toList()) + "。";
+    }
+
+    private boolean isBestUtility(RouteAnalysisService.RouteAnalysis analysis,
+                                  List<RouteAnalysisService.RouteAnalysis> analyses) {
+        double max = analyses.stream().mapToDouble(RouteAnalysisService.RouteAnalysis::utility).max().orElse(analysis.utility());
+        return Double.compare(analysis.utility(), max) == 0;
+    }
+
+    private boolean isMinCost(RouteAnalysisService.RouteAnalysis analysis,
+                              List<RouteAnalysisService.RouteAnalysis> analyses) {
+        BigDecimal min = analyses.stream()
+                .map(RouteAnalysisService.RouteAnalysis::totalCost)
+                .min(BigDecimal::compareTo)
+                .orElse(analysis.totalCost());
+        return analysis.totalCost().compareTo(min) == 0;
+    }
+
+    private boolean isMinTravel(RouteAnalysisService.RouteAnalysis analysis,
+                                List<RouteAnalysisService.RouteAnalysis> analyses) {
+        int min = analyses.stream()
+                .mapToInt(RouteAnalysisService.RouteAnalysis::totalTravelTime)
+                .min()
+                .orElse(analysis.totalTravelTime());
+        return analysis.totalTravelTime() == min;
+    }
+
+    private boolean isMaxThemeMatch(RouteAnalysisService.RouteAnalysis analysis,
+                                    List<RouteAnalysisService.RouteAnalysis> analyses) {
+        int max = analyses.stream()
+                .mapToInt(RouteAnalysisService.RouteAnalysis::themeMatchCount)
+                .max()
+                .orElse(analysis.themeMatchCount());
+        return analysis.themeMatchCount() == max;
+    }
+
+    private boolean isMinRisk(RouteAnalysisService.RouteAnalysis analysis,
+                              List<RouteAnalysisService.RouteAnalysis> analyses) {
+        int min = analyses.stream()
+                .mapToInt(RouteAnalysisService.RouteAnalysis::businessRiskScore)
+                .min()
+                .orElse(analysis.businessRiskScore());
+        return analysis.businessRiskScore() == min;
+    }
+
+    private record OptionStyle(String key, String title, String subtitle) {
+    }
+}

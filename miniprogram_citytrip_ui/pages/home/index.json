@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "行城有数",
+  "usingComponents": {
+    "home-ai-panel": "/components/home-ai-panel/index"
+  }
+}

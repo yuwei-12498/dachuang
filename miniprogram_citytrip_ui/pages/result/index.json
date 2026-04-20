@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "行程结果",
+  "usingComponents": {
+    "chat-widget": "/components/chat-widget/index"
+  }
+}

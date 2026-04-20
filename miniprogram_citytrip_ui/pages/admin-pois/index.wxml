@@ -1,0 +1,66 @@
+<view class="admin-page">
+  <view class="top-nav">
+    <navigator class="nav-btn" url="/pages/admin-users/index">用户管理</navigator>
+    <view class="nav-btn" bindtap="onSearch">刷新</view>
+    <navigator class="nav-btn" url="/pages/home/index">返回首页</navigator>
+  </view>
+
+  <view class="manage-card">
+    <view class="card-title">资源库监控（POI）</view>
+
+    <view class="filter-row">
+      <input class="search-input" placeholder="搜索景点名称" value="{{searchQuery}}" bindinput="onSearchInput" bindconfirm="onSearch" confirm-type="search" />
+      <view class="search-btn" bindtap="onSearch">搜索</view>
+    </view>
+
+    <view wx:if="{{loading}}" class="loading-tip">加载中...</view>
+
+    <view wx:if="{{!loading && tableData.length}}" class="table-wrap">
+      <view wx:for="{{tableData}}" wx:key="id" class="table-row">
+        <view class="row-head">
+          <text>#{{item.id}} {{item.name}}</text>
+          <text class="score">权重 {{item.priorityScore}}</text>
+        </view>
+        <view class="row-sub">{{item.category}} · {{item.district}}</view>
+        <view class="tag-row">
+          <text wx:if="{{item.indoor === 1}}" class="tag">室内</text>
+          <text wx:if="{{item.nightAvailable === 1}}" class="tag">夜游</text>
+          <text wx:if="{{item.indoor !== 1 && item.nightAvailable !== 1}}" class="row-sub">无特征标签</text>
+        </view>
+        <view
+          class="action-btn"
+          data-id="{{item.id}}"
+          data-name="{{item.name}}"
+          data-category="{{item.category}}"
+          data-district="{{item.district}}"
+          data-indoor="{{item.indoor}}"
+          data-night="{{item.nightAvailable}}"
+          data-priority="{{item.priorityScore}}"
+          bindtap="openEdit"
+        >修改权重</view>
+      </view>
+    </view>
+
+    <view wx:if="{{!loading && !tableData.length}}" class="empty-tip">暂无 POI 数据</view>
+
+    <view class="pager">
+      <view class="pager-btn" bindtap="prevPage">上一页</view>
+      <text>第 {{currentPage}} 页 / 共 {{maxPage}} 页</text>
+      <view class="pager-btn" bindtap="nextPage">下一页</view>
+    </view>
+  </view>
+
+  <view wx:if="{{showEditor}}" class="modal-mask" bindtap="closeEditor"></view>
+  <view wx:if="{{showEditor}}" class="modal-card">
+    <view class="modal-title">修改景点参数</view>
+    <view class="modal-row">名称：{{editingRow.name}}</view>
+    <view class="modal-row">分类：{{editingRow.category}} · {{editingRow.district}}</view>
+    <view class="modal-label">系统权重（1~10）</view>
+    <input class="modal-input" type="digit" value="{{editingRow.priorityScore}}" bindinput="onPriorityInput" />
+    <view class="helper-text">修改此项将影响该景点在大模型路由计算时的默认选中优先级。</view>
+    <view class="modal-actions">
+      <view class="modal-btn ghost" bindtap="closeEditor">取消</view>
+      <view class="modal-btn primary" bindtap="submitEdit">确认保存</view>
+    </view>
+  </view>
+</view>

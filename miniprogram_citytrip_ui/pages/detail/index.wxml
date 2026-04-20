@@ -1,0 +1,47 @@
+<view class="detail-page page-shell">
+  <view wx:if="{{poiDetail}}" class="detail-shell">
+    <view class="hero-card">
+      <view class="back-btn" bindtap="goBack">返回行程</view>
+      <text class="hero-title">{{poiDetail.name}}</text>
+      <text class="hero-copy">{{poiDetail.description}}</text>
+      <view class="tag-row">
+        <text class="tag">{{poiDetail.category}}</text>
+        <text class="tag light">{{poiDetail.district}}</text>
+      </view>
+    </view>
+
+    <view class="detail-grid">
+      <view class="info-card">
+        <text class="eyebrow">游玩信息</text>
+        <view class="info-grid">
+          <view class="info-item">
+            <text>建议停留</text>
+            <text class="info-value">{{poiDetail.stayDuration}} 分钟</text>
+          </view>
+          <view class="info-item">
+            <text>人均消费</text>
+            <text class="info-value">¥{{poiDetail.avgCost}}</text>
+          </view>
+          <view class="info-item">
+            <text>营业时间</text>
+            <text class="info-value">{{poiDetail.openTime || "--"}} - {{poiDetail.closeTime || "--"}}</text>
+          </view>
+          <view class="info-item">
+            <text>步行感受</text>
+            <text class="info-value">{{poiDetail.walkingLevel}}</text>
+          </view>
+        </view>
+      </view>
+
+      <view class="replace-card">
+        <text class="eyebrow">调整建议</text>
+        <text class="replace-copy">如果这一站不够对味，可以直接替换为相近且更适合的点位。</text>
+        <view class="replace-btn" bindtap="handleReplace">{{replacing ? "替换中..." : "替换这一站"}}</view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:else class="empty-tip">暂时无法加载点位详情。</view>
+
+  <chat-widget id="chatWidget" showWidget="{{true}}" />
+</view>

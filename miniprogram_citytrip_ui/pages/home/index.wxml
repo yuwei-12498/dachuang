@@ -1,0 +1,230 @@
+<view class="home-page">
+  <view class="hero-section" id="hero">
+    <view class="hero-card">
+      <view class="hero-tag">全新版本 · AIGC 驱动</view>
+      <view class="hero-title">
+        告别复杂攻略
+        <text class="text-highlight">定制你的成都短途路线</text>
+      </view>
+      <view class="hero-subtitle">
+        只需告诉系统你的出行时间、预算和偏好，系统会通过动态通行时间估算与场景重排算法，为你生成可执行的专属旅行计划。
+      </view>
+      <view class="hero-actions">
+        <view class="hero-btn primary" bindtap="scrollToCore">免费规划行程</view>
+        <view class="hero-btn ghost" bindtap="scrollToCore">先问问 AI 规划师</view>
+      </view>
+      <view class="hero-stats">
+        <view class="stat-item">
+          <text class="stat-num">500+</text>
+          <text class="stat-label">覆盖成都 POI</text>
+        </view>
+        <view class="stat-item">
+          <text class="stat-num">~2s</text>
+          <text class="stat-label">生成规划速度</text>
+        </view>
+        <view class="stat-item">
+          <text class="stat-num">100%</text>
+          <text class="stat-label">AI 场景定制</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view class="core-section" id="core">
+    <view class="section-header">
+      <text class="section-title">定制专属行程</text>
+      <text class="section-subtitle">告诉我们你的时间、预算和偏好，系统会帮你整理一条更顺路、更省心的成都玩法。</text>
+    </view>
+
+    <view class="core-layout">
+      <view class="form-card">
+        <view class="sub-section-title">基础时间安排</view>
+
+        <view class="field-title">出行模式</view>
+        <view class="option-row">
+          <view
+            wx:for="{{tripDayOptions}}"
+            wx:key="value"
+            class="chip {{form.tripDays === item.value ? 'active' : ''}}"
+            data-value="{{item.value}}"
+            bindtap="selectTripDay"
+          >{{item.label}}</view>
+        </view>
+
+        <view class="field-grid">
+          <view class="field-item">
+            <view class="field-title">出行日期</view>
+            <picker mode="date" value="{{form.tripDate}}" bindchange="onTripDateChange">
+              <view class="picker">{{form.tripDate}}</view>
+            </picker>
+          </view>
+          <view class="field-item">
+            <view class="field-title">预算等级</view>
+            <view class="option-row">
+              <view
+                wx:for="{{budgetOptions}}"
+                wx:key="value"
+                class="chip {{form.budgetLevel === item.value ? 'active' : ''}}"
+                data-value="{{item.value}}"
+                bindtap="selectBudget"
+              >{{item.value}}</view>
+            </view>
+          </view>
+        </view>
+
+        <view class="field-grid">
+          <view class="field-item">
+            <view class="field-title">出发时间</view>
+            <picker mode="time" value="{{form.startTime}}" bindchange="onStartTimeChange">
+              <view class="picker">{{form.startTime}}</view>
+            </picker>
+          </view>
+          <view class="field-item">
+            <view class="field-title">结束时间</view>
+            <picker mode="time" value="{{form.endTime}}" bindchange="onEndTimeChange">
+              <view class="picker">{{form.endTime}}</view>
+            </picker>
+          </view>
+        </view>
+
+        <view wx:if="{{tripModeHint}}" class="login-reminder">{{tripModeHint}}</view>
+
+        <view class="divider"></view>
+
+        <view class="sub-section-title">偏好设置</view>
+        <view class="field-title">主题偏好（可多选）</view>
+        <view class="option-row wrap">
+          <view
+            wx:for="{{themeOptions}}"
+            wx:key="value"
+            class="chip {{form.themes.indexOf(item.value) > -1 ? 'active' : ''}}"
+            data-value="{{item.value}}"
+            bindtap="toggleTheme"
+          >{{item.label}}</view>
+        </view>
+
+        <view class="field-title">同行类型</view>
+        <view class="option-row wrap">
+          <view
+            wx:for="{{companionOptions}}"
+            wx:key="value"
+            class="chip {{form.companionType === item.value ? 'active' : ''}}"
+            data-value="{{item.value}}"
+            bindtap="selectCompanion"
+          >{{item.label}}</view>
+        </view>
+
+        <view class="field-title">步行强度</view>
+        <view class="option-row wrap">
+          <view
+            wx:for="{{walkingOptions}}"
+            wx:key="value"
+            class="chip {{form.walkingLevel === item.value ? 'active' : ''}}"
+            data-value="{{item.value}}"
+            bindtap="selectWalking"
+          >{{item.label}}</view>
+        </view>
+
+        <view class="divider"></view>
+        <view class="sub-section-title">场景探索</view>
+
+        <view class="switch-row">
+          <view class="switch-item">
+            <text>是否遇到雨天</text>
+            <switch checked="{{form.isRainy}}" color="#409EFF" bindchange="switchRainy" />
+          </view>
+          <view class="switch-item">
+            <text>是否体验夜游</text>
+            <switch checked="{{form.isNight}}" color="#409EFF" bindchange="switchNight" />
+          </view>
+        </view>
+
+        <view wx:if="{{!user}}" class="login-reminder">登录后即可生成专属行程，系统会根据你的偏好给出更贴合的游玩建议。</view>
+        <button class="submit-btn" loading="{{loading}}" disabled="{{loading}}" bindtap="onSubmit">
+          {{user ? "开始生成行程" : "登录后开启行程推荐"}}
+        </button>
+      </view>
+
+      <home-ai-panel id="homeAiPanel" currentForm="{{form}}" />
+    </view>
+  </view>
+
+  <view class="scenario-section">
+    <view class="section-header">
+      <text class="section-title">满足多种出行场景</text>
+      <text class="section-subtitle">无论是朋友出游还是雨天探索，都能给你一条更合适的路线</text>
+    </view>
+    <view class="scenario-grid">
+      <view class="scenario-card">
+        <view class="icon blue">友</view>
+        <text class="card-title">朋友结伴</text>
+        <text class="card-desc">自动平衡多人偏好，覆盖网红打卡和地道美食。</text>
+      </view>
+      <view class="scenario-card">
+        <view class="icon pink">约</view>
+        <text class="card-title">情侣约会</text>
+        <text class="card-desc">推荐浪漫夜游与轻松步行路线，让每一站更有氛围。</text>
+      </view>
+      <view class="scenario-card">
+        <view class="icon orange">亲</view>
+        <text class="card-title">亲子同游</text>
+        <text class="card-desc">优先安排安全、轻松、可互动的亲子友好点位。</text>
+      </view>
+      <view class="scenario-card">
+        <view class="icon purple">雨</view>
+        <text class="card-title">雨天探索</text>
+        <text class="card-desc">自动切换室内友好路线，风雨天气也不扫兴。</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="feature-section">
+    <view class="section-header">
+      <text class="section-title">不止排版，而是深度计算</text>
+      <text class="section-subtitle">融合本地算法与大模型，把每一分钟行程细节落到实处</text>
+    </view>
+    <view class="feature-card">
+      <text class="feature-label">01 / Dynamic Time Estimation</text>
+      <text class="feature-title">基于时序的动态时间分配</text>
+      <text class="feature-desc">严格遵循起止时间，结合景点游玩时长与点位通行时间，生成分钟级时间轴。</text>
+    </view>
+    <view class="feature-card">
+      <text class="feature-label">02 / Intelligent Rescheduling</text>
+      <text class="feature-title">灵活的单点替换与自适应重排</text>
+      <text class="feature-desc">不满意某站时可快速替换，系统会自动重排后续路线保持整体连贯。</text>
+    </view>
+    <view class="feature-card">
+      <text class="feature-label">03 / AI Travel Assistant</text>
+      <text class="feature-title">全天候 AI 旅行助手</text>
+      <text class="feature-desc">结合你当前行程上下文，实时回答景点、路线、天气和出行细节问题。</text>
+    </view>
+  </view>
+
+  <view class="examples-section">
+    <view class="section-header">
+      <text class="section-title">灵感来源于真实足迹</text>
+      <text class="section-subtitle">看看系统为不同偏好生成的模板路线</text>
+    </view>
+    <view class="example-card">
+      <view class="cover light"></view>
+      <view class="example-body">
+        <text class="example-title">寻味锦官城：周末美食打卡记</text>
+        <text class="example-desc">周六夜游 + 周日早起熊猫基地，覆盖 9 个点位，预算约 400 元/人。</text>
+      </view>
+    </view>
+    <view class="example-card">
+      <view class="cover gradient"></view>
+      <view class="example-body">
+        <text class="example-title">带娃听雨：悠闲的室内早教之旅</text>
+        <text class="example-desc">雨天场景自动切换室内路线，半日轻松出行，预算约 120 元/人。</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="cta-section">
+    <view class="cta-title">准备好探索成都的下一个角落了吗？</view>
+    <view class="cta-subtitle">体验由 AI 和计算为你量身定制的短途行程。</view>
+    <view class="cta-btn" bindtap="scrollToCore">立即免费生成行程</view>
+    <view class="footer-bar">© 2026 行城有数 · 城市短途个性化行程生成平台</view>
+  </view>
+</view>
