@@ -16,6 +16,8 @@ hs_err_pid*
 replay_pid*
 .idea/
 .codex/
+.superpowers/
+.worktrees/
 .m2/
 .env
 .env.*
