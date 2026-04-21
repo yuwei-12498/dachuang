@@ -1,21 +1,40 @@
 package com.citytrip.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.citytrip.assembler.ItinerarySummaryAssembler;
 import com.citytrip.common.BadRequestException;
+import com.citytrip.mapper.CommunityCommentMapper;
+import com.citytrip.mapper.CommunityLikeMapper;
 import com.citytrip.mapper.PoiMapper;
 import com.citytrip.mapper.UserMapper;
+import com.citytrip.model.dto.GenerateReqDTO;
+import com.citytrip.model.entity.CommunityComment;
+import com.citytrip.model.entity.CommunityLike;
 import com.citytrip.model.entity.Poi;
+import com.citytrip.model.entity.SavedItinerary;
 import com.citytrip.model.entity.User;
+import com.citytrip.model.vo.AdminCommunityPostVO;
 import com.citytrip.model.vo.AdminUserVO;
+import com.citytrip.model.vo.ItineraryVO;
 import com.citytrip.service.AdminService;
+import com.citytrip.service.application.community.CommunityCacheInvalidationService;
+import com.citytrip.service.persistence.itinerary.SavedItineraryCodec;
+import com.citytrip.service.persistence.itinerary.SavedItineraryRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -28,10 +47,29 @@ public class AdminServiceImpl implements AdminService {
 
     private final UserMapper userMapper;
     private final PoiMapper poiMapper;
+    private final SavedItineraryRepository savedItineraryRepository;
+    private final SavedItineraryCodec savedItineraryCodec;
+    private final CommunityCommentMapper communityCommentMapper;
+    private final CommunityLikeMapper communityLikeMapper;
+    private final CommunityCacheInvalidationService communityCacheInvalidationService;
+    private final ItinerarySummaryAssembler itinerarySummaryAssembler;
 
-    public AdminServiceImpl(UserMapper userMapper, PoiMapper poiMapper) {
+    public AdminServiceImpl(UserMapper userMapper,
+                            PoiMapper poiMapper,
+                            SavedItineraryRepository savedItineraryRepository,
+                            SavedItineraryCodec savedItineraryCodec,
+                            CommunityCommentMapper communityCommentMapper,
+                            CommunityLikeMapper communityLikeMapper,
+                            CommunityCacheInvalidationService communityCacheInvalidationService,
+                            ItinerarySummaryAssembler itinerarySummaryAssembler) {
         this.userMapper = userMapper;
         this.poiMapper = poiMapper;
+        this.savedItineraryRepository = savedItineraryRepository;
+        this.savedItineraryCodec = savedItineraryCodec;
+        this.communityCommentMapper = communityCommentMapper;
+        this.communityLikeMapper = communityLikeMapper;
+        this.communityCacheInvalidationService = communityCacheInvalidationService;
+        this.itinerarySummaryAssembler = itinerarySummaryAssembler;
     }
 
     @Override
@@ -118,6 +156,141 @@ public class AdminServiceImpl implements AdminService {
 
         requirePoi(poiId);
         poiMapper.updatePoiTemporaryStatus(poiId, temporarilyClosed, resolveStatusNote(temporarilyClosed, statusNote));
+    }
+
+    @Override
+    public Page<AdminCommunityPostVO> getCommunityPostPage(int page, int size, String keyword, Integer pinned, Integer deleted) {
+        long normalizedPage = normalizePage(page);
+        long normalizedSize = normalizeSize(size);
+        String normalizedKeyword = trimToNull(keyword);
+
+        List<SavedItinerary> entities = savedItineraryRepository.listAll();
+        List<Long> itineraryIds = entities.stream().map(SavedItinerary::getId).filter(Objects::nonNull).toList();
+        Map<Long, User> userMap = loadUsersByIds(entities.stream().map(SavedItinerary::getUserId).filter(Objects::nonNull).collect(Collectors.toSet()));
+        Map<Long, Long> commentCountMap = loadCommentCountMap(itineraryIds);
+        Map<Long, Long> likeCountMap = loadLikeCountMap(itineraryIds);
+
+        List<AdminCommunityPostVO> filtered = entities.stream()
+                .map(entity -> toAdminCommunityPost(entity, userMap.get(entity.getUserId()), commentCountMap, likeCountMap))
+                .filter(Objects::nonNull)
+                .filter(item -> matchesKeyword(item, normalizedKeyword))
+                .filter(item -> pinned == null || Boolean.TRUE.equals(item.getGlobalPinned()) == Integer.valueOf(1).equals(pinned))
+                .filter(item -> deleted == null || Boolean.TRUE.equals(item.getDeleted()) == Integer.valueOf(1).equals(deleted))
+                .toList();
+
+        int fromIndex = (int) Math.min(offset(normalizedPage, normalizedSize), filtered.size());
+        int toIndex = (int) Math.min(fromIndex + normalizedSize, filtered.size());
+
+        Page<AdminCommunityPostVO> result = new Page<>(normalizedPage, normalizedSize);
+        result.setTotal(filtered.size());
+        result.setRecords(filtered.subList(fromIndex, toIndex));
+        return result;
+    }
+
+    @Override
+    public void updateCommunityPostPin(Long adminUserId, Long itineraryId, boolean pinned) {
+        SavedItinerary entity = savedItineraryRepository.requireForUpdate(itineraryId);
+        if (pinned && Integer.valueOf(1).equals(entity.getIsDeleted())) {
+            throw new BadRequestException("Deleted posts cannot be pinned");
+        }
+        if (pinned && !Integer.valueOf(1).equals(entity.getIsPublic())) {
+            throw new BadRequestException("Only public posts can be pinned");
+        }
+        entity.setIsGlobalPinned(pinned ? 1 : 0);
+        entity.setGlobalPinnedAt(pinned ? LocalDateTime.now() : null);
+        entity.setGlobalPinnedBy(pinned ? adminUserId : null);
+        savedItineraryRepository.saveOrUpdate(entity);
+        communityCacheInvalidationService.markDirty();
+    }
+
+    @Override
+    public void deleteCommunityPost(Long adminUserId, Long itineraryId) {
+        SavedItinerary entity = savedItineraryRepository.requireForUpdate(itineraryId);
+        entity.setIsDeleted(1);
+        entity.setDeletedAt(LocalDateTime.now());
+        entity.setDeletedBy(adminUserId);
+        entity.setIsPublic(0);
+        entity.setIsGlobalPinned(0);
+        entity.setGlobalPinnedAt(null);
+        entity.setGlobalPinnedBy(null);
+        entity.setPinnedCommentId(null);
+        savedItineraryRepository.saveOrUpdate(entity);
+        communityCacheInvalidationService.markDirty();
+    }
+
+    private AdminCommunityPostVO toAdminCommunityPost(SavedItinerary entity,
+                                                      User author,
+                                                      Map<Long, Long> commentCountMap,
+                                                      Map<Long, Long> likeCountMap) {
+        try {
+            GenerateReqDTO req = savedItineraryCodec.readRequest(entity);
+            ItineraryVO itinerary = savedItineraryCodec.readItinerary(entity);
+            AdminCommunityPostVO vo = new AdminCommunityPostVO();
+            vo.setId(entity.getId());
+            vo.setUserId(entity.getUserId());
+            vo.setTitle(itinerarySummaryAssembler.buildTitle(req, itinerary));
+            vo.setAuthorLabel(itinerarySummaryAssembler.resolveAuthorLabel(author));
+            vo.setCoverImageUrl(itinerarySummaryAssembler.resolveCoverImage(itinerary));
+            vo.setShareNote(itinerarySummaryAssembler.resolveShareNote(entity, itinerary));
+            vo.setThemes(req == null || req.getThemes() == null ? Collections.emptyList() : req.getThemes());
+            vo.setTotalDuration(entity.getTotalDuration());
+            vo.setTotalCost(entity.getTotalCost());
+            vo.setNodeCount(entity.getNodeCount());
+            vo.setLikeCount(likeCountMap.getOrDefault(entity.getId(), 0L));
+            vo.setCommentCount(commentCountMap.getOrDefault(entity.getId(), 0L));
+            vo.setGlobalPinned(Integer.valueOf(1).equals(entity.getIsGlobalPinned()));
+            vo.setDeleted(Integer.valueOf(1).equals(entity.getIsDeleted()));
+            vo.setGlobalPinnedAt(entity.getGlobalPinnedAt());
+            vo.setUpdatedAt(entity.getUpdateTime());
+            return vo;
+        } catch (JsonProcessingException ex) {
+            return null;
+        }
+    }
+
+    private Map<Long, User> loadUsersByIds(Set<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return userMapper.selectBatchIds(userIds).stream()
+                .filter(Objects::nonNull)
+                .collect(Collectors.toMap(User::getId, user -> user, (left, right) -> left, LinkedHashMap::new));
+    }
+
+    private Map<Long, Long> loadCommentCountMap(List<Long> itineraryIds) {
+        if (itineraryIds == null || itineraryIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        QueryWrapper<CommunityComment> wrapper = new QueryWrapper<>();
+        wrapper.in("itinerary_id", itineraryIds);
+        return communityCommentMapper.selectList(wrapper).stream()
+                .filter(item -> item.getItineraryId() != null)
+                .collect(Collectors.groupingBy(CommunityComment::getItineraryId, LinkedHashMap::new, Collectors.counting()));
+    }
+
+    private Map<Long, Long> loadLikeCountMap(List<Long> itineraryIds) {
+        if (itineraryIds == null || itineraryIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        QueryWrapper<CommunityLike> wrapper = new QueryWrapper<>();
+        wrapper.in("itinerary_id", itineraryIds);
+        return communityLikeMapper.selectList(wrapper).stream()
+                .filter(item -> item.getItineraryId() != null)
+                .collect(Collectors.groupingBy(CommunityLike::getItineraryId, LinkedHashMap::new, Collectors.counting()));
+    }
+
+    private boolean matchesKeyword(AdminCommunityPostVO item, String keyword) {
+        if (!StringUtils.hasText(keyword)) {
+            return true;
+        }
+        String normalized = keyword.toLowerCase(Locale.ROOT);
+        return containsIgnoreCase(item.getTitle(), normalized)
+                || containsIgnoreCase(item.getAuthorLabel(), normalized)
+                || containsIgnoreCase(item.getShareNote(), normalized);
+    }
+
+    private boolean containsIgnoreCase(String source, String keyword) {
+        return StringUtils.hasText(source) && source.toLowerCase(Locale.ROOT).contains(keyword);
     }
 
     private Poi requirePoi(Long poiId) {

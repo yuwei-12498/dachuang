@@ -21,6 +21,13 @@ public class SavedItinerary {
     private Integer favorited;
     private LocalDateTime favoriteTime;
     private Integer isPublic;
+    private Integer isDeleted;
+    private LocalDateTime deletedAt;
+    private Long deletedBy;
+    private Integer isGlobalPinned;
+    private LocalDateTime globalPinnedAt;
+    private Long globalPinnedBy;
+    private Long pinnedCommentId;
     private Integer nodeCount;
     private Integer totalDuration;
     private BigDecimal totalCost;

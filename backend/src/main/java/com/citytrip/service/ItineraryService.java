@@ -34,6 +34,8 @@ public interface ItineraryService {
 
     CommunityItineraryPageVO listCommunityItineraries(int page, int size);
 
+    CommunityItineraryPageVO listCommunityItineraries(int page, int size, String sort, String keyword, String theme, Long currentUserId);
+
     CommunityItineraryDetailVO getCommunityItinerary(Long itineraryId, Long currentUserId);
 
     List<CommunityCommentVO> listCommunityComments(Long itineraryId, Long currentUserId);
@@ -43,6 +45,10 @@ public interface ItineraryService {
     CommunityItineraryDetailVO likeCommunityItinerary(Long userId, Long itineraryId);
 
     CommunityItineraryDetailVO unlikeCommunityItinerary(Long userId, Long itineraryId);
+
+    CommunityItineraryDetailVO pinCommunityComment(Long userId, Long itineraryId, Long commentId);
+
+    void deleteCommunityPost(Long userId, Long itineraryId);
 
     ItineraryVO selectOption(Long userId, Long itineraryId, OptionSelectReqDTO req);
 

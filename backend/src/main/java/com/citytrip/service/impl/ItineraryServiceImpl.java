@@ -94,6 +94,11 @@ public class ItineraryServiceImpl implements ItineraryService {
     }
 
     @Override
+    public CommunityItineraryPageVO listCommunityItineraries(int page, int size, String sort, String keyword, String theme, Long currentUserId) {
+        return communityItineraryQueryService.listPublic(page, size, sort, keyword, theme, currentUserId);
+    }
+
+    @Override
     public CommunityItineraryDetailVO getCommunityItinerary(Long itineraryId, Long currentUserId) {
         return communityItineraryQueryService.getPublicDetail(itineraryId, currentUserId);
     }
@@ -116,6 +121,16 @@ public class ItineraryServiceImpl implements ItineraryService {
     @Override
     public CommunityItineraryDetailVO unlikeCommunityItinerary(Long userId, Long itineraryId) {
         return communityInteractionService.unlike(userId, itineraryId);
+    }
+
+    @Override
+    public CommunityItineraryDetailVO pinCommunityComment(Long userId, Long itineraryId, Long commentId) {
+        return communityInteractionService.pinComment(userId, itineraryId, commentId);
+    }
+
+    @Override
+    public void deleteCommunityPost(Long userId, Long itineraryId) {
+        communityInteractionService.deletePost(userId, itineraryId);
     }
 
     @Override

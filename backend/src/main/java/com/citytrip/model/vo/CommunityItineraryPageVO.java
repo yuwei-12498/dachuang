@@ -9,6 +9,9 @@ import java.util.List;
 public class CommunityItineraryPageVO {
     private Integer page;
     private Integer size;
+    private String sort;
     private Long total;
+    private List<String> availableThemes = Collections.emptyList();
+    private List<CommunityItineraryVO> pinnedRecords = Collections.emptyList();
     private List<CommunityItineraryVO> records = Collections.emptyList();
 }

@@ -10,6 +10,7 @@ import java.util.List;
 @Data
 public class CommunityItineraryDetailVO {
     private Long id;
+    private Long authorId;
     private String title;
     private String cityName;
     private String coverImageUrl;
@@ -31,5 +32,12 @@ public class CommunityItineraryDetailVO {
     private Long likeCount;
     private Boolean liked;
     private Long commentCount;
+    private Boolean globalPinned;
+    private LocalDateTime globalPinnedAt;
+    private Long pinnedCommentId;
+    private CommunityCommentVO pinnedComment;
+    private Boolean canDelete;
+    private Boolean canPinComment;
+    private Boolean canManage;
     private LocalDateTime updatedAt;
 }

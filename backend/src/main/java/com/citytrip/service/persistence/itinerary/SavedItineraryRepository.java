@@ -57,7 +57,7 @@ public class SavedItineraryRepository {
     public SavedItinerary requireOwned(Long userId, Long itineraryId) {
         SavedItinerary entity = findOwned(userId, itineraryId);
         if (entity == null) {
-            throw new NotFoundException("行程记录不存在");
+            throw new NotFoundException("The itinerary record was not found");
         }
         return entity;
     }
@@ -70,10 +70,26 @@ public class SavedItineraryRepository {
         return entity;
     }
 
+    public SavedItinerary requireExisting(Long itineraryId) {
+        SavedItinerary entity = itineraryId == null ? null : savedItineraryMapper.selectById(itineraryId);
+        if (entity == null) {
+            throw new NotFoundException("The itinerary record was not found");
+        }
+        return entity;
+    }
+
+    public SavedItinerary requireForUpdate(Long itineraryId) {
+        SavedItinerary entity = itineraryId == null ? null : savedItineraryMapper.selectByIdForUpdate(itineraryId);
+        if (entity == null) {
+            throw new NotFoundException("The itinerary record was not found");
+        }
+        return entity;
+    }
+
     public SavedItinerary requirePublic(Long itineraryId) {
         SavedItinerary entity = itineraryId == null ? null : savedItineraryMapper.selectById(itineraryId);
-        if (entity == null || entity.getIsPublic() == null || entity.getIsPublic() != 1) {
-            throw new NotFoundException("未找到公开的社区路线");
+        if (!isPublicVisible(entity)) {
+            throw new NotFoundException("Public itinerary was not found");
         }
         return entity;
     }
@@ -97,7 +113,7 @@ public class SavedItineraryRepository {
 
     public long countPublic() {
         QueryWrapper<SavedItinerary> wrapper = new QueryWrapper<>();
-        wrapper.eq("is_public", 1);
+        applyPublicVisibleFilter(wrapper);
         return savedItineraryMapper.selectCount(wrapper);
     }
 
@@ -107,10 +123,25 @@ public class SavedItineraryRepository {
         int offset = (normalizedPage - 1) * normalizedSize;
 
         QueryWrapper<SavedItinerary> wrapper = new QueryWrapper<>();
-        wrapper.eq("is_public", 1)
-                .orderByDesc("favorite_time")
+        applyPublicVisibleFilter(wrapper);
+        wrapper.orderByDesc("favorite_time")
                 .orderByDesc("update_time")
                 .last("limit " + offset + "," + normalizedSize);
+        return savedItineraryMapper.selectList(wrapper);
+    }
+
+    public List<SavedItinerary> listPublicVisible() {
+        QueryWrapper<SavedItinerary> wrapper = new QueryWrapper<>();
+        applyPublicVisibleFilter(wrapper);
+        wrapper.orderByDesc("is_global_pinned")
+                .orderByDesc("global_pinned_at")
+                .orderByDesc("update_time");
+        return savedItineraryMapper.selectList(wrapper);
+    }
+
+    public List<SavedItinerary> listAll() {
+        QueryWrapper<SavedItinerary> wrapper = new QueryWrapper<>();
+        wrapper.orderByDesc("update_time").orderByDesc("id");
         return savedItineraryMapper.selectList(wrapper);
     }
 
@@ -124,5 +155,16 @@ public class SavedItineraryRepository {
 
     public SavedItinerary reload(Long itineraryId) {
         return itineraryId == null ? null : savedItineraryMapper.selectById(itineraryId);
+    }
+
+    public boolean isPublicVisible(SavedItinerary entity) {
+        return entity != null
+                && Integer.valueOf(1).equals(entity.getIsPublic())
+                && !Integer.valueOf(1).equals(entity.getIsDeleted());
+    }
+
+    private void applyPublicVisibleFilter(QueryWrapper<SavedItinerary> wrapper) {
+        wrapper.eq("is_public", 1)
+                .and(nested -> nested.isNull("is_deleted").or().eq("is_deleted", 0));
     }
 }

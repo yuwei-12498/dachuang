@@ -81,6 +81,9 @@
             </div>
 
             <div class="tag-row">
+              <el-tag v-if="item.isPublic" size="small" type="danger" effect="dark">
+                社区展示中
+              </el-tag>
               <el-tag
                 v-for="theme in item.themes || []"
                 :key="theme"
@@ -112,6 +115,20 @@
 
             <div class="actions-row">
               <el-button round @click="openItinerary(item.id)">查看路线</el-button>
+              <el-button
+                v-if="item.isPublic"
+                round
+                @click="openCommunityPost(item.id)"
+              >
+                查看帖子
+              </el-button>
+              <el-button
+                v-else
+                round
+                @click="publishRoutePost(item.id)"
+              >
+                发布路线帖
+              </el-button>
               <el-button type="primary" round @click="openItinerary(item.id)">继续调整</el-button>
             </div>
           </el-card>
@@ -207,6 +224,20 @@ const openItinerary = (id) => {
   router.push({
     path: '/result',
     query: { id }
+  })
+}
+
+const openCommunityPost = (id) => {
+  router.push(`/community/${id}`)
+}
+
+const publishRoutePost = (id) => {
+  router.push({
+    path: '/result',
+    query: {
+      id,
+      publish: '1'
+    }
   })
 }
 
@@ -431,6 +462,7 @@ onMounted(() => {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+  flex-wrap: wrap;
 }
 
 @media (max-width: 900px) {

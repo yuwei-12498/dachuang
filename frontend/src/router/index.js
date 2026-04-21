@@ -65,6 +65,12 @@ const routes = [
         name: 'AdminPois',
         component: () => import('@/views/admin/PoiManage.vue'),
         meta: { title: 'POI \u8D44\u6E90\u6CBB\u7406' }
+      },
+      {
+        path: 'community',
+        name: 'AdminCommunity',
+        component: () => import('@/views/admin/CommunityManage.vue'),
+        meta: { title: '\u793E\u533A\u5185\u5BB9\u6CBB\u7406' }
       }
     ]
   }

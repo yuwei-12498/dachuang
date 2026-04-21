@@ -24,8 +24,19 @@ public class CommunityController {
     @GetMapping("/itineraries")
     public CommunityItineraryPageVO listCommunityItineraries(
             @RequestParam(value = "page", defaultValue = "1") Integer page,
-            @RequestParam(value = "size", defaultValue = "12") Integer size) {
-        return itineraryService.listCommunityItineraries(page == null ? 1 : page, size == null ? 12 : size);
+            @RequestParam(value = "size", defaultValue = "12") Integer size,
+            @RequestParam(value = "sort", defaultValue = "latest") String sort,
+            @RequestParam(value = "keyword", required = false) String keyword,
+            @RequestParam(value = "theme", required = false) String theme,
+            HttpServletRequest request) {
+        return itineraryService.listCommunityItineraries(
+                page == null ? 1 : page,
+                size == null ? 12 : size,
+                sort,
+                keyword,
+                theme,
+                currentUserId(request)
+        );
     }
 
     @GetMapping("/itineraries/{id}")

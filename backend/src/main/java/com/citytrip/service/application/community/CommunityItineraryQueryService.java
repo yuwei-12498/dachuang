@@ -10,8 +10,10 @@ import com.citytrip.model.entity.CommunityComment;
 import com.citytrip.model.entity.CommunityLike;
 import com.citytrip.model.entity.SavedItinerary;
 import com.citytrip.model.entity.User;
+import com.citytrip.model.vo.CommunityCommentVO;
 import com.citytrip.model.vo.CommunityItineraryDetailVO;
 import com.citytrip.model.vo.CommunityItineraryPageVO;
+import com.citytrip.model.vo.CommunityItineraryVO;
 import com.citytrip.model.vo.ItineraryVO;
 import com.citytrip.service.impl.CommunityItineraryCacheService;
 import com.citytrip.service.persistence.itinerary.SavedItineraryCodec;
@@ -20,8 +22,10 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -40,6 +44,7 @@ public class CommunityItineraryQueryService {
     private final UserMapper userMapper;
     private final SavedItineraryCodec savedItineraryCodec;
     private final ItinerarySummaryAssembler itinerarySummaryAssembler;
+    @SuppressWarnings("unused")
     private final CommunityItineraryCacheService communityItineraryCacheService;
 
     public CommunityItineraryQueryService(SavedItineraryRepository savedItineraryRepository,
@@ -59,24 +64,84 @@ public class CommunityItineraryQueryService {
     }
 
     public CommunityItineraryPageVO listPublic(int page, int size) {
+        return listPublic(page, size, "latest", null, null, null);
+    }
+
+    public CommunityItineraryPageVO listPublic(int page,
+                                               int size,
+                                               String sort,
+                                               String keyword,
+                                               String theme,
+                                               Long currentUserId) {
         int normalizedPage = Math.max(page, 1);
         int normalizedSize = Math.min(Math.max(size, 1), 30);
-        return communityItineraryCacheService.getCommunityPage(
-                normalizedPage,
-                normalizedSize,
-                () -> loadPublicPage(normalizedPage, normalizedSize)
-        );
+        String normalizedSort = normalizeSort(sort);
+        String normalizedKeyword = normalizeKeyword(keyword);
+        String normalizedTheme = normalizeKeyword(theme);
+
+        List<SavedItinerary> entities = savedItineraryRepository.listPublicVisible();
+        List<Long> itineraryIds = entities.stream().map(SavedItinerary::getId).filter(Objects::nonNull).toList();
+        Map<Long, User> userMap = loadUserMap(entities);
+        Map<Long, Long> commentCountMap = loadCommentCountMap(itineraryIds);
+        Map<Long, Long> likeCountMap = loadLikeCountMap(itineraryIds);
+
+        List<CommunityItineraryVO> summaries = entities.stream()
+                .map(entity -> toCommunitySummary(
+                        entity,
+                        userMap.get(entity.getUserId()),
+                        commentCountMap.get(entity.getId()),
+                        likeCountMap.get(entity.getId()),
+                        currentUserId
+                ))
+                .filter(Objects::nonNull)
+                .toList();
+
+        List<String> availableThemes = summaries.stream()
+                .flatMap(item -> item.getThemes().stream())
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .distinct()
+                .toList();
+
+        List<CommunityItineraryVO> pinnedRecords = summaries.stream()
+                .filter(item -> Boolean.TRUE.equals(item.getGlobalPinned()))
+                .sorted(Comparator.comparing(CommunityItineraryVO::getGlobalPinnedAt, Comparator.nullsLast(Comparator.reverseOrder()))
+                        .thenComparing(CommunityItineraryVO::getUpdatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
+                .limit(3)
+                .toList();
+
+        List<CommunityItineraryVO> feedRecords = summaries.stream()
+                .filter(item -> !Boolean.TRUE.equals(item.getGlobalPinned()))
+                .filter(item -> matchesKeyword(item, normalizedKeyword))
+                .filter(item -> matchesTheme(item, normalizedTheme))
+                .sorted(buildFeedComparator(normalizedSort))
+                .toList();
+
+        int fromIndex = Math.min((normalizedPage - 1) * normalizedSize, feedRecords.size());
+        int toIndex = Math.min(fromIndex + normalizedSize, feedRecords.size());
+
+        CommunityItineraryPageVO result = new CommunityItineraryPageVO();
+        result.setPage(normalizedPage);
+        result.setSize(normalizedSize);
+        result.setSort(normalizedSort);
+        result.setAvailableThemes(availableThemes);
+        result.setPinnedRecords(pinnedRecords);
+        result.setTotal((long) feedRecords.size());
+        result.setRecords(feedRecords.subList(fromIndex, toIndex));
+        return result;
     }
 
     public CommunityItineraryDetailVO getPublicDetail(Long itineraryId, Long currentUserId) {
         SavedItinerary entity = savedItineraryRepository.requirePublic(itineraryId);
         User author = loadUserMap(List.of(entity)).get(entity.getUserId());
+        User currentUser = currentUserId == null ? null : userMapper.selectById(currentUserId);
         try {
             GenerateReqDTO req = savedItineraryCodec.readRequest(entity);
             ItineraryVO itinerary = savedItineraryCodec.readItinerary(entity);
 
             CommunityItineraryDetailVO detail = new CommunityItineraryDetailVO();
             detail.setId(entity.getId());
+            detail.setAuthorId(entity.getUserId());
             detail.setTitle(itinerarySummaryAssembler.buildTitle(req, itinerary));
             detail.setCityName(req == null ? null : req.getCityName());
             detail.setCoverImageUrl(itinerarySummaryAssembler.resolveCoverImage(itinerary));
@@ -98,6 +163,13 @@ public class CommunityItineraryQueryService {
             detail.setLikeCount(countLikes(entity.getId()));
             detail.setLiked(isLikedByCurrentUser(entity.getId(), currentUserId));
             detail.setCommentCount(countComments(entity.getId()));
+            detail.setGlobalPinned(Integer.valueOf(1).equals(entity.getIsGlobalPinned()));
+            detail.setGlobalPinnedAt(entity.getGlobalPinnedAt());
+            detail.setPinnedCommentId(entity.getPinnedCommentId());
+            detail.setPinnedComment(loadPinnedComment(entity.getId(), entity.getPinnedCommentId(), currentUserId));
+            detail.setCanDelete(canDelete(entity, currentUser));
+            detail.setCanPinComment(canPinComment(entity, currentUserId));
+            detail.setCanManage(isAdmin(currentUser));
             detail.setUpdatedAt(entity.getUpdateTime());
             return detail;
         } catch (JsonProcessingException ex) {
@@ -105,36 +177,19 @@ public class CommunityItineraryQueryService {
         }
     }
 
-    private CommunityItineraryPageVO loadPublicPage(int page, int size) {
-        List<SavedItinerary> entities = savedItineraryRepository.listPublic(page, size);
-        Map<Long, User> userMap = loadUserMap(entities);
-        List<Long> itineraryIds = entities.stream().map(SavedItinerary::getId).toList();
-        Map<Long, Long> commentCountMap = loadCommentCountMap(itineraryIds);
-        Map<Long, Long> likeCountMap = loadLikeCountMap(itineraryIds);
-
-        CommunityItineraryPageVO result = new CommunityItineraryPageVO();
-        result.setPage(page);
-        result.setSize(size);
-        result.setTotal(savedItineraryRepository.countPublic());
-        result.setRecords(entities.stream()
-                .map(entity -> toCommunitySummary(
-                        entity,
-                        userMap.get(entity.getUserId()),
-                        commentCountMap.get(entity.getId()),
-                        likeCountMap.get(entity.getId())
-                ))
-                .toList());
-        return result;
-    }
-
-    private com.citytrip.model.vo.CommunityItineraryVO toCommunitySummary(SavedItinerary entity,
-                                                                           User author,
-                                                                           Long commentCount,
-                                                                           Long likeCount) {
+    private CommunityItineraryVO toCommunitySummary(SavedItinerary entity,
+                                                    User author,
+                                                    Long commentCount,
+                                                    Long likeCount,
+                                                    Long currentUserId) {
         try {
             GenerateReqDTO req = savedItineraryCodec.readRequest(entity);
             ItineraryVO itinerary = savedItineraryCodec.readItinerary(entity);
-            return itinerarySummaryAssembler.toCommunitySummary(entity, author, req, itinerary, commentCount, likeCount);
+            CommunityItineraryVO summary = itinerarySummaryAssembler.toCommunitySummary(entity, author, req, itinerary, commentCount, likeCount);
+            summary.setGlobalPinned(Integer.valueOf(1).equals(entity.getIsGlobalPinned()));
+            summary.setGlobalPinnedAt(entity.getGlobalPinnedAt());
+            summary.setLiked(isLikedByCurrentUser(entity.getId(), currentUserId));
+            return summary;
         } catch (JsonProcessingException ex) {
             throw new RuntimeException("Failed to deserialize public itinerary summary", ex);
         }
@@ -223,5 +278,97 @@ public class CommunityItineraryQueryService {
             log.warn("Community like table unavailable, fallback to not-liked state", ex);
             return false;
         }
+    }
+
+    private CommunityCommentVO loadPinnedComment(Long itineraryId, Long pinnedCommentId, Long currentUserId) {
+        if (pinnedCommentId == null) {
+            return null;
+        }
+        try {
+            CommunityComment comment = communityCommentMapper.selectById(pinnedCommentId);
+            if (comment == null || !Objects.equals(comment.getItineraryId(), itineraryId) || comment.getParentId() != null) {
+                return null;
+            }
+            User author = comment.getUserId() == null ? null : userMapper.selectById(comment.getUserId());
+            return toCommentVO(comment, author, currentUserId, true, false);
+        } catch (DataAccessException ex) {
+            log.warn("Community comment table unavailable, fallback to no pinned comment for itineraryId={}", itineraryId, ex);
+            return null;
+        }
+    }
+
+    private CommunityCommentVO toCommentVO(CommunityComment comment,
+                                           User author,
+                                           Long currentUserId,
+                                           boolean pinned,
+                                           boolean canPin) {
+        CommunityCommentVO vo = new CommunityCommentVO();
+        vo.setId(comment.getId());
+        vo.setItineraryId(comment.getItineraryId());
+        vo.setParentId(comment.getParentId());
+        vo.setUserId(comment.getUserId());
+        vo.setContent(comment.getContent());
+        vo.setAuthorLabel(itinerarySummaryAssembler.resolveAuthorLabel(author));
+        vo.setCreateTime(comment.getCreateTime());
+        vo.setMine(currentUserId != null && Objects.equals(currentUserId, comment.getUserId()));
+        vo.setPinned(pinned);
+        vo.setCanPin(canPin);
+        return vo;
+    }
+
+    private boolean matchesKeyword(CommunityItineraryVO item, String keyword) {
+        if (!StringUtils.hasText(keyword)) {
+            return true;
+        }
+        String normalized = keyword.trim().toLowerCase();
+        return containsIgnoreCase(item.getTitle(), normalized)
+                || containsIgnoreCase(item.getShareNote(), normalized)
+                || containsIgnoreCase(item.getRouteSummary(), normalized)
+                || item.getThemes().stream().filter(StringUtils::hasText).anyMatch(theme -> theme.toLowerCase().contains(normalized));
+    }
+
+    private boolean matchesTheme(CommunityItineraryVO item, String theme) {
+        if (!StringUtils.hasText(theme)) {
+            return true;
+        }
+        return item.getThemes().stream().filter(StringUtils::hasText).anyMatch(value -> value.equalsIgnoreCase(theme.trim()));
+    }
+
+    private Comparator<CommunityItineraryVO> buildFeedComparator(String sort) {
+        if ("hot".equals(sort)) {
+            return Comparator.comparing(this::interactionScore, Comparator.reverseOrder())
+                    .thenComparing(CommunityItineraryVO::getUpdatedAt, Comparator.nullsLast(Comparator.reverseOrder()));
+        }
+        return Comparator.comparing(CommunityItineraryVO::getUpdatedAt, Comparator.nullsLast(Comparator.reverseOrder()));
+    }
+
+    private long interactionScore(CommunityItineraryVO item) {
+        long comments = item.getCommentCount() == null ? 0L : item.getCommentCount();
+        long likes = item.getLikeCount() == null ? 0L : item.getLikeCount();
+        return comments * 3 + likes * 2;
+    }
+
+    private boolean containsIgnoreCase(String source, String normalizedKeyword) {
+        return StringUtils.hasText(source) && source.toLowerCase().contains(normalizedKeyword);
+    }
+
+    private String normalizeSort(String sort) {
+        return "hot".equalsIgnoreCase(sort) ? "hot" : "latest";
+    }
+
+    private String normalizeKeyword(String value) {
+        return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private boolean canDelete(SavedItinerary entity, User currentUser) {
+        return currentUser != null && (Objects.equals(currentUser.getId(), entity.getUserId()) || isAdmin(currentUser));
+    }
+
+    private boolean canPinComment(SavedItinerary entity, Long currentUserId) {
+        return currentUserId != null && Objects.equals(currentUserId, entity.getUserId());
+    }
+
+    private boolean isAdmin(User user) {
+        return user != null && Integer.valueOf(1).equals(user.getRole());
     }
 }

@@ -17,6 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
+import java.util.List;
 
 @Service
 public class SavedItineraryCommandService {
@@ -49,6 +51,8 @@ public class SavedItineraryCommandService {
             entity.setUserId(userId);
             entity.setFavorited(0);
             entity.setIsPublic(0);
+            entity.setIsDeleted(0);
+            entity.setIsGlobalPinned(0);
         }
 
         preserveStoredMetadata(entity, itinerary);
@@ -97,7 +101,7 @@ public class SavedItineraryCommandService {
     @Transactional
     public ItineraryVO saveFromPublic(Long userId, SaveItineraryReqDTO req) {
         if (userId == null) {
-            throw new BadRequestException("请先登录后再保存路线");
+            throw new BadRequestException("Please login before saving a community route");
         }
         if (req == null || req.getSourceItineraryId() == null) {
             throw new BadRequestException("sourceItineraryId is required");
@@ -110,7 +114,7 @@ public class SavedItineraryCommandService {
             sourceRequest = savedItineraryCodec.readRequest(source);
             sourceItinerary = savedItineraryCodec.readItinerary(source);
         } catch (JsonProcessingException ex) {
-            throw new BadRequestException("社区路线数据损坏，暂时无法保存");
+            throw new BadRequestException("The community route is corrupted and cannot be saved right now");
         }
 
         String selectedOptionKey = StringUtils.hasText(req.getSelectedOptionKey())
@@ -124,6 +128,8 @@ public class SavedItineraryCommandService {
         entity.setFavorited(1);
         entity.setFavoriteTime(LocalDateTime.now());
         entity.setIsPublic(0);
+        entity.setIsDeleted(0);
+        entity.setIsGlobalPinned(0);
 
         String customTitle = normalizeTitle(req.getTitle());
         if (!StringUtils.hasText(customTitle)) {
@@ -156,10 +162,11 @@ public class SavedItineraryCommandService {
         }
 
         SavedItinerary entity = savedItineraryRepository.requireOwnedForUpdate(userId, itineraryId);
-        if (Boolean.TRUE.equals(req.getIsPublic())) {
-            ItineraryVO itinerary = savedItineraryCodec.deserialize(entity);
-            ItineraryVO selected = savedItineraryCodec.selectOptionInPlace(itinerary, req.getSelectedOptionKey());
+        ItineraryVO itinerary = savedItineraryCodec.deserialize(entity);
+        ItineraryVO selected = savedItineraryCodec.selectOptionInPlace(itinerary, req.getSelectedOptionKey());
+        GenerateReqDTO originalReq = selected.getOriginalReq() == null ? new GenerateReqDTO() : selected.getOriginalReq();
 
+        if (Boolean.TRUE.equals(req.getIsPublic())) {
             String customTitle = normalizeTitle(req.getTitle());
             String shareNote = normalizeShareNote(req.getShareNote());
             if (StringUtils.hasText(customTitle)) {
@@ -168,15 +175,25 @@ public class SavedItineraryCommandService {
             }
             selected.setShareNote(shareNote);
             entity.setShareNote(shareNote);
+            originalReq.setThemes(normalizeThemes(req.getThemes(), originalReq.getThemes()));
+            selected.setOriginalReq(originalReq);
+            entity.setRequestJson(savedItineraryCodec.writeJson(originalReq));
             applyItineraryOnly(entity, selected);
+            entity.setIsDeleted(0);
+            entity.setDeletedAt(null);
+            entity.setDeletedBy(null);
         }
 
         entity.setIsPublic(Boolean.TRUE.equals(req.getIsPublic()) ? 1 : 0);
+        if (!Boolean.TRUE.equals(req.getIsPublic())) {
+            entity.setIsGlobalPinned(0);
+            entity.setGlobalPinnedAt(null);
+            entity.setGlobalPinnedBy(null);
+            entity.setPinnedCommentId(null);
+        }
         savedItineraryRepository.saveOrUpdate(entity);
         communityCacheInvalidationService.markDirty();
-
-        SavedItinerary reloaded = savedItineraryRepository.reload(entity.getId());
-        return savedItineraryCodec.deserialize(reloaded == null ? entity : reloaded);
+        return savedItineraryCodec.applyEntityMetadata(selected, entity);
     }
 
     private void preserveStoredMetadata(SavedItinerary entity, ItineraryVO itinerary) {
@@ -215,5 +232,18 @@ public class SavedItineraryCommandService {
         }
         String value = shareNote.trim();
         return value.length() > 300 ? value.substring(0, 300) : value;
+    }
+
+    private List<String> normalizeThemes(List<String> themes, List<String> fallbackThemes) {
+        List<String> source = (themes == null || themes.isEmpty()) ? fallbackThemes : themes;
+        if (source == null) {
+            return Collections.emptyList();
+        }
+        return source.stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .distinct()
+                .limit(3)
+                .toList();
     }
 }

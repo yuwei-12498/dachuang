@@ -50,6 +50,20 @@ export function reqCreateCommunityComment(id, data) {
   })
 }
 
+export function reqPinCommunityComment(id, commentId) {
+  return request({
+    url: `/api/itineraries/community/${id}/comments/${commentId}/pin`,
+    method: 'patch'
+  })
+}
+
+export function reqDeleteCommunityPost(id) {
+  return request({
+    url: `/api/itineraries/community/${id}`,
+    method: 'delete'
+  })
+}
+
 export function reqLikeCommunityItinerary(id) {
   return request({
     url: `/api/itineraries/community/${id}/like`,

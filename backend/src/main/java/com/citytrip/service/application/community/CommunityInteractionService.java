@@ -19,7 +19,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDateTime;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -65,18 +67,25 @@ public class CommunityInteractionService {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toCollection(LinkedHashSet::new)));
 
+        Long pinnedCommentId = entity.getPinnedCommentId();
+        boolean authorCanPin = currentUserId != null && Objects.equals(currentUserId, entity.getUserId());
+
         Map<Long, List<CommunityCommentVO>> repliesMap = comments.stream()
                 .filter(comment -> comment.getParentId() != null)
-                .map(comment -> toCommunityComment(comment, userMap.get(comment.getUserId()), currentUserId))
+                .map(comment -> toCommunityComment(comment, userMap.get(comment.getUserId()), currentUserId, false, false))
                 .collect(Collectors.groupingBy(CommunityCommentVO::getParentId, LinkedHashMap::new, Collectors.toList()));
 
         return comments.stream()
                 .filter(comment -> comment.getParentId() == null)
                 .map(comment -> {
-                    CommunityCommentVO root = toCommunityComment(comment, userMap.get(comment.getUserId()), currentUserId);
+                    boolean pinned = Objects.equals(comment.getId(), pinnedCommentId);
+                    CommunityCommentVO root = toCommunityComment(comment, userMap.get(comment.getUserId()), currentUserId, pinned, authorCanPin);
                     root.setReplies(repliesMap.getOrDefault(root.getId(), Collections.emptyList()));
                     return root;
                 })
+                .sorted(Comparator.comparing((CommunityCommentVO vo) -> !Boolean.TRUE.equals(vo.getPinned()))
+                        .thenComparing(CommunityCommentVO::getCreateTime, Comparator.nullsLast(Comparator.naturalOrder()))
+                        .thenComparing(CommunityCommentVO::getId, Comparator.nullsLast(Comparator.naturalOrder())))
                 .toList();
     }
 
@@ -113,7 +122,7 @@ public class CommunityInteractionService {
         communityCacheInvalidationService.markDirty();
 
         User author = userMapper.selectById(userId);
-        return toCommunityComment(comment, author, userId);
+        return toCommunityComment(comment, author, userId, false, false);
     }
 
     @Transactional
@@ -149,6 +158,45 @@ public class CommunityInteractionService {
         return communityItineraryQueryService.getPublicDetail(entity.getId(), userId);
     }
 
+    @Transactional
+    public void deletePost(Long userId, Long itineraryId) {
+        SavedItinerary entity = savedItineraryRepository.requireOwnedForUpdate(userId, itineraryId);
+        markPostDeleted(entity, userId);
+        savedItineraryRepository.saveOrUpdate(entity);
+        communityCacheInvalidationService.markDirty();
+    }
+
+    @Transactional
+    public CommunityItineraryDetailVO pinComment(Long userId, Long itineraryId, Long commentId) {
+        SavedItinerary entity = savedItineraryRepository.requireOwnedForUpdate(userId, itineraryId);
+        if (!Integer.valueOf(1).equals(entity.getIsPublic()) || Integer.valueOf(1).equals(entity.getIsDeleted())) {
+            throw new BadRequestException("only public posts can pin comments");
+        }
+        CommunityComment comment = communityCommentMapper.selectById(commentId);
+        if (comment == null || !Objects.equals(comment.getItineraryId(), entity.getId())) {
+            throw new BadRequestException("comment does not belong to the itinerary");
+        }
+        if (comment.getParentId() != null) {
+            throw new BadRequestException("only root comments can be pinned");
+        }
+
+        entity.setPinnedCommentId(comment.getId());
+        savedItineraryRepository.saveOrUpdate(entity);
+        communityCacheInvalidationService.markDirty();
+        return communityItineraryQueryService.getPublicDetail(entity.getId(), userId);
+    }
+
+    public void markPostDeleted(SavedItinerary entity, Long actorUserId) {
+        entity.setIsDeleted(1);
+        entity.setDeletedAt(LocalDateTime.now());
+        entity.setDeletedBy(actorUserId);
+        entity.setIsPublic(0);
+        entity.setIsGlobalPinned(0);
+        entity.setGlobalPinnedAt(null);
+        entity.setGlobalPinnedBy(null);
+        entity.setPinnedCommentId(null);
+    }
+
     private Map<Long, User> loadUsersByIds(Set<Long> userIds) {
         if (userIds == null || userIds.isEmpty()) {
             return Collections.emptyMap();
@@ -158,15 +206,22 @@ public class CommunityInteractionService {
                 .collect(Collectors.toMap(User::getId, user -> user, (left, right) -> left, LinkedHashMap::new));
     }
 
-    private CommunityCommentVO toCommunityComment(CommunityComment comment, User author, Long currentUserId) {
+    private CommunityCommentVO toCommunityComment(CommunityComment comment,
+                                                  User author,
+                                                  Long currentUserId,
+                                                  boolean pinned,
+                                                  boolean canPin) {
         CommunityCommentVO vo = new CommunityCommentVO();
         vo.setId(comment.getId());
         vo.setItineraryId(comment.getItineraryId());
         vo.setParentId(comment.getParentId());
+        vo.setUserId(comment.getUserId());
         vo.setContent(comment.getContent());
         vo.setAuthorLabel(itinerarySummaryAssembler.resolveAuthorLabel(author));
         vo.setCreateTime(comment.getCreateTime());
         vo.setMine(currentUserId != null && Objects.equals(currentUserId, comment.getUserId()));
+        vo.setPinned(pinned);
+        vo.setCanPin(canPin && comment.getParentId() == null);
         return vo;
     }
 

@@ -9,6 +9,11 @@ declare module 'vue' {
   export interface GlobalComponents {
     AppNavbar: typeof import('./components/layout/AppNavbar.vue')['default']
     ChatWidget: typeof import('./components/ChatWidget.vue')['default']
+    CommentComposer: typeof import('./components/community/CommentComposer.vue')['default']
+    CommunityFeedCard: typeof import('./components/community/CommunityFeedCard.vue')['default']
+    CommunityFilterBar: typeof import('./components/community/CommunityFilterBar.vue')['default']
+    CommunityHero: typeof import('./components/community/CommunityHero.vue')['default']
+    CommunityPinnedSection: typeof import('./components/community/CommunityPinnedSection.vue')['default']
     ElAside: typeof import('element-plus/es')['ElAside']
     ElButton: typeof import('element-plus/es')['ElButton']
     ElCard: typeof import('element-plus/es')['ElCard']
@@ -41,6 +46,8 @@ declare module 'vue' {
     ElResult: typeof import('element-plus/es')['ElResult']
     ElRow: typeof import('element-plus/es')['ElRow']
     ElSelect: typeof import('element-plus/es')['ElSelect']
+    ElStep: typeof import('element-plus/es')['ElStep']
+    ElSteps: typeof import('element-plus/es')['ElSteps']
     ElSwitch: typeof import('element-plus/es')['ElSwitch']
     ElTable: typeof import('element-plus/es')['ElTable']
     ElTableColumn: typeof import('element-plus/es')['ElTableColumn']
@@ -58,6 +65,7 @@ declare module 'vue' {
     HomeRouteExamples: typeof import('./components/home/HomeRouteExamples.vue')['default']
     HomeScenarioCards: typeof import('./components/home/HomeScenarioCards.vue')['default']
     ItineraryMapCard: typeof import('./components/itinerary/ItineraryMapCard.vue')['default']
+    PublishRouteDialog: typeof import('./components/community/PublishRouteDialog.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
   }

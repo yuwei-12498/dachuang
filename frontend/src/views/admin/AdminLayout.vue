@@ -1,6 +1,6 @@
 <template>
   <el-container class="admin-layout">
-    <el-aside width="200px" class="admin-aside">
+    <el-aside width="220px" class="admin-aside">
       <div class="logo">
         <h2>行城有数后台</h2>
       </div>
@@ -19,6 +19,10 @@
         <el-menu-item index="/admin/pois">
           <el-icon><MapLocation /></el-icon>
           <span>POI 资源治理</span>
+        </el-menu-item>
+        <el-menu-item index="/admin/community">
+          <el-icon><ChatLineSquare /></el-icon>
+          <span>社区内容治理</span>
         </el-menu-item>
         <el-menu-item index="/">
            <el-icon><HomeFilled /></el-icon>
@@ -51,7 +55,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { User, MapLocation, HomeFilled } from '@element-plus/icons-vue'
+import { User, MapLocation, HomeFilled, ChatLineSquare } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const activeMenu = computed(() => route.path)
