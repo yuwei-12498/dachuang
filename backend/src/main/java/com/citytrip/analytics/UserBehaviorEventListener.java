@@ -4,6 +4,8 @@ import com.citytrip.analytics.command.UserBehaviorTrackCommand;
 import com.citytrip.analytics.event.UserBehaviorTrackedEvent;
 import com.citytrip.mapper.UserBehaviorEventMapper;
 import com.citytrip.model.entity.UserBehaviorEvent;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -12,6 +14,8 @@ import org.springframework.context.event.EventListener;
 
 @Component
 public class UserBehaviorEventListener {
+
+    private static final Logger log = LoggerFactory.getLogger(UserBehaviorEventListener.class);
 
     private final UserBehaviorEventMapper userBehaviorEventMapper;
 
@@ -47,6 +51,12 @@ public class UserBehaviorEventListener {
         entity.setReferer(command.getReferer());
         entity.setExtraJson(command.getExtraJson());
         entity.setEventTime(command.getEventTime());
-        userBehaviorEventMapper.insert(entity);
+        try {
+            userBehaviorEventMapper.insert(entity);
+        } catch (RuntimeException ex) {
+            log.warn("忽略用户行为埋点写入失败，eventType={}, reason={}",
+                    command.getEventType(),
+                    ex.getMessage());
+        }
     }
 }

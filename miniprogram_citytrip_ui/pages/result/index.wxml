@@ -2,26 +2,27 @@
   <view wx:if="{{itinerary}}" class="result-shell">
     <view class="hero-card">
       <view class="hero-main">
-        <text class="eyebrow">你的已保存行程</text>
+        <text class="eyebrow">浣犵殑宸蹭繚瀛樿绋?/text>
         <text class="hero-title">{{heroTitleText}}</text>
         <text class="hero-copy">{{heroDateText}}</text>
+        <text wx:if="{{departureText}}" class="hero-location">{{departureText}}</text>
       </view>
       <view class="hero-actions">
-        <view class="pill" bindtap="goBack">返回首页</view>
-        <view class="pill" bindtap="goHistory">历史行程</view>
-        <view class="pill {{itinerary.favorited ? 'warning' : ''}} {{favoriteLoading ? 'disabled' : ''}}" bindtap="handleFavorite">{{favoriteLoading ? (itinerary.favorited ? "取消中..." : "收藏中...") : (itinerary.favorited ? "取消收藏" : "收藏行程")}}</view>
-        <view class="pill primary {{replanning ? 'disabled' : ''}}" bindtap="handleReplan">{{replanning ? "重排中..." : "换一版路线"}}</view>
+        <view class="pill" bindtap="goBack">杩斿洖棣栭〉</view>
+        <view class="pill" bindtap="goHistory">鍘嗗彶琛岀▼</view>
+        <view class="pill {{itinerary.favorited ? 'warning' : ''}} {{favoriteLoading ? 'disabled' : ''}}" bindtap="handleFavorite">{{favoriteLoading ? (itinerary.favorited ? "鍙栨秷涓?.." : "鏀惰棌涓?..") : (itinerary.favorited ? "鍙栨秷鏀惰棌" : "鏀惰棌琛岀▼")}}</view>
+        <view class="pill primary {{replanning ? 'disabled' : ''}}" bindtap="handleReplan">{{replanning ? "閲嶆帓涓?.." : "鎹竴鐗堣矾绾?}}</view>
       </view>
     </view>
 
     <view wx:if="{{displayOptions.length}}" class="option-panel">
       <view class="panel-header">
         <view>
-          <text class="eyebrow">方案对比</text>
-          <text class="panel-title">先比较，再决定用哪条路线出发</text>
-          <text class="panel-copy">每个方案都给出推荐理由与取舍说明，方便你明确为什么选它。</text>
+          <text class="eyebrow">鏂规瀵规瘮</text>
+          <text class="panel-title">鍏堟瘮杈冿紝鍐嶅喅瀹氱敤鍝潯璺嚎鍑哄彂</text>
+          <text class="panel-copy">姣忎釜鏂规閮界粰鍑烘帹鑽愮悊鐢变笌鍙栬垗璇存槑锛屾柟渚夸綘鏄庣‘涓轰粈涔堥€夊畠銆?/text>
         </view>
-        <view class="option-counter">候选方案 {{displayOptions.length}}</view>
+        <view class="option-counter">鍊欓€夋柟妗?{{displayOptions.length}}</view>
       </view>
 
       <view class="option-grid">
@@ -41,42 +42,42 @@
           </view>
           <text class="option-summary">{{item.summary}}</text>
           <view class="option-metrics">
-            <text>总时长 {{item.durationText}}</text>
-            <text>总花费 ¥{{item.costText}}</text>
-            <text>点位 {{item.stopText}}</text>
+            <text>鎬绘椂闀?{{item.durationText}}</text>
+            <text>鎬昏姳璐?楼{{item.costText}}</text>
+            <text>鐐逛綅 {{item.stopText}}</text>
           </view>
-          <text class="option-copy"><text class="strong">推荐：</text>{{item.recommendReason}}</text>
-          <text class="option-copy muted"><text class="strong">不优先：</text>{{item.notRecommendReason}}</text>
+          <text class="option-copy"><text class="strong">鎺ㄨ崘锛?/text>{{item.recommendReason}}</text>
+          <text class="option-copy muted"><text class="strong">涓嶄紭鍏堬細</text>{{item.notRecommendReason}}</text>
         </view>
       </view>
     </view>
 
     <view class="stats-grid">
       <view class="stat-card">
-        <text>总时长</text>
+        <text>鎬绘椂闀?/text>
         <text class="stat-value">{{activeDurationText}}</text>
       </view>
       <view class="stat-card">
-        <text>预计花费</text>
+        <text>棰勮鑺辫垂</text>
         <text class="stat-value">{{activeCostText}}</text>
       </view>
       <view class="stat-card">
-        <text>推荐点位</text>
+        <text>鎺ㄨ崘鐐逛綅</text>
         <text class="stat-value">{{activeStopCount}}</text>
       </view>
     </view>
 
     <view class="copy-grid">
       <view class="copy-card">
-        <text class="eyebrow">为什么推荐这个</text>
+        <text class="eyebrow">涓轰粈涔堟帹鑽愯繖涓?/text>
         <text>{{reasonText}}</text>
       </view>
       <view class="copy-card">
-        <text class="eyebrow">为什么不优先选别的</text>
+        <text class="eyebrow">涓轰粈涔堜笉浼樺厛閫夊埆鐨?/text>
         <text>{{compareText}}</text>
       </view>
       <view class="copy-card">
-        <text class="eyebrow">执行提醒</text>
+        <text class="eyebrow">鎵ц鎻愰啋</text>
         <text>{{itinerary.tips}}</text>
       </view>
     </view>
@@ -88,9 +89,9 @@
     <view class="map-card">
       <view class="map-head">
         <view>
-          <text class="eyebrow">路线地图</text>
-          <text class="map-title">把这条路线放到地图上看</text>
-          <text class="map-copy">按当前推荐顺序展示站点位置与连线，方便你快速判断顺路程度。</text>
+          <text class="eyebrow">璺嚎鍦板浘</text>
+          <text class="map-title">鎶婅繖鏉¤矾绾挎斁鍒板湴鍥句笂鐪?/text>
+          <text class="map-copy">鎸夊綋鍓嶆帹鑽愰『搴忓睍绀虹珯鐐逛綅缃笌杩炵嚎锛屾柟渚夸綘蹇€熷垽鏂『璺▼搴︺€?/text>
         </view>
       </view>
       <map
@@ -102,7 +103,7 @@
         polyline="{{mapData.polyline}}"
         show-location="true"
       />
-      <view wx:else class="map-empty">当前路线缺少足够坐标信息，暂时无法绘制地图。</view>
+      <view wx:else class="map-empty">褰撳墠璺嚎缂哄皯瓒冲鍧愭爣淇℃伅锛屾殏鏃舵棤娉曠粯鍒跺湴鍥俱€?/view>
       <view class="stop-strip">
         <view wx:for="{{activeNodes}}" wx:key="poiId" class="stop-pill">
           <text class="stop-index">{{index + 1}}</text>
@@ -117,7 +118,7 @@
         <view class="stop-card">
           <view class="stop-head">
             <view>
-              <text class="stop-kicker">第 {{item.stepOrder}} 站</text>
+              <text class="stop-kicker">绗?{{item.stepOrder}} 绔?/text>
               <text class="stop-title">{{item.poiName}}</text>
             </view>
             <view class="stop-tags">
@@ -128,17 +129,19 @@
           <text class="stop-copy">{{item.sysReason}}</text>
           <text wx:if="{{item.statusNote}}" class="stop-note">{{item.statusNote}}</text>
           <view class="meta-row">
-            <text>路上：{{item.travelText}}</text>
-            <text>停留：{{item.stayText}}</text>
-            <text>花费：{{item.costText}}</text>
+            <text>璺笂锛歿{item.travelText}}</text>
+            <text wx:if="{{item.modeText}}">{{item.stepOrder === 1 ? '棣栨鏂瑰紡' : '鏈鏂瑰紡'}}锛歿{item.modeText}}</text>
+            <text wx:if="{{item.distanceText}}">璺濈绾︼細{{item.distanceText}}</text>
+            <text>鍋滅暀锛歿{item.stayText}}</text>
+            <text>鑺辫垂锛歿{item.costText}}</text>
           </view>
-          <view class="detail-btn" data-poiid="{{item.poiId}}" bindtap="goToDetail">查看详情并替换</view>
+          <view class="detail-btn" data-poiid="{{item.poiId}}" bindtap="goToDetail">鏌ョ湅璇︽儏骞舵浛鎹?/view>
         </view>
       </view>
     </view>
   </view>
 
-  <view wx:else class="empty-state">暂时没有找到行程，请先回首页生成。</view>
+  <view wx:else class="empty-state">鏆傛椂娌℃湁鎵惧埌琛岀▼锛岃鍏堝洖棣栭〉鐢熸垚銆?/view>
 
   <chat-widget id="chatWidget" showWidget="{{true}}" />
 </view>

@@ -14,7 +14,7 @@ import java.util.List;
 public interface PoiMapper extends BaseMapper<Poi> {
 
     @Select("""
-            select id, name, category, district, address, latitude, longitude, open_time, close_time,
+            select id, city_code, city_name, name, category, district, address, latitude, longitude, open_time, close_time,
                    closed_weekdays, temporarily_closed, status_note, status_source, status_updated_at,
                    avg_cost, stay_duration, indoor, night_available, rain_friendly, walking_level,
                    tags, suitable_for, description, priority_score, crowd_penalty
@@ -50,7 +50,20 @@ public interface PoiMapper extends BaseMapper<Poi> {
 
     List<Poi> selectPlanningCandidates(@Param("rainy") boolean rainy,
                                        @Param("walkingLevel") String walkingLevel,
+                                       @Param("cityCode") String cityCode,
+                                       @Param("cityName") String cityName,
                                        @Param("limit") int limit);
+
+    default List<Poi> selectPlanningCandidates(boolean rainy,
+                                               String walkingLevel,
+                                               int limit) {
+        return selectPlanningCandidates(rainy, walkingLevel, null, null, limit);
+    }
+
+    List<Poi> searchByNameInCity(@Param("keyword") String keyword,
+                                 @Param("cityCode") String cityCode,
+                                 @Param("cityName") String cityName,
+                                 @Param("limit") int limit);
 
     int insertAdminPoi(Poi poi);
 

@@ -22,6 +22,11 @@ public class MockChatServiceImpl implements ChatService {
         vo.setTimeoutSeconds(0);
         vo.setModel("mock");
         vo.setBaseUrl("local-mock");
+        vo.setToolReady(false);
+        vo.setGeoReady(false);
+        vo.setEmbeddingReady(false);
+        vo.setRerankReady(false);
+        vo.setWarnings(List.of());
         vo.setMessage("当前聊天服务正在使用本地 Mock 响应。");
         return vo;
     }

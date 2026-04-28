@@ -3,8 +3,8 @@
     <div class="panel-header">
       <div class="ai-avatar">AI</div>
       <div class="ai-title-wrap">
-        <h3 class="panel-title">行“城”向导</h3>
-        <span class="panel-subtitle">{{ authState.user ? '说说你的偏好，我来帮你理顺游玩思路' : '登录后即可获得更贴合你的路线建议' }}</span>
+        <h3 class="panel-title">行程问答助手</h3>
+        <span class="panel-subtitle">{{ authState.user ? '告诉我你的偏好，我来帮你理顺玩法与路线' : '登录后可获得更贴合你的路线建议' }}</span>
       </div>
     </div>
 
@@ -22,7 +22,7 @@
     </div>
 
     <div class="panel-quick-tips" v-if="chatState.currentTips.length > 0">
-      <p class="tips-title">不妨先从这些问题开始：</p>
+      <p class="tips-title">你可以继续追问：</p>
       <div class="tips-container">
         <el-tag
           v-for="(tip, idx) in chatState.currentTips"
@@ -30,8 +30,24 @@
           class="tip-tag"
           size="small"
           effect="light"
-          @click="sendQuestion(tip)">
+          @click="sendQuestion(tip)"
+        >
           {{ tip }}
+        </el-tag>
+      </div>
+    </div>
+
+    <div class="panel-quick-tips" v-if="chatState.currentEvidence.length > 0">
+      <p class="tips-title">本次回答依据：</p>
+      <div class="tips-container">
+        <el-tag
+          v-for="(item, idx) in chatState.currentEvidence"
+          :key="`evidence-${idx}`"
+          class="tip-tag"
+          size="small"
+          effect="plain"
+        >
+          {{ item }}
         </el-tag>
       </div>
     </div>
@@ -39,10 +55,11 @@
     <div class="panel-footer" v-if="authState.user">
       <el-input
         v-model="inputVal"
-        placeholder="例如：宽窄巷子最佳拍照点在哪？"
+        placeholder="例如：春熙路附近有什么值得去的？"
         @keyup.enter="handleSend"
         class="chat-input"
-        clearable>
+        clearable
+      >
         <template #append>
           <el-button @click="handleSend" type="primary" :disabled="!inputVal.trim() || chatState.loading">发送</el-button>
         </template>
@@ -50,7 +67,7 @@
     </div>
 
     <div v-else class="panel-footer login-footer">
-      <p class="login-copy">登录后就能向 AI 询问景点灵感、路线建议和出行提醒，帮你把一天安排得更顺路。</p>
+      <p class="login-copy">登录后可向 AI 询问点位建议、距离路线与出行提醒。</p>
       <el-button type="primary" round class="login-btn" @click="goLogin">登录后再问</el-button>
     </div>
   </div>
@@ -62,6 +79,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthState } from '@/store/auth'
 import { askChatQuestion, useChatState } from '@/store/chat'
+import { buildSharedChatContext } from '@/utils/chatContext'
 
 const props = defineProps({
   currentForm: {
@@ -95,12 +113,9 @@ const ensureLogin = () => {
   return false
 }
 
-const buildContext = () => ({
+const buildContext = () => buildSharedChatContext({
   pageType: 'home',
-  preferences: props.currentForm.themes || [],
-  rainy: props.currentForm.isRainy || false,
-  nightMode: props.currentForm.isNight || false,
-  companionType: props.currentForm.companionType || ''
+  currentForm: props.currentForm
 })
 
 const sendQuestion = (q) => {

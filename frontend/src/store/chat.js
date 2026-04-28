@@ -1,14 +1,15 @@
 import { reactive } from 'vue'
 import { reqStreamChat } from '@/api/chat'
 
-const defaultAssistantMessage = '你好！我是你的旅行小助手。登录后，我可以结合你的时间和偏好，帮你想好更顺路的玩法与更省心的出行建议。'
+const defaultAssistantMessage = '你好！我是你的旅行小助手。你可以问我附近有什么、怎么去、适合什么主题路线等问题。'
 const defaultTips = [
   '宽窄巷子最佳拍照点在哪？',
   '春熙路附近有什么值得逛的？',
-  '雨天适合去哪里？',
-  '带小朋友去哪里玩比较好？'
+  '雨天适合去哪儿？',
+  '带小朋友去哪里比较好？'
 ]
 const fallbackTips = ['成都有哪些必吃美食？', '有什么适合一日游的路线？']
+const reconnectTips = ['重新连接']
 const storagePrefix = 'trip_chat_state_'
 let activeStorageKey = ''
 
@@ -22,6 +23,7 @@ const createDefaultMessages = () => ([
 const createDefaultState = () => ({
   messages: createDefaultMessages(),
   currentTips: [...defaultTips],
+  currentEvidence: [],
   loading: false,
   streamTick: 0
 })
@@ -56,8 +58,13 @@ function applyChatState(payload = {}) {
     nextState.currentTips = [...payload.currentTips]
   }
 
+  if (Array.isArray(payload.currentEvidence) && payload.currentEvidence.length > 0) {
+    nextState.currentEvidence = [...payload.currentEvidence]
+  }
+
   chatState.messages = nextState.messages
   chatState.currentTips = nextState.currentTips
+  chatState.currentEvidence = nextState.currentEvidence
   chatState.loading = false
   chatState.streamTick = 0
 }
@@ -70,7 +77,8 @@ function persistChatState() {
   try {
     window.sessionStorage.setItem(activeStorageKey, JSON.stringify({
       messages: chatState.messages,
-      currentTips: chatState.currentTips
+      currentTips: chatState.currentTips,
+      currentEvidence: chatState.currentEvidence
     }))
   } catch (err) {
   }
@@ -122,6 +130,10 @@ function resolveTips(candidate) {
   return Array.isArray(candidate) && candidate.length > 0 ? [...candidate] : [...fallbackTips]
 }
 
+function resolveEvidence(candidate) {
+  return Array.isArray(candidate) ? candidate.filter(Boolean).slice(0, 8) : []
+}
+
 export async function askChatQuestion(question, context) {
   const value = typeof question === 'string' ? question.trim() : ''
   if (!value || chatState.loading) {
@@ -130,6 +142,7 @@ export async function askChatQuestion(question, context) {
 
   chatState.messages.push({ role: 'user', content: value })
   chatState.currentTips = []
+  chatState.currentEvidence = []
   chatState.loading = true
   touchStream()
   persistChatState()
@@ -158,8 +171,9 @@ export async function askChatQuestion(question, context) {
           assistantMessage.content += token
           touchStream()
         },
-        onMeta: ({ relatedTips }) => {
+        onMeta: ({ relatedTips, evidence }) => {
           chatState.currentTips = resolveTips(relatedTips)
+          chatState.currentEvidence = resolveEvidence(evidence)
           touchStream()
         }
       }
@@ -182,6 +196,9 @@ export async function askChatQuestion(question, context) {
     if (!chatState.currentTips.length) {
       chatState.currentTips = resolveTips(result.relatedTips)
     }
+    if (!chatState.currentEvidence.length) {
+      chatState.currentEvidence = resolveEvidence(result.evidence)
+    }
 
     touchStream()
     persistChatState()
@@ -192,7 +209,8 @@ export async function askChatQuestion(question, context) {
         role: 'assistant',
         content: buildChatErrorMessage(err)
       })
-      chatState.currentTips = ['重新连接']
+      chatState.currentTips = [...reconnectTips]
+      chatState.currentEvidence = []
       touchStream()
       persistChatState()
     }

@@ -97,7 +97,10 @@ public class ChatController {
             if (!emittedAnyToken.get() && result != null && result.getAnswer() != null && !result.getAnswer().trim().isEmpty()) {
                 sendEvent(emitter, tokenEvent(result.getAnswer()), connectionOpen);
             }
-            sendEvent(emitter, metaEvent(result == null ? List.of() : result.getRelatedTips()), connectionOpen);
+            sendEvent(emitter, metaEvent(
+                    result == null ? List.of() : result.getRelatedTips(),
+                    result == null ? List.of() : result.getEvidence()
+            ), connectionOpen);
             sendEvent(emitter, doneEvent(), connectionOpen);
             emitter.complete();
         } catch (Exception ex) {
@@ -133,10 +136,11 @@ public class ChatController {
         return payload;
     }
 
-    private Map<String, Object> metaEvent(List<String> relatedTips) {
+    private Map<String, Object> metaEvent(List<String> relatedTips, List<String> evidence) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("type", "meta");
         payload.put("relatedTips", relatedTips == null ? List.of() : relatedTips);
+        payload.put("evidence", evidence == null ? List.of() : evidence);
         return payload;
     }
 

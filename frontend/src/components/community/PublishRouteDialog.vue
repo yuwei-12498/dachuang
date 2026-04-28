@@ -21,24 +21,39 @@
     </el-steps>
 
     <section v-if="activeStep === 0" class="step-panel version-panel">
-      <div
-        v-for="option in displayOptions"
-        :key="option.optionKey"
-        class="version-card"
-        :class="{ active: form.selectedOptionKey === option.optionKey }"
-        @click="form.selectedOptionKey = option.optionKey"
-      >
+      <template v-if="displayOptions.length > 1">
+        <div
+          v-for="option in displayOptions"
+          :key="option.optionKey"
+          class="version-card"
+          :class="{ active: form.selectedOptionKey === option.optionKey }"
+          @click="form.selectedOptionKey = option.optionKey"
+        >
+          <div>
+            <p class="version-label">{{ option.title }}</p>
+            <h3>{{ option.subtitle }}</h3>
+          </div>
+          <div class="version-meta">
+            <span>{{ formatDuration(option.totalDuration) }}</span>
+            <span>¥{{ option.totalCost ?? 0 }}</span>
+            <span>{{ option.stopCount }} 站</span>
+          </div>
+          <p class="version-copy">{{ option.summary || option.recommendReason || '选一条最适合被分享出去的路线版本。' }}</p>
+        </div>
+      </template>
+
+      <article v-else class="version-card version-card-single active">
         <div>
-          <p class="version-label">{{ option.title }}</p>
-          <h3>{{ option.subtitle }}</h3>
+          <p class="version-label">{{ previewOption.title || '当前路线' }}</p>
+          <h3>{{ previewOption.subtitle || '当前结果仅保留 1 条主路线' }}</h3>
         </div>
         <div class="version-meta">
-          <span>{{ formatDuration(option.totalDuration) }}</span>
-          <span>¥{{ option.totalCost ?? 0 }}</span>
-          <span>{{ option.stopCount }} 站</span>
+          <span>{{ formatDuration(previewOption.totalDuration) }}</span>
+          <span>¥{{ previewOption.totalCost ?? 0 }}</span>
+          <span>{{ previewOption.stopCount }} 站</span>
         </div>
-        <p class="version-copy">{{ option.summary || option.recommendReason || '选一条最适合被分享出去的路线版本。' }}</p>
-      </div>
+        <p class="version-copy">{{ previewOption.summary || previewOption.recommendReason || '如果想换一种走法，建议先回结果页点击“换一版路线”。' }}</p>
+      </article>
     </section>
 
     <section v-else-if="activeStep === 1" class="step-panel form-panel">
@@ -159,7 +174,8 @@ const buildFallbackOption = snapshot => {
 
 const displayOptions = computed(() => {
   if (Array.isArray(props.itinerary?.options) && props.itinerary.options.length) {
-    return props.itinerary.options.map(option => ({
+    const selected = props.itinerary.options.find(option => option.optionKey === props.itinerary?.selectedOptionKey) || props.itinerary.options[0]
+    return [selected].filter(Boolean).map(option => ({
       ...option,
       title: option.title || '备选路线',
       subtitle: option.subtitle || '适合当前分享的路线版本',
@@ -254,16 +270,35 @@ const formatDuration = minutes => {
 </script>
 
 <style scoped>
+:deep(.publish-dialog .el-dialog) {
+  border-radius: 30px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(244, 249, 255, 0.96));
+  box-shadow: 0 28px 72px rgba(81, 120, 177, 0.18);
+}
+
+:deep(.publish-dialog .el-dialog__header) {
+  margin-right: 0;
+  padding: 26px 28px 12px;
+}
+
+:deep(.publish-dialog .el-dialog__body) {
+  padding: 0 28px 24px;
+}
+
+:deep(.publish-dialog .el-dialog__footer) {
+  padding: 0 28px 28px;
+}
+
 .dialog-header h2 {
   margin: 8px 0 0;
-  color: #142033;
+  color: var(--text-strong);
   font-size: 30px;
-  font-family: 'Georgia', 'Times New Roman', serif;
+  font-family: var(--font-display);
 }
 
 .dialog-header span,
 .dialog-kicker {
-  color: #7a6a55;
+  color: var(--text-soft);
 }
 
 .dialog-kicker {
@@ -276,6 +311,16 @@ const formatDuration = minutes => {
   margin-bottom: 24px;
 }
 
+:deep(.step-bar .el-step__title) {
+  color: var(--text-body);
+}
+
+:deep(.step-bar .is-process .el-step__icon),
+:deep(.step-bar .is-finish .el-step__icon) {
+  background: linear-gradient(135deg, var(--brand-500), #8ac2ff);
+  border-color: transparent;
+}
+
 .step-panel {
   min-height: 360px;
 }
@@ -285,25 +330,30 @@ const formatDuration = minutes => {
   gap: 14px;
 }
 
+.version-card,
+.preview-card {
+  border-radius: 24px;
+  border: 1px solid rgba(188, 214, 255, 0.84);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 14px 32px rgba(81, 120, 177, 0.08);
+}
+
 .version-card {
   padding: 20px;
-  border-radius: 24px;
-  border: 1px solid rgba(220, 210, 194, 0.82);
-  background: rgba(255, 251, 244, 0.92);
   cursor: pointer;
   transition: all 0.22s ease;
 }
 
 .version-card.active {
-  border-color: rgba(23, 41, 63, 0.28);
-  background: rgba(238, 245, 239, 0.9);
-  box-shadow: 0 18px 36px rgba(17, 32, 49, 0.08);
+  border-color: rgba(95, 158, 255, 0.5);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(240, 247, 255, 0.94));
+  box-shadow: 0 18px 36px rgba(81, 120, 177, 0.12);
 }
 
 .version-label,
 .mini-kicker {
   margin: 0;
-  color: #8f7751;
+  color: var(--brand-600);
   font-size: 12px;
   letter-spacing: 0.14em;
 }
@@ -311,13 +361,11 @@ const formatDuration = minutes => {
 .version-card h3,
 .info-preview h4 {
   margin: 10px 0 0;
-  color: #182435;
+  color: var(--text-strong);
   font-size: 22px;
-  font-family: 'Georgia', 'Times New Roman', serif;
+  font-family: var(--font-display);
 }
 
-.version-meta,
-.preview-metrics,
 .chip-row {
   display: flex;
   gap: 10px 12px;
@@ -327,14 +375,14 @@ const formatDuration = minutes => {
 .version-meta,
 .preview-metrics {
   margin-top: 12px;
-  color: #61707f;
+  color: var(--text-soft);
   font-size: 13px;
 }
 
 .version-copy,
 .preview-copy {
   margin: 12px 0 0;
-  color: #5e6b79;
+  color: var(--text-body);
   line-height: 1.75;
 }
 
@@ -345,10 +393,7 @@ const formatDuration = minutes => {
 }
 
 .preview-card {
-  border-radius: 28px;
   overflow: hidden;
-  border: 1px solid rgba(220, 210, 194, 0.82);
-  background: rgba(255, 251, 244, 0.96);
 }
 
 .hero-preview {
@@ -369,8 +414,8 @@ const formatDuration = minutes => {
   flex-direction: column;
   justify-content: flex-end;
   padding: 24px;
-  color: #f9f6f0;
-  background: linear-gradient(180deg, rgba(16, 26, 37, 0.08), rgba(12, 18, 27, 0.84));
+  color: #f6fbff;
+  background: linear-gradient(180deg, rgba(18, 42, 79, 0.08), rgba(18, 42, 79, 0.82));
 }
 
 .preview-badge,
@@ -385,21 +430,21 @@ const formatDuration = minutes => {
 
 .preview-badge {
   margin-bottom: 12px;
-  background: rgba(252, 236, 210, 0.16);
-  border: 1px solid rgba(252, 236, 210, 0.22);
-  color: #f7dfb8;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(228, 239, 255, 0.24);
+  color: #dcecff;
 }
 
 .preview-overlay h3 {
   margin: 0;
   font-size: 28px;
-  font-family: 'Georgia', 'Times New Roman', serif;
+  font-family: var(--font-display);
 }
 
 .preview-overlay p {
   margin: 12px 0 0;
   line-height: 1.8;
-  color: rgba(245, 240, 232, 0.86);
+  color: rgba(236, 245, 255, 0.88);
 }
 
 .info-preview {
@@ -411,14 +456,23 @@ const formatDuration = minutes => {
 }
 
 .preview-chip {
-  background: rgba(211, 226, 215, 0.46);
-  color: #405a4a;
+  background: rgba(244, 249, 255, 0.94);
+  border: 1px solid rgba(188, 214, 255, 0.84);
+  color: var(--brand-600);
 }
 
 .dialog-actions {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+}
+
+:deep(.form-panel .el-input__wrapper),
+:deep(.form-panel .el-textarea__inner),
+:deep(.form-panel .el-select__wrapper) {
+  border-radius: 18px;
+  background: rgba(248, 252, 255, 0.96);
+  box-shadow: 0 0 0 1px rgba(188, 214, 255, 0.84) inset;
 }
 
 @media (max-width: 900px) {

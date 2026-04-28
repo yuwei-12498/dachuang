@@ -57,6 +57,7 @@ import { ElMessage } from 'element-plus'
 import { reqGetLatestItinerary, reqReplacePoi } from '@/api/itinerary'
 import { reqGetPoiDetail } from '@/api/poi'
 import { loadItinerarySnapshot, localizeItineraryText, normalizeItinerarySnapshot, normalizePoiDetail, saveItinerarySnapshot } from '@/store/itinerary'
+import { pushRecentPoiContext } from '@/utils/chatContext'
 
 const text = {
   back: '\u8FD4\u56DE\u884C\u7A0B',
@@ -112,6 +113,7 @@ onMounted(async () => {
 
   try {
     poiDetail.value = normalizePoiDetail(await reqGetPoiDetail(targetPoiId, itinerary.value?.originalReq?.tripDate))
+    pushRecentPoiContext(poiDetail.value)
   } catch (err) {
     ElMessage.error(text.loadFailed)
   }

@@ -1,12 +1,14 @@
 package com.citytrip.service.impl;
 
 import com.citytrip.config.LlmProperties;
+import com.citytrip.service.impl.vivo.VivoRequestIdFactory;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.io.BufferedReader;
@@ -17,6 +19,7 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.SocketTimeoutException;
 import java.net.URL;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
@@ -25,13 +28,23 @@ import java.util.function.Consumer;
 @Component
 public class OpenAiGatewayClient {
     private static final Logger log = LoggerFactory.getLogger(OpenAiGatewayClient.class);
+    public static final String TOOL_CALL_PREFIX = "__tool_calls__:";
 
     private final LlmProperties llmProperties;
     private final ObjectMapper objectMapper;
+    private final VivoRequestIdFactory vivoRequestIdFactory;
 
+    @Autowired
     public OpenAiGatewayClient(LlmProperties llmProperties, ObjectMapper objectMapper) {
+        this(llmProperties, objectMapper, new VivoRequestIdFactory());
+    }
+
+    public OpenAiGatewayClient(LlmProperties llmProperties,
+                               ObjectMapper objectMapper,
+                               VivoRequestIdFactory vivoRequestIdFactory) {
         this.llmProperties = llmProperties;
         this.objectMapper = objectMapper;
+        this.vivoRequestIdFactory = vivoRequestIdFactory;
     }
 
     public String request(LlmProperties.ResolvedOpenAiOptions options,
@@ -86,7 +99,7 @@ public class OpenAiGatewayClient {
                            String apiKey,
                            OpenAiChatRequest request,
                            Consumer<String> tokenConsumer) {
-        String endpoint = normalizeBaseUrl(options.getBaseUrl()) + "/chat/completions";
+        String endpoint = buildChatEndpoint(options, request.getModel());
         HttpURLConnection connection = null;
         try {
             connection = (HttpURLConnection) new URL(endpoint).openConnection();
@@ -117,6 +130,10 @@ public class OpenAiGatewayClient {
             }
 
             String responseBody = readAll(connection.getInputStream());
+            String providerError = extractProviderError(responseBody);
+            if (hasText(providerError)) {
+                throw new IllegalStateException(providerError);
+            }
             String content = extractJsonContent(responseBody);
             if (!hasText(content)) {
                 throw new IllegalStateException("OpenAI message content is empty");
@@ -169,6 +186,10 @@ public class OpenAiGatewayClient {
 
         String content = finalContent.toString();
         if (!hasText(content)) {
+            String providerError = extractProviderError(rawBody.toString());
+            if (hasText(providerError)) {
+                throw new IllegalStateException(providerError);
+            }
             content = extractJsonContent(rawBody.toString());
             if (hasText(content) && tokenConsumer != null) {
                 tokenConsumer.accept(content.trim());
@@ -221,6 +242,11 @@ public class OpenAiGatewayClient {
                 return messageContent.asText();
             }
 
+            JsonNode toolCalls = choices.get(0).path("message").path("tool_calls");
+            if (toolCalls.isArray() && !toolCalls.isEmpty()) {
+                return TOOL_CALL_PREFIX + toolCalls.toString();
+            }
+
             JsonNode deltaContent = choices.get(0).path("delta").path("content");
             if (!deltaContent.isMissingNode() && !deltaContent.isNull()) {
                 return deltaContent.asText();
@@ -228,6 +254,36 @@ public class OpenAiGatewayClient {
             return null;
         } catch (Exception ex) {
             return extractContentFromSseDump(rawBody);
+        }
+    }
+
+    private String extractProviderError(String rawBody) {
+        if (!hasText(rawBody)) {
+            return null;
+        }
+        try {
+            JsonNode root = objectMapper.readTree(rawBody);
+            JsonNode error = root.path("error");
+            if (error.isMissingNode() || error.isNull()) {
+                return null;
+            }
+
+            String code = error.path("code").asText("");
+            String message = error.path("message").asText("");
+            if (!hasText(code) && !hasText(message)) {
+                return null;
+            }
+
+            StringBuilder builder = new StringBuilder("Model provider error");
+            if (hasText(code)) {
+                builder.append(" [").append(code.trim()).append(']');
+            }
+            if (hasText(message)) {
+                builder.append(": ").append(message.trim());
+            }
+            return builder.toString();
+        } catch (Exception ex) {
+            return null;
         }
     }
 
@@ -262,6 +318,27 @@ public class OpenAiGatewayClient {
         }
         String value = baseUrl.trim();
         return value.endsWith("/") ? value.substring(0, value.length() - 1) : value;
+    }
+
+    private String buildChatEndpoint(LlmProperties.ResolvedOpenAiOptions options, String model) {
+        String endpoint = normalizeBaseUrl(options.getBaseUrl()) + "/chat/completions";
+        if (!shouldAttachVivoRequestId(options.getBaseUrl(), model)) {
+            return endpoint;
+        }
+        return appendQueryParam(endpoint, "requestId", vivoRequestIdFactory.create());
+    }
+
+    private boolean shouldAttachVivoRequestId(String baseUrl, String model) {
+        return looksLikeVivoBaseUrl(baseUrl) || LlmProperties.isVivoAllowedModel(model);
+    }
+
+    private boolean looksLikeVivoBaseUrl(String baseUrl) {
+        return hasText(baseUrl) && baseUrl.toLowerCase(Locale.ROOT).contains("api-ai.vivo.com.cn");
+    }
+
+    private String appendQueryParam(String endpoint, String key, String value) {
+        String encodedValue = URLEncoder.encode(value, StandardCharsets.UTF_8);
+        return endpoint + (endpoint.contains("?") ? "&" : "?") + key + "=" + encodedValue;
     }
 
     private boolean hasText(String value) {

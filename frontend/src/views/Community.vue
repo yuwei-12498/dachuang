@@ -36,6 +36,7 @@
             <div>
               <p class="section-kicker">DISCOVER</p>
               <h2>路线动态流</h2>
+              <p class="section-copy">先看精选，再顺着最新路线往下逛；筛选后，你会更快找到真正值得借鉴的城市走法。</p>
             </div>
             <span>双列阅读流 · {{ total }} 条结果</span>
           </div>
@@ -49,8 +50,22 @@
             />
           </div>
 
+          <div v-else-if="!loading && !hasCommunityContent" class="empty-community-card state-card">
+            <el-empty description="当前社区里还没有公开路线帖" />
+            <div class="empty-community-copy">
+              <h3>你的路线还停留在私有草稿区</h3>
+              <p>
+                现在社区接口返回的是 0 条公开内容。去历史记录里挑一条路线发布，或者先生成一条新路线，再把满意的版本发到社区。
+              </p>
+            </div>
+            <div class="empty-community-actions">
+              <el-button type="primary" round @click="handleOpenHistory">去历史记录里发布</el-button>
+              <el-button round @click="router.push('/')">先生成一条新路线</el-button>
+            </div>
+          </div>
+
           <el-empty
-            v-else
+            v-else-if="!loading"
             description="暂时没有符合当前筛选条件的路线帖，换个标签或关键词看看。"
             class="state-card"
           />
@@ -72,7 +87,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import CommunityFeedCard from '@/components/community/CommunityFeedCard.vue'
 import CommunityFilterBar from '@/components/community/CommunityFilterBar.vue'
@@ -94,6 +109,7 @@ const theme = ref('')
 const records = ref([])
 const pinnedRecords = ref([])
 const availableThemes = ref([])
+const hasCommunityContent = computed(() => records.value.length > 0 || pinnedRecords.value.length > 0)
 
 const loadCommunityList = async () => {
   loading.value = true
@@ -137,7 +153,7 @@ const openCommunityDetail = id => {
   router.push(`/community/${id}`)
 }
 
-const handlePublish = async () => {
+const openHistoryHub = async () => {
   await initAuthState()
   if (!authState.user) {
     router.push({
@@ -151,6 +167,14 @@ const handlePublish = async () => {
   router.push('/history')
 }
 
+const handlePublish = async () => {
+  await openHistoryHub()
+}
+
+const handleOpenHistory = async () => {
+  await openHistoryHub()
+}
+
 onMounted(() => {
   loadCommunityList()
 })
@@ -159,20 +183,23 @@ onMounted(() => {
 <style scoped>
 .community-page {
   min-height: calc(100vh - 64px);
-  padding: 32px 20px 56px;
+  padding: 34px 20px 58px;
   background:
-    radial-gradient(circle at top left, rgba(200, 216, 202, 0.28), transparent 28%),
-    radial-gradient(circle at top right, rgba(246, 224, 190, 0.22), transparent 22%),
-    linear-gradient(180deg, #f6f1e8 0%, #f9f7f2 38%, #f3f7fa 100%);
+    radial-gradient(circle at top left, rgba(124, 182, 255, 0.16), transparent 22%),
+    radial-gradient(circle at top right, rgba(211, 230, 255, 0.22), transparent 28%),
+    linear-gradient(180deg, #f7fbff 0%, #f2f7ff 100%);
 }
 
 .community-shell {
   max-width: 1240px;
   margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 36px;
 }
 
 .feed-section {
-  margin-top: 30px;
+  margin-top: 0;
 }
 
 .section-head {
@@ -180,49 +207,92 @@ onMounted(() => {
   justify-content: space-between;
   gap: 16px;
   align-items: end;
-  margin-bottom: 18px;
+  margin-bottom: 20px;
 }
 
 .section-kicker {
   margin: 0 0 8px;
-  color: #8f7550;
+  color: var(--brand-600);
   letter-spacing: 0.16em;
   font-size: 12px;
 }
 
 .section-head h2 {
   margin: 0;
-  color: #142033;
-  font-size: 28px;
-  font-family: 'Georgia', 'Times New Roman', serif;
+  color: var(--text-strong);
+  font-size: 30px;
+  font-family: var(--font-display);
+}
+
+.section-copy {
+  margin: 12px 0 0;
+  max-width: 600px;
+  color: var(--text-body);
+  line-height: 1.8;
 }
 
 .section-head span {
-  color: #6e7c8e;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(188, 214, 255, 0.78);
+  background: rgba(246, 250, 255, 0.94);
+  color: var(--text-soft);
   font-size: 13px;
 }
 
 .feed-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 22px;
+  gap: 24px;
 }
 
 .state-card {
   margin-top: 24px;
-  border-radius: 28px;
-  background: rgba(255, 252, 247, 0.96);
-  border: 1px solid rgba(221, 211, 194, 0.82);
+  border-radius: var(--radius-panel);
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(188, 214, 255, 0.84);
+  box-shadow: var(--shadow-soft);
+}
+
+.empty-community-card {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1fr);
+  gap: 24px;
+  align-items: center;
+  padding: 28px 30px;
+}
+
+.empty-community-copy h3 {
+  margin: 0;
+  color: var(--text-strong);
+  font-size: 28px;
+  font-family: var(--font-display);
+}
+
+.empty-community-copy p {
+  margin: 14px 0 0;
+  color: var(--text-body);
+  line-height: 1.85;
+}
+
+.empty-community-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .pager-wrap {
   display: flex;
   justify-content: center;
-  margin-top: 28px;
+  margin-top: 0;
 }
 
 @media (max-width: 900px) {
   .feed-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .empty-community-card {
     grid-template-columns: 1fr;
   }
 

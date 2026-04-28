@@ -5,8 +5,12 @@ import com.citytrip.model.dto.ChatReqDTO;
 import com.citytrip.model.dto.GenerateReqDTO;
 import com.citytrip.model.vo.ChatStatusVO;
 import com.citytrip.model.vo.ChatVO;
+import com.citytrip.model.vo.DepartureLegEstimateVO;
 import com.citytrip.model.vo.ItineraryNodeVO;
 import com.citytrip.model.vo.ItineraryOptionVO;
+import com.citytrip.model.vo.SmartFillVO;
+import com.citytrip.service.domain.ai.ChatPoiSkillService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -79,6 +83,13 @@ class OpenAiServiceDelegationTest {
         realLlmGatewayService.generateTipsToReturn = "Bring an umbrella and reserve popular venues.";
         realLlmGatewayService.explainOptionRecommendationToReturn = "Balanced route with strong theme match.";
         realLlmGatewayService.explainPoiChoiceToReturn = "This stop fits the morning indoor preference.";
+        DepartureLegEstimateVO departureLeg = new DepartureLegEstimateVO();
+        departureLeg.setTransportMode("地铁+步行");
+        departureLeg.setEstimatedMinutes(38);
+        realLlmGatewayService.departureLegEstimateToReturn = departureLeg;
+        SmartFillVO smartFillVO = new SmartFillVO();
+        smartFillVO.setMustVisitPoiNames(List.of("IFS国际金融中心"));
+        realLlmGatewayService.smartFillToReturn = smartFillVO;
         ItineraryOptionVO option = new ItineraryOptionVO();
         option.setSummary("Overall score is balanced.");
 
@@ -86,6 +97,8 @@ class OpenAiServiceDelegationTest {
         assertThat(service.generateTips(req)).isEqualTo("Bring an umbrella and reserve popular venues.");
         assertThat(service.explainOptionRecommendation(req, option)).isEqualTo("Balanced route with strong theme match.");
         assertThat(service.explainPoiChoice(req, node)).isEqualTo("This stop fits the morning indoor preference.");
+        assertThat(service.estimateDepartureLeg(req, node)).isSameAs(departureLeg);
+        assertThat(service.parseSmartFill("想去IFS", List.of("IFS国际金融中心"))).isSameAs(smartFillVO);
 
         assertThat(realLlmGatewayService.lastExplainReq).isSameAs(req);
         assertThat(realLlmGatewayService.lastExplainNodes).isSameAs(nodes);
@@ -94,6 +107,8 @@ class OpenAiServiceDelegationTest {
         assertThat(realLlmGatewayService.lastOption).isSameAs(option);
         assertThat(realLlmGatewayService.lastPoiReq).isSameAs(req);
         assertThat(realLlmGatewayService.lastPoiNode).isSameAs(node);
+        assertThat(realLlmGatewayService.lastSmartFillText).isEqualTo("想去IFS");
+        assertThat(realLlmGatewayService.lastSmartFillPoiHints).containsExactly("IFS国际金融中心");
     }
 
     private LlmProperties buildValidChatProperties() {
@@ -115,7 +130,7 @@ class OpenAiServiceDelegationTest {
         private ChatVO streamAnswerToReturn;
 
         private StubRealChatGatewayService() {
-            super(null, new LlmProperties(), new SafePromptBuilder());
+            super(null, new LlmProperties(), new SafePromptBuilder(), new ChatPoiSkillService(null));
         }
 
         @Override
@@ -144,9 +159,13 @@ class OpenAiServiceDelegationTest {
         private String generateTipsToReturn;
         private String explainOptionRecommendationToReturn;
         private String explainPoiChoiceToReturn;
+        private DepartureLegEstimateVO departureLegEstimateToReturn;
+        private String lastSmartFillText;
+        private List<String> lastSmartFillPoiHints;
+        private SmartFillVO smartFillToReturn;
 
         private StubRealLlmGatewayService() {
-            super(null, new LlmProperties(), new SafePromptBuilder());
+            super(null, new LlmProperties(), new SafePromptBuilder(), new ObjectMapper());
         }
 
         @Override
@@ -174,6 +193,20 @@ class OpenAiServiceDelegationTest {
             this.lastPoiReq = userReq;
             this.lastPoiNode = node;
             return explainPoiChoiceToReturn;
+        }
+
+        @Override
+        public DepartureLegEstimateVO estimateDepartureLeg(GenerateReqDTO userReq, ItineraryNodeVO firstNode) {
+            this.lastPoiReq = userReq;
+            this.lastPoiNode = firstNode;
+            return departureLegEstimateToReturn;
+        }
+
+        @Override
+        public SmartFillVO parseSmartFill(String text, List<String> poiNameHints) {
+            this.lastSmartFillText = text;
+            this.lastSmartFillPoiHints = poiNameHints;
+            return smartFillToReturn;
         }
     }
 }

@@ -2,8 +2,12 @@ package com.citytrip.service.impl;
 
 import com.citytrip.config.LlmProperties;
 import com.citytrip.model.dto.GenerateReqDTO;
+import com.citytrip.model.vo.DepartureLegEstimateVO;
+import com.citytrip.model.vo.ItineraryRouteDecorationVO;
 import com.citytrip.model.vo.ItineraryNodeVO;
 import com.citytrip.model.vo.ItineraryOptionVO;
+import com.citytrip.model.vo.SegmentTransportAnalysisVO;
+import com.citytrip.model.vo.SmartFillVO;
 import com.citytrip.service.LlmService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,6 +15,7 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 @Primary
 @Service
@@ -48,6 +53,24 @@ public class RoutingLlmServiceImpl implements LlmService {
     }
 
     @Override
+    public String generatePoiWarmTips(GenerateReqDTO userReq, ItineraryNodeVO node) {
+        return routeCall(
+                () -> realLlmService.generatePoiWarmTips(userReq, node),
+                () -> mockLlmService.generatePoiWarmTips(userReq, node),
+                "generatePoiWarmTips"
+        );
+    }
+
+    @Override
+    public String generateRouteWarmTip(GenerateReqDTO userReq, List<ItineraryNodeVO> nodes) {
+        return routeCall(
+                () -> realLlmService.generateRouteWarmTip(userReq, nodes),
+                () -> mockLlmService.generateRouteWarmTip(userReq, nodes),
+                "generateRouteWarmTip"
+        );
+    }
+
+    @Override
     public String explainOptionRecommendation(GenerateReqDTO userReq, ItineraryOptionVO option) {
         return routeCall(
                 () -> realLlmService.explainOptionRecommendation(userReq, option),
@@ -65,7 +88,47 @@ public class RoutingLlmServiceImpl implements LlmService {
         );
     }
 
+    @Override
+    public SmartFillVO parseSmartFill(String text, List<String> poiNameHints) {
+        return routeCallGeneric(
+                () -> realLlmService.parseSmartFill(text, poiNameHints),
+                () -> mockLlmService.parseSmartFill(text, poiNameHints),
+                "parseSmartFill"
+        );
+    }
+
+    @Override
+    public DepartureLegEstimateVO estimateDepartureLeg(GenerateReqDTO userReq, ItineraryNodeVO firstNode) {
+        return routeCallGeneric(
+                () -> realLlmService.estimateDepartureLeg(userReq, firstNode),
+                () -> mockLlmService.estimateDepartureLeg(userReq, firstNode),
+                "estimateDepartureLeg"
+        );
+    }
+
+    @Override
+    public SegmentTransportAnalysisVO analyzeSegmentTransport(GenerateReqDTO userReq, ItineraryNodeVO fromNode, ItineraryNodeVO toNode) {
+        return routeCallGeneric(
+                () -> realLlmService.analyzeSegmentTransport(userReq, fromNode, toNode),
+                () -> mockLlmService.analyzeSegmentTransport(userReq, fromNode, toNode),
+                "analyzeSegmentTransport"
+        );
+    }
+
+    @Override
+    public ItineraryRouteDecorationVO decorateRouteExperience(GenerateReqDTO userReq, List<ItineraryNodeVO> nodes) {
+        return routeCallGeneric(
+                () -> realLlmService.decorateRouteExperience(userReq, nodes),
+                () -> mockLlmService.decorateRouteExperience(userReq, nodes),
+                "decorateRouteExperience"
+        );
+    }
+
     private String routeCall(TextSupplier realSupplier, TextSupplier mockSupplier, String scene) {
+        return routeCallGeneric(realSupplier::get, mockSupplier::get, scene);
+    }
+
+    private <T> T routeCallGeneric(Supplier<T> realSupplier, Supplier<T> mockSupplier, String scene) {
         if (llmProperties.isMockOnly()) {
             log.info("行程文案服务当前使用 Mock 模型, scene={}", scene);
             return mockSupplier.get();
@@ -84,8 +147,8 @@ public class RoutingLlmServiceImpl implements LlmService {
         try {
             log.info("行程文案服务优先使用真实模型, provider={}, model={}, scene={}",
                     llmProperties.getProvider(), llmProperties.getOpenai().resolveTextOptions().getModel(), scene);
-            String result = realSupplier.get();
-            if (result == null || result.trim().isEmpty()) {
+            T result = realSupplier.get();
+            if (result == null) {
                 throw new IllegalStateException("真实模型返回空结果");
             }
             return result;
@@ -94,7 +157,7 @@ public class RoutingLlmServiceImpl implements LlmService {
         }
     }
 
-    private String handleFailureOrFallback(TextSupplier mockSupplier, String scene, String reason, Exception e) {
+    private <T> T handleFailureOrFallback(Supplier<T> mockSupplier, String scene, String reason, Exception e) {
         if (llmProperties.isFallbackToMock()) {
             log.warn("行程文案服务发生降级，改用 Mock。scene={}, reason={}", scene, reason, e);
             return mockSupplier.get();

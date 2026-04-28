@@ -9,6 +9,7 @@ import com.citytrip.model.entity.Poi;
 import com.citytrip.model.vo.ItineraryNodeVO;
 import com.citytrip.model.vo.ItineraryVO;
 import com.citytrip.service.domain.ai.ItineraryAiDecorationService;
+import com.citytrip.service.domain.planning.ExternalPoiCandidateService;
 import com.citytrip.service.domain.planning.PlanningPoiQueryService;
 import com.citytrip.service.domain.policy.MaxStopsPolicy;
 import com.citytrip.service.impl.ItineraryRouteOptimizer;
@@ -17,8 +18,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -32,6 +35,7 @@ public class ReplacePoiUseCase {
     private final PlanningPoiQueryService planningPoiQueryService;
     private final ItineraryComparisonAssembler itineraryComparisonAssembler;
     private final ItineraryAiDecorationService itineraryAiDecorationService;
+    private final ExternalPoiCandidateService externalPoiCandidateService;
     private final SavedItineraryCommandService savedItineraryCommandService;
     private final RoutePlanFactPublisher routePlanFactPublisher;
     private final MaxStopsPolicy maxStopsPolicy;
@@ -40,6 +44,7 @@ public class ReplacePoiUseCase {
                              PlanningPoiQueryService planningPoiQueryService,
                              ItineraryComparisonAssembler itineraryComparisonAssembler,
                              ItineraryAiDecorationService itineraryAiDecorationService,
+                             ExternalPoiCandidateService externalPoiCandidateService,
                              SavedItineraryCommandService savedItineraryCommandService,
                              RoutePlanFactPublisher routePlanFactPublisher,
                              MaxStopsPolicy maxStopsPolicy) {
@@ -47,6 +52,7 @@ public class ReplacePoiUseCase {
         this.planningPoiQueryService = planningPoiQueryService;
         this.itineraryComparisonAssembler = itineraryComparisonAssembler;
         this.itineraryAiDecorationService = itineraryAiDecorationService;
+        this.externalPoiCandidateService = externalPoiCandidateService;
         this.savedItineraryCommandService = savedItineraryCommandService;
         this.routePlanFactPublisher = routePlanFactPublisher;
         this.maxStopsPolicy = maxStopsPolicy;
@@ -73,14 +79,25 @@ public class ReplacePoiUseCase {
             throw new BadRequestException("未找到需要替换的目标景点。");
         }
 
-        Set<Long> currentIds = currentPois.stream().map(Poi::getId).collect(Collectors.toSet());
-        List<Poi> pool = planningPoiQueryService.loadPlanningPool(normalized).stream()
+        Set<Long> currentIds = currentPois.stream().map(Poi::getId).filter(Objects::nonNull).collect(Collectors.toSet());
+        List<Poi> localPool = safeList(planningPoiQueryService.loadPlanningPool(normalized)).stream()
                 .filter(poi -> !currentIds.contains(poi.getId()))
+                .peek(poi -> poi.setSourceType("local"))
+                .toList();
+        List<Poi> externalPool = safeList(
+                externalPoiCandidateService == null
+                        ? null
+                        : externalPoiCandidateService.recallForReplacement(target, normalized, 8)
+        ).stream()
+                .filter(poi -> !currentIds.contains(poi.getId()))
+                .toList();
+
+        List<Poi> pool = mergeCandidates(localPool, externalPool).stream()
                 .sorted((left, right) -> Double.compare(
                         routeOptimizer.replacementScore(target, right),
                         routeOptimizer.replacementScore(target, left)
                 ))
-                .limit(6)
+                .limit(8)
                 .toList();
 
         ItineraryRouteOptimizer.RouteOption best = null;
@@ -170,6 +187,7 @@ public class ReplacePoiUseCase {
         for (ItineraryNodeVO node : itinerary.getNodes()) {
             if (Objects.equals(node.getPoiId(), newPoi.getId())) {
                 node.setSysReason("已将 " + oldPoi.getName() + " 替换为更适合当前路线的相近点位。");
+                node.setSourceType(newPoi.getSourceType());
             }
         }
         if (itinerary.getOptions() == null) {
@@ -182,8 +200,38 @@ public class ReplacePoiUseCase {
             option.getNodes().forEach(node -> {
                 if (Objects.equals(node.getPoiId(), newPoi.getId())) {
                     node.setSysReason("已将 " + oldPoi.getName() + " 替换为更适合当前路线的相近点位。");
+                    node.setSourceType(newPoi.getSourceType());
                 }
             });
         });
+    }
+
+    private List<Poi> mergeCandidates(List<Poi> localPool, List<Poi> externalPool) {
+        Map<String, Poi> deduped = new LinkedHashMap<>();
+        if (localPool != null) {
+            for (Poi poi : localPool) {
+                if (poi == null || !StringUtils.hasText(poi.getName())) {
+                    continue;
+                }
+                deduped.putIfAbsent(buildCandidateKey(poi), poi);
+            }
+        }
+        if (externalPool != null) {
+            for (Poi poi : externalPool) {
+                if (poi == null || !StringUtils.hasText(poi.getName())) {
+                    continue;
+                }
+                deduped.putIfAbsent(buildCandidateKey(poi), poi);
+            }
+        }
+        return new ArrayList<>(deduped.values());
+    }
+
+    private String buildCandidateKey(Poi poi) {
+        return (poi.getName() + "|" + poi.getLatitude() + "|" + poi.getLongitude()).toLowerCase();
+    }
+
+    private <T> List<T> safeList(List<T> source) {
+        return source == null ? Collections.emptyList() : source;
     }
 }

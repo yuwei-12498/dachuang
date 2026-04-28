@@ -1,14 +1,14 @@
 <view wx:if="{{showWidget}}" class="chat-widget">
   <view wx:if="{{!isOpen}}" class="chat-fab" bindtap="toggleChat">
     <text class="fab-icon">AI</text>
-    <text class="fab-text">问问行程助手</text>
+    <text class="fab-text">Trip Assistant</text>
   </view>
 
   <view wx:if="{{isOpen}}" class="chat-panel">
     <view class="chat-header">
       <view class="header-left">
         <text class="header-dot"></text>
-        <text class="chat-title">行程灵感助手</text>
+        <text class="chat-title">Route Assistant</text>
       </view>
       <text class="close-icon" bindtap="toggleChat">×</text>
     </view>
@@ -22,13 +22,13 @@
           </view>
           <view wx:if="{{item.role === 'user'}}" class="msg-row msg-right">
             <view class="msg-bubble user-bubble">{{item.content}}</view>
-            <view class="avatar bg-orange">我</view>
+            <view class="avatar bg-orange">Me</view>
           </view>
         </block>
 
         <view wx:if="{{loading}}" class="msg-row msg-left">
           <view class="avatar bg-blue">AI</view>
-          <view class="msg-bubble assistant-bubble">正在帮你梳理路线...</view>
+          <view class="msg-bubble assistant-bubble">Analyzing route...</view>
         </view>
       </view>
     </scroll-view>
@@ -43,16 +43,24 @@
       >{{item}}</text>
     </view>
 
+    <view wx:if="{{currentEvidence.length > 0}}" class="quick-tips evidence-wrap">
+      <text
+        wx:for="{{currentEvidence}}"
+        wx:key="index"
+        class="tip-tag evidence-tag"
+      >{{item}}</text>
+    </view>
+
     <view class="chat-footer">
       <input
         class="chat-input"
-        placeholder="想问哪里更适合你？我来帮你想路线..."
+        placeholder="Ask anything about this itinerary..."
         value="{{inputVal}}"
         bindinput="onInput"
         confirm-type="send"
         bindconfirm="handleSend"
       />
-      <view class="send-btn {{(!inputVal || loading) ? 'disabled' : ''}}" bindtap="handleSend">发送</view>
+      <view class="send-btn {{(!inputVal || loading) ? 'disabled' : ''}}" bindtap="handleSend">Send</view>
     </view>
   </view>
 </view>

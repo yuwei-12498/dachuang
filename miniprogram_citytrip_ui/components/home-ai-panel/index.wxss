@@ -103,6 +103,10 @@
   background: #fafbfc;
 }
 
+.evidence-block {
+  border-top-style: dashed;
+}
+
 .tips-title {
   margin-bottom: 8rpx;
   color: #909399;
@@ -125,6 +129,12 @@
   font-size: 22rpx;
   display: inline-flex;
   align-items: center;
+}
+
+.evidence-tag {
+  border-color: #f8d8b4;
+  color: #d17c00;
+  background: #fff8ee;
 }
 
 .panel-footer {

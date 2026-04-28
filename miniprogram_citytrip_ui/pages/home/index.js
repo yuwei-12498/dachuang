@@ -232,6 +232,14 @@ Page({
 
     this.setData({ loading: true })
     const payload = Object.assign({}, this.data.form)
+    const currentLocation = await this.resolveCurrentLocationWithPrompt()
+    if (!currentLocation) {
+      this.setData({ loading: false })
+      return
+    }
+    payload.departureLatitude = currentLocation.latitude
+    payload.departureLongitude = currentLocation.longitude
+    payload.departurePlaceName = "CURRENT_LOCATION"
     wx.setStorageSync(ORIGINAL_FORM_KEY, payload)
 
     try {
@@ -258,5 +266,67 @@ Page({
     } finally {
       this.setData({ loading: false })
     }
+  },
+
+  resolveCurrentLocation() {
+    return new Promise((resolve) => {
+      wx.getLocation({
+        type: "gcj02",
+        isHighAccuracy: true,
+        highAccuracyExpireTime: 5000,
+        success: (res) => {
+          resolve({
+            latitude: Number(res.latitude),
+            longitude: Number(res.longitude)
+          })
+        },
+        fail: () => resolve(null)
+      })
+    })
+  },
+
+  resolveCurrentLocationWithPrompt() {
+    return this.resolveCurrentLocation().then((location) => {
+      if (location) {
+        return location
+      }
+      return this.handleLocationDenied().then((canRetry) => {
+        if (!canRetry) {
+          return null
+        }
+        return this.resolveCurrentLocation()
+      })
+    })
+  },
+
+  handleLocationDenied() {
+    return new Promise((resolve) => {
+      wx.showModal({
+        title: "需要定位权限",
+        content: "生成路线前需要先获取你当前定位，才能精确计算“当前位置 → 第一个景点”的通行时长。",
+        confirmText: "去开启",
+        cancelText: "暂不",
+        success: (result) => {
+          if (!result.confirm) {
+            resolve(false)
+            return
+          }
+          wx.openSetting({
+            success: (settingRes) => {
+              const enabled = !!(settingRes && settingRes.authSetting && settingRes.authSetting["scope.userLocation"])
+              if (!enabled) {
+                wx.showToast({
+                  title: "请先开启定位权限后再生成路线",
+                  icon: "none"
+                })
+              }
+              resolve(enabled)
+            },
+            fail: () => resolve(false)
+          })
+        },
+        fail: () => resolve(false)
+      })
+    })
   }
 })

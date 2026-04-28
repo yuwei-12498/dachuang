@@ -4,6 +4,7 @@ import com.citytrip.model.dto.GenerateReqDTO;
 import com.citytrip.model.entity.Poi;
 import com.citytrip.service.PoiService;
 import com.citytrip.service.TravelTimeService;
+import com.citytrip.service.geo.GeoPoint;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -174,6 +175,170 @@ class ItineraryRouteOptimizerDpTest {
         assertThat(best.path()).isEmpty();
         assertThat(best.signature()).isEmpty();
         assertThat(best.utility()).isZero();
+    }
+
+    @Test
+    void prioritizesRouteContainingMustVisitPoi() {
+        PoiService poiService = mock(PoiService.class);
+        when(poiService.enrichOperatingStatus(anyList(), any(LocalDate.class))).thenAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            List<Poi> pois = invocation.getArgument(0);
+            for (Poi poi : pois) {
+                poi.setAvailableOnTripDate(true);
+                poi.setStatusStale(false);
+                poi.setOperatingStatus("OPEN");
+            }
+            return pois;
+        });
+
+        List<Poi> pois = new ArrayList<>();
+        pois.add(createPoi(801L, "宽窄巷子", "district", "Qingyang", "09:00", "22:00", 90, 100, 4.8D, 0.5D, "culture,food"));
+        pois.add(createPoi(802L, "春熙路", "shopping", "Jinjiang", "10:00", "23:00", 90, 120, 4.9D, 0.6D, "shopping,night"));
+        pois.add(createPoi(803L, "IFS国际金融中心", "shopping", "Jinjiang", "10:00", "23:00", 90, 120, 3.0D, 0.4D, "shopping,landmark"));
+
+        Map<Long, Integer> indexByPoiId = buildIndexByPoiId(pois);
+        int[][] travelMatrix = new int[][]{
+                {0, 10, 12},
+                {10, 0, 8},
+                {12, 8, 0}
+        };
+        TravelTimeService travelTimeService = new MatrixTravelTimeService(indexByPoiId, travelMatrix);
+        ItineraryRouteOptimizer optimizer = new ItineraryRouteOptimizer(poiService, travelTimeService);
+
+        GenerateReqDTO request = new GenerateReqDTO();
+        request.setTripDays(1.0D);
+        request.setTripDate("2026-04-24");
+        request.setThemes(List.of("shopping"));
+        request.setWalkingLevel("medium");
+        request.setStartTime("09:00");
+        request.setEndTime("18:00");
+        request.setMustVisitPoiNames(List.of("IFS国际金融中心"));
+
+        List<Poi> prepared = optimizer.prepareCandidates(pois, request, false);
+        List<ItineraryRouteOptimizer.RouteOption> ranked = optimizer.rankRoutes(prepared, request, 2);
+
+        assertThat(ranked).isNotEmpty();
+        assertThat(ranked.get(0).path()).extracting(Poi::getName).contains("IFS国际金融中心");
+    }
+
+
+    @Test
+    void prioritizesIfsPoiWhenMustVisitKeywordUsesAlias() {
+        PoiService poiService = mock(PoiService.class);
+        when(poiService.enrichOperatingStatus(anyList(), any(LocalDate.class))).thenAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            List<Poi> pois = invocation.getArgument(0);
+            for (Poi poi : pois) {
+                poi.setAvailableOnTripDate(true);
+                poi.setStatusStale(false);
+                poi.setOperatingStatus("OPEN");
+            }
+            return pois;
+        });
+
+        List<Poi> pois = new ArrayList<>();
+        pois.add(createPoi(901L, "IFS\u56fd\u9645\u91d1\u878d\u4e2d\u5fc3", "shopping", "Jinjiang", "10:00", "23:00", 90, 120, 3.0D, 0.3D, "shopping,landmark"));
+        pois.add(createPoi(902L, "\u5bbd\u7a84\u5df7\u5b50", "district", "Qingyang", "09:00", "22:00", 90, 100, 4.8D, 0.4D, "culture,food"));
+
+        Map<Long, Integer> indexByPoiId = buildIndexByPoiId(pois);
+        int[][] travelMatrix = new int[][]{
+                {0, 10},
+                {10, 0}
+        };
+        TravelTimeService travelTimeService = new MatrixTravelTimeService(indexByPoiId, travelMatrix);
+        ItineraryRouteOptimizer optimizer = new ItineraryRouteOptimizer(poiService, travelTimeService);
+
+        GenerateReqDTO request = new GenerateReqDTO();
+        request.setTripDays(1.0D);
+        request.setTripDate("2026-04-24");
+        request.setThemes(List.of("shopping"));
+        request.setWalkingLevel("medium");
+        request.setStartTime("09:00");
+        request.setEndTime("18:00");
+        request.setMustVisitPoiNames(List.of("IFS\u91d1\u878d\u4e2d\u5fc3"));
+
+        List<Poi> prepared = optimizer.prepareCandidates(pois, request, false);
+        List<ItineraryRouteOptimizer.RouteOption> ranked = optimizer.rankRoutes(prepared, request, 1);
+
+        assertThat(ranked).isNotEmpty();
+        assertThat(ranked.get(0).path()).extracting(Poi::getName).contains("IFS\u56fd\u9645\u91d1\u878d\u4e2d\u5fc3");
+    }
+
+    @Test
+    void prioritizesReachableFirstStopWhenDepartureLegIsFarAndInconvenient() {
+        PoiService poiService = mock(PoiService.class);
+        when(poiService.enrichOperatingStatus(anyList(), any(LocalDate.class))).thenAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            List<Poi> pois = invocation.getArgument(0);
+            for (Poi poi : pois) {
+                poi.setAvailableOnTripDate(true);
+                poi.setStatusStale(false);
+                poi.setOperatingStatus("OPEN");
+            }
+            return pois;
+        });
+
+        Poi nearPoi = createPoi(1001L, "Near Museum", "museum", "Qingyang", "09:00", "18:00", 90, 0, 3.0D, 0.0D, "culture");
+        nearPoi.setTempScore(9.0D);
+        nearPoi.setLatitude(BigDecimal.valueOf(30.6600D));
+        nearPoi.setLongitude(BigDecimal.valueOf(104.0600D));
+
+        Poi farPoi = createPoi(1002L, "Far Landmark", "landmark", "Longquanyi", "09:00", "18:00", 90, 0, 6.0D, 0.0D, "culture");
+        farPoi.setTempScore(17.0D);
+        farPoi.setLatitude(BigDecimal.valueOf(30.7400D));
+        farPoi.setLongitude(BigDecimal.valueOf(104.2100D));
+
+        TravelTimeService travelTimeService = new TravelTimeService() {
+            @Override
+            public int estimateTravelTimeMinutes(Poi from, Poi to) {
+                return estimateTravelLeg(from, to).estimatedMinutes();
+            }
+
+            @Override
+            public TravelLegEstimate estimateTravelLeg(Poi from, Poi to) {
+                if (from != null && from.getId() != null && from.getId() < 0 && to != null && Long.valueOf(1001L).equals(to.getId())) {
+                    return new TravelLegEstimate(
+                            8,
+                            BigDecimal.valueOf(1.2D),
+                            "???",
+                            List.of(
+                                    new GeoPoint(BigDecimal.valueOf(30.6590D), BigDecimal.valueOf(104.0580D)),
+                                    new GeoPoint(BigDecimal.valueOf(30.6600D), BigDecimal.valueOf(104.0600D))
+                            )
+                    );
+                }
+                if (from != null && from.getId() != null && from.getId() < 0 && to != null && Long.valueOf(1002L).equals(to.getId())) {
+                    return new TravelLegEstimate(
+                            50,
+                            BigDecimal.valueOf(16.0D),
+                            "???+???",
+                            List.of(
+                                    new GeoPoint(BigDecimal.valueOf(30.6590D), BigDecimal.valueOf(104.0580D)),
+                                    new GeoPoint(BigDecimal.valueOf(30.7000D), BigDecimal.valueOf(104.1200D)),
+                                    new GeoPoint(BigDecimal.valueOf(30.7400D), BigDecimal.valueOf(104.2100D))
+                            )
+                    );
+                }
+                return new TravelLegEstimate(12, BigDecimal.valueOf(2.0D), "???");
+            }
+        };
+
+        ItineraryRouteOptimizer optimizer = new ItineraryRouteOptimizer(poiService, travelTimeService);
+        GenerateReqDTO request = new GenerateReqDTO();
+        request.setTripDays(1.0D);
+        request.setTripDate("2026-04-25");
+        request.setThemes(List.of("culture"));
+        request.setWalkingLevel("medium");
+        request.setStartTime("09:00");
+        request.setEndTime("18:00");
+        request.setDepartureLatitude(30.6590D);
+        request.setDepartureLongitude(104.0580D);
+        request.setDeparturePlaceName("My Hotel");
+
+        List<ItineraryRouteOptimizer.RouteOption> ranked = optimizer.rankRoutes(List.of(nearPoi, farPoi), request, 1);
+
+        assertThat(ranked).isNotEmpty();
+        assertThat(ranked.get(0).path()).extracting(Poi::getName).containsExactly("Near Museum");
     }
 
     private GenerateReqDTO buildRequest() {

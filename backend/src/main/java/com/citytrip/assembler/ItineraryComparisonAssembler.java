@@ -2,6 +2,7 @@ package com.citytrip.assembler;
 
 import com.citytrip.model.dto.GenerateReqDTO;
 import com.citytrip.model.entity.Poi;
+import com.citytrip.model.vo.ItineraryNodeVO;
 import com.citytrip.model.vo.ItineraryOptionVO;
 import com.citytrip.model.vo.ItineraryVO;
 import com.citytrip.service.domain.planning.RouteAnalysisService;
@@ -22,7 +23,7 @@ import java.util.stream.Collectors;
 @Component
 public class ItineraryComparisonAssembler {
 
-    private static final int MAX_OPTIONS = 3;
+    private static final int MAX_OPTIONS = 1;
 
     private final RouteAnalysisService routeAnalysisService;
 
@@ -85,7 +86,11 @@ public class ItineraryComparisonAssembler {
         if (options == null || options.isEmpty()) {
             parts.add("当前条件下暂未生成可执行方案，可尝试放宽时间窗或更换出行日期后再生成。");
         } else {
-            parts.add("系统已按当前时间窗提供 " + options.size() + " 套可执行方案。");
+            if (options.size() == 1) {
+                parts.add("系统已基于当前时间窗生成 1 条可执行路线。");
+            } else {
+                parts.add("系统已按当前时间窗提供 " + options.size() + " 套可执行方案。");
+            }
             if (req != null && req.getTripDays() != null && req.getTripDays() > 1.0D) {
                 parts.add("多日模式会优先提升候选点位覆盖度，但当前结果仍以首日可执行性为主。");
             }
@@ -95,6 +100,8 @@ public class ItineraryComparisonAssembler {
                     .orElse(options.get(0));
             if (selected.getAlerts() != null && !selected.getAlerts().isEmpty()) {
                 parts.add("当前默认方案提醒：" + selected.getAlerts().get(0));
+            } else if (options.size() == 1) {
+                parts.add("如需不同走法，可继续点击“换一版路线”重新生成。");
             } else {
                 parts.add("当前默认方案更适合作为首选，你也可以切换为更省钱或更省时的候选路线。");
             }
@@ -163,9 +170,9 @@ public class ItineraryComparisonAssembler {
 
     private boolean isDistinctEnough(ItineraryRouteOptimizer.RouteOption candidate,
                                      List<ItineraryRouteOptimizer.RouteOption> selected) {
-        Set<Long> candidateIds = candidate.path().stream().map(Poi::getId).collect(Collectors.toSet());
+        Set<Long> candidateIds = safePoiIds(candidate == null ? null : candidate.path());
         for (ItineraryRouteOptimizer.RouteOption existing : selected) {
-            Set<Long> existingIds = existing.path().stream().map(Poi::getId).collect(Collectors.toSet());
+            Set<Long> existingIds = safePoiIds(existing == null ? null : existing.path());
             long overlapCount = candidateIds.stream().filter(existingIds::contains).count();
             int divisor = Math.max(1, Math.min(candidateIds.size(), existingIds.size()));
             double overlap = overlapCount * 1.0D / divisor;
@@ -224,7 +231,7 @@ public class ItineraryComparisonAssembler {
         option.setOptionKey(style.key());
         option.setTitle(style.title());
         option.setSubtitle(style.subtitle());
-        option.setSignature(analysis.route().signature());
+        option.setSignature(analysis.route() == null ? "" : analysis.route().signature());
         option.setTotalDuration(analysis.totalDuration());
         option.setTotalCost(analysis.totalCost());
         option.setStopCount(analysis.stopCount());
@@ -244,6 +251,10 @@ public class ItineraryComparisonAssembler {
 
     private String buildOptionSummary(RouteAnalysisService.RouteAnalysis analysis,
                                       List<RouteAnalysisService.RouteAnalysis> analyses) {
+        List<ItineraryNodeVO> nodes = analysis.nodes();
+        if (nodes == null || nodes.isEmpty()) {
+            return "当前方案暂无可展示节点，建议重新生成路线后再比较。";
+        }
         List<String> parts = new ArrayList<>();
         if (isBestUtility(analysis, analyses)) {
             parts.add("综合得分最高");
@@ -263,8 +274,8 @@ public class ItineraryComparisonAssembler {
         if (parts.isEmpty()) {
             parts.add("另一种仍然可执行的取舍");
         }
-        return "以" + analysis.nodes().get(0).getPoiName()
-                + "为起点，以" + analysis.nodes().get(analysis.nodes().size() - 1).getPoiName()
+        return "以" + nodes.get(0).getPoiName()
+                + "为起点，以" + nodes.get(nodes.size() - 1).getPoiName()
                 + "收尾，整体特点是：" + String.join("、", parts) + "。";
     }
 
@@ -433,6 +444,17 @@ public class ItineraryComparisonAssembler {
                 .min()
                 .orElse(analysis.businessRiskScore());
         return analysis.businessRiskScore() == min;
+    }
+
+    private Set<Long> safePoiIds(List<Poi> path) {
+        if (path == null || path.isEmpty()) {
+            return Collections.emptySet();
+        }
+        return path.stream()
+                .filter(Objects::nonNull)
+                .map(Poi::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
     }
 
     private record OptionStyle(String key, String title, String subtitle) {

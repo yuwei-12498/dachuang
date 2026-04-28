@@ -15,6 +15,11 @@
     "backgroundColor": "#f7f8fa",
     "backgroundTextStyle": "light"
   },
+  "permission": {
+    "scope.userLocation": {
+      "desc": "用于将你当前位置作为路线出发点，估算更贴近实际的通行时长"
+    }
+  },
   "style": "v2",
   "sitemapLocation": "sitemap.json"
 }

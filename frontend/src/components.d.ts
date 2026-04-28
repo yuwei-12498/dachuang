@@ -68,6 +68,8 @@ declare module 'vue' {
     PublishRouteDialog: typeof import('./components/community/PublishRouteDialog.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    SegmentMiniMap: typeof import('./components/itinerary/SegmentMiniMap.vue')['default']
+    SegmentRouteGuideCard: typeof import('./components/itinerary/SegmentRouteGuideCard.vue')['default']
   }
   export interface ComponentCustomProperties {
     vLoading: typeof import('element-plus/es')['ElLoadingDirective']

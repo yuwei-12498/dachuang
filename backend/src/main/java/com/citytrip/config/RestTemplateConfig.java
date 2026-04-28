@@ -17,4 +17,12 @@ public class RestTemplateConfig {
                 .setReadTimeout(Duration.ofSeconds(llmProperties.resolveReadTimeoutSeconds()))
                 .build();
     }
+
+    @Bean(name = "geoRestTemplate")
+    public RestTemplate geoRestTemplate(RestTemplateBuilder builder, GeoSearchProperties geoSearchProperties) {
+        return builder
+                .setConnectTimeout(Duration.ofMillis(Math.max(geoSearchProperties.getConnectTimeoutMs(), 100)))
+                .setReadTimeout(Duration.ofMillis(Math.max(geoSearchProperties.getReadTimeoutMs(), 100)))
+                .build();
+    }
 }

@@ -1,8 +1,25 @@
-﻿<template>
+<template>
   <section id="hero" ref="storyRef" class="immersive-story" :style="storyStyleVars">
     <div class="story-sticky">
       <div class="story-stage">
-        <div ref="lottieRef" class="story-lottie"></div>
+        <img
+          class="story-poster"
+          :class="{ 'is-dimmed': animationReady }"
+          :src="HERO_POSTER_SRC"
+          alt=""
+          fetchpriority="high"
+          decoding="async"
+          aria-hidden="true"
+        >
+        <div
+          ref="lottieRef"
+          class="story-lottie"
+          :class="{
+            'is-ready': animationReady,
+            'is-disabled': !heroRuntime.allowLottie,
+          }"
+          aria-hidden="true"
+        ></div>
 
         <div class="intro-mask-layer">
           <div class="story-overlay"></div>
@@ -40,7 +57,49 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
-import lottie from 'lottie-web'
+import { readHeroRuntimeProfile, scheduleIdleTask } from '@/utils/heroPerformance'
+
+const HERO_DATA_URL = '/animations/travelnextlvl-door/animations/data.json'
+const HERO_IMAGE_BASE = '/animations/travelnextlvl-door/images/'
+const HERO_POSTER_SRC = '/animations/travelnextlvl-door/images/image_0.webp'
+
+let lottieModulePromise = null
+let animationDataPromise = null
+
+const cloneAnimationData = (source) => {
+  if (typeof structuredClone === 'function') {
+    return structuredClone(source)
+  }
+  return JSON.parse(JSON.stringify(source))
+}
+
+const loadLottieModule = async () => {
+  if (!lottieModulePromise) {
+    lottieModulePromise = import('lottie-web/build/player/lottie_light_canvas')
+  }
+  const mod = await lottieModulePromise
+  return mod.default || mod
+}
+
+const loadAnimationData = async () => {
+  if (!animationDataPromise) {
+    animationDataPromise = fetch(HERO_DATA_URL)
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`Animation request failed: ${res.status}`)
+        }
+        return res.json()
+      })
+      .then((data) => ({
+        ...data,
+        assets: Array.isArray(data.assets)
+          ? data.assets.map((asset) => (asset.u ? { ...asset, u: HERO_IMAGE_BASE } : asset))
+          : [],
+      }))
+  }
+
+  return cloneAnimationData(await animationDataPromise)
+}
 
 const emit = defineEmits(['scrollTo', 'reveal'])
 
@@ -48,6 +107,11 @@ const storyRef = ref(null)
 const lottieRef = ref(null)
 const progress = ref(0)
 const sectionProgress = ref(0)
+const animationReady = ref(false)
+const heroRuntime = ref({
+  posterOnly: false,
+  allowLottie: true,
+})
 
 // 开门起飞动画帧映射区间
 const ANIMATION_START = 0.02
@@ -94,6 +158,9 @@ const storyStyleVars = computed(() => ({
 let animation = null
 let rafId = null
 let scrollTarget = window
+let visibilityObserver = null
+let cancelIdleBoot = null
+let isDisposed = false
 
 const getViewportHeight = () => {
   if (scrollTarget === window) return window.innerHeight
@@ -160,23 +227,17 @@ const removeScrollListeners = () => {
   window.removeEventListener('resize', onScroll)
 }
 
-const loadAnimationData = async () => {
-  const res = await fetch('/animations/travelnextlvl-door/animations/data.json')
-  const data = await res.json()
-
-  ;(data.assets || []).forEach((asset) => {
-    if (asset.u) asset.u = '/animations/travelnextlvl-door/images/'
-  })
-
-  return data
-}
-
-onMounted(async () => {
-  await nextTick()
-  addScrollListeners()
+const bootAnimation = async () => {
+  if (!heroRuntime.value.allowLottie || animation || !lottieRef.value || isDisposed) return
 
   try {
-    const animationData = await loadAnimationData()
+    const [lottie, animationData] = await Promise.all([
+      loadLottieModule(),
+      loadAnimationData(),
+    ])
+
+    if (isDisposed || !lottieRef.value) return
+
     animation = lottie.loadAnimation({
       container: lottieRef.value,
       renderer: 'canvas',
@@ -189,17 +250,67 @@ onMounted(async () => {
       },
     })
 
-    animation.addEventListener('DOMLoaded', computeProgress)
+    animation.addEventListener('DOMLoaded', () => {
+      if (isDisposed) return
+      animationReady.value = true
+      computeProgress()
+    })
+
     computeProgress()
   } catch (error) {
     console.error('Lottie load failed:', error)
   }
+}
+
+const scheduleAnimationBoot = () => {
+  if (!heroRuntime.value.allowLottie || cancelIdleBoot || animation || isDisposed) return
+
+  cancelIdleBoot = scheduleIdleTask(() => {
+    cancelIdleBoot = null
+    bootAnimation()
+  }, { timeout: 900 })
+}
+
+const observeHeroVisibility = () => {
+  if (!heroRuntime.value.allowLottie || !storyRef.value || isDisposed) return
+
+  if (typeof IntersectionObserver === 'undefined') {
+    scheduleAnimationBoot()
+    return
+  }
+
+  visibilityObserver = new IntersectionObserver((entries) => {
+    if (!entries.some(entry => entry.isIntersecting)) return
+
+    visibilityObserver?.disconnect()
+    visibilityObserver = null
+    scheduleAnimationBoot()
+  }, {
+    root: scrollTarget === window ? null : scrollTarget,
+    rootMargin: '220px 0px',
+    threshold: 0.08,
+  })
+
+  visibilityObserver.observe(storyRef.value)
+}
+
+onMounted(async () => {
+  isDisposed = false
+  await nextTick()
+  heroRuntime.value = readHeroRuntimeProfile()
+  addScrollListeners()
+  computeProgress()
+  observeHeroVisibility()
 })
 
 onBeforeUnmount(() => {
+  isDisposed = true
   removeScrollListeners()
 
   if (rafId) cancelAnimationFrame(rafId)
+  if (cancelIdleBoot) cancelIdleBoot()
+  visibilityObserver?.disconnect()
+  visibilityObserver = null
 
   if (animation) {
     animation.destroy()
@@ -233,6 +344,23 @@ onBeforeUnmount(() => {
   height: 100%;
 }
 
+.story-poster {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center center;
+  pointer-events: none;
+  transition: opacity 220ms ease-out, transform 240ms ease-out;
+}
+
+.story-poster.is-dimmed {
+  opacity: 0.16;
+  transform: scale(1.01);
+}
+
 .intro-mask-layer {
   position: absolute;
   inset: 0;
@@ -247,9 +375,18 @@ onBeforeUnmount(() => {
   inset: 0;
   width: 100%;
   height: 100%;
-  z-index: 0;
+  z-index: 1;
   pointer-events: none;
-  background: center center / cover no-repeat url('/animations/travelnextlvl-door/images/image_0.webp');
+  opacity: 0;
+  transition: opacity 240ms ease-out;
+}
+
+.story-lottie.is-ready {
+  opacity: 1;
+}
+
+.story-lottie.is-disabled {
+  display: none;
 }
 
 .story-lottie :deep(canvas),

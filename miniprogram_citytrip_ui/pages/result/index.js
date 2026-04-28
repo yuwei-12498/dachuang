@@ -25,8 +25,8 @@ function buildFallbackOption(snapshot) {
   const nodes = Array.isArray(snapshot && snapshot.nodes) ? snapshot.nodes : []
   return {
     optionKey: "default",
-    title: "当前默认方案",
-    subtitle: "当前保存的路线版本",
+    title: "褰撳墠榛樿鏂规",
+    subtitle: "褰撳墠淇濆瓨鐨勮矾绾跨増鏈?,
     signature: buildRouteSignature(nodes),
     totalDuration: snapshot && snapshot.totalDuration ? snapshot.totalDuration : 0,
     totalCost: snapshot && snapshot.totalCost ? snapshot.totalCost : 0,
@@ -81,7 +81,7 @@ function ensureSeenRouteSignatures(snapshot) {
 
 function decorateOption(option, activeKey) {
   return Object.assign({}, option, {
-    stateText: option.optionKey === activeKey ? "当前展示" : "点击查看",
+    stateText: option.optionKey === activeKey ? "褰撳墠灞曠ず" : "鐐瑰嚮鏌ョ湅",
     durationText: formatDuration(option.totalDuration),
     stopText: `${option.stopCount || 0}`,
     costText: `${option.totalCost || 0}`
@@ -89,10 +89,31 @@ function decorateOption(option, activeKey) {
 }
 
 function decorateNode(node) {
+  const stepOrder = Number(node.stepOrder)
+  const isFirstLeg = stepOrder === 1
+  const modeText = isFirstLeg
+    ? (node.departureTransportMode || node.travelTransportMode || "")
+    : (node.travelTransportMode || "")
+  const rawDistance = isFirstLeg
+    ? (node.departureDistanceKm || node.travelDistanceKm)
+    : node.travelDistanceKm
+  const distanceNumber = Number(rawDistance)
+  const departureMinutes = Number(node.departureTravelTime)
+  const travelMinutes = Number(node.travelTime)
+  const hasDepartureMinutes = Number.isFinite(departureMinutes) && departureMinutes > 0
+  const effectiveMinutes = isFirstLeg && hasDepartureMinutes
+    ? departureMinutes
+    : (Number.isFinite(travelMinutes) && travelMinutes >= 0 ? travelMinutes : 0)
+  const distanceText = Number.isFinite(distanceNumber) && distanceNumber > 0
+    ? `${distanceNumber.toFixed(1)} 鍏噷`
+    : ""
+
   return Object.assign({}, node, {
-    travelText: `${node.travelTime || 0} 分钟`,
-    stayText: `${node.stayDuration || 0} 分钟`,
-    costText: `¥${node.cost || 0}`
+    travelText: `${Math.round(effectiveMinutes)} 鍒嗛挓`,
+    modeText,
+    distanceText,
+    stayText: `${node.stayDuration || 0} 鍒嗛挓`,
+    costText: `楼${node.cost || 0}`
   })
 }
 
@@ -148,6 +169,44 @@ function buildMapData(nodes) {
   }
 }
 
+function buildDepartureText(originalReq, firstNode) {
+  const lat = Number(originalReq && originalReq.departureLatitude)
+  const lon = Number(originalReq && originalReq.departureLongitude)
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    return ""
+  }
+
+  const mode = firstNode
+    ? (firstNode.departureTransportMode || firstNode.travelTransportMode || "")
+    : ""
+  const rawDistance = firstNode
+    ? (firstNode.departureDistanceKm || firstNode.travelDistanceKm)
+    : null
+  const distance = Number(rawDistance)
+  const rawMinutes = firstNode
+    ? (firstNode.departureTravelTime || firstNode.travelTime)
+    : null
+  const minutes = Number(rawMinutes)
+  const firstStopName = (firstNode && firstNode.poiName) || "绗竴涓櫙鐐?
+
+  const estimateParts = []
+  if (mode) {
+    estimateParts.push(mode)
+  }
+  if (Number.isFinite(distance) && distance > 0) {
+    estimateParts.push(`绾?${distance.toFixed(1)} 鍏噷`)
+  }
+  if (Number.isFinite(minutes) && minutes > 0) {
+    estimateParts.push(`绾?${Math.round(minutes)} 鍒嗛挓`)
+  }
+
+  const estimateText = estimateParts.length
+    ? `锛涢娈靛埌銆?{firstStopName}銆嶅缓璁?${estimateParts.join("锛?)}`
+    : ""
+
+  return `鏈璺嚎宸叉寜浣犲綋鍓嶄綅缃綔涓哄嚭鍙戠偣锛?{lat.toFixed(5)}, ${lon.toFixed(5)}锛?{estimateText}銆俙
+}
+
 Page({
   data: {
     routeId: null,
@@ -163,6 +222,7 @@ Page({
     activeStopCount: 0,
     heroTitleText: "",
     heroDateText: "",
+    departureText: "",
     reasonText: "",
     compareText: "",
     replanning: false,
@@ -218,6 +278,7 @@ Page({
         activeStopCount: 0,
         heroTitleText: "",
         heroDateText: "",
+        departureText: "",
         reasonText: "",
         compareText: "",
         mapData: buildMapData([])
@@ -241,10 +302,11 @@ Page({
       activeNodes,
       activeAlerts,
       activeDurationText: formatDuration(activeOption && activeOption.totalDuration),
-      activeCostText: `¥${activeOption && activeOption.totalCost !== undefined ? activeOption.totalCost : snapshot.totalCost || 0}`,
+      activeCostText: `楼${activeOption && activeOption.totalCost !== undefined ? activeOption.totalCost : snapshot.totalCost || 0}`,
       activeStopCount: activeOption && activeOption.stopCount !== undefined ? activeOption.stopCount : activeNodes.length,
-      heroTitleText: snapshot.customTitle || "这次不只给你一条路线，而是给你一组可比较的方案",
+      heroTitleText: snapshot.customTitle || "杩欐涓嶅彧缁欎綘涓€鏉¤矾绾匡紝鑰屾槸缁欎綘涓€缁勫彲姣旇緝鐨勬柟妗?,
       heroDateText: `${(snapshot.originalReq && snapshot.originalReq.tripDate) || "--"} / ${(snapshot.originalReq && snapshot.originalReq.startTime) || "09:00"} - ${(snapshot.originalReq && snapshot.originalReq.endTime) || "18:00"}`,
+      departureText: buildDepartureText(snapshot.originalReq, activeNodes[0]),
       reasonText: (activeOption && activeOption.recommendReason) || snapshot.recommendReason || "",
       compareText: (activeOption && activeOption.notRecommendReason) || snapshot.tips || "",
       mapData: buildMapData(activeNodes)
@@ -353,13 +415,13 @@ Page({
         saveItinerarySnapshot(next)
         this.applySnapshot(next)
         wx.showToast({
-          title: "已取消收藏",
+          title: "宸插彇娑堟敹钘?,
           icon: "success"
         })
       } else {
         const suggestedTitle = itinerary.customTitle
           || (this.data.activeOption && this.data.activeOption.title)
-          || `${(this.data.originalReq && this.data.originalReq.tripDate) || "本次"}路线`
+          || `${(this.data.originalReq && this.data.originalReq.tripDate) || "鏈"}璺嚎`
         const nextItinerary = await reqFavoriteItinerary(itinerary.id, {
           selectedOptionKey: this.data.activeOptionKey,
           title: suggestedTitle
@@ -368,12 +430,12 @@ Page({
         saveItinerarySnapshot(next)
         this.applySnapshot(next)
         wx.showToast({
-          title: "已加入收藏",
+          title: "宸插姞鍏ユ敹钘?,
           icon: "success"
         })
       }
     } catch (err) {
-      // request 层已处理
+      // request 灞傚凡澶勭悊
     } finally {
       this.setData({ favoriteLoading: false })
     }
@@ -410,24 +472,24 @@ Page({
           saveItinerarySnapshot(nextItinerary)
           this.applySnapshot(nextItinerary)
           wx.showToast({
-            title: localizeItineraryText(res.message) || "已为你切换新路线",
+            title: localizeItineraryText(res.message) || "宸蹭负浣犲垏鎹㈡柊璺嚎",
             icon: "none"
           })
         } else {
           wx.showModal({
-            title: "保留当前路线",
-            content: localizeItineraryText(res.reason) || "当前条件下没有更优路线了，建议先保留当前路线。",
+            title: "淇濈暀褰撳墠璺嚎",
+            content: localizeItineraryText(res.reason) || "褰撳墠鏉′欢涓嬫病鏈夋洿浼樿矾绾夸簡锛屽缓璁厛淇濈暀褰撳墠璺嚎銆?,
             showCancel: false
           })
         }
       } else {
         wx.showToast({
-          title: localizeItineraryText((res && res.message) || "重排失败，请稍后重试。"),
+          title: localizeItineraryText((res && res.message) || "閲嶆帓澶辫触锛岃绋嶅悗閲嶈瘯銆?),
           icon: "none"
         })
       }
     } catch (err) {
-      // request 层已处理
+      // request 灞傚凡澶勭悊
     } finally {
       this.setData({ replanning: false })
     }

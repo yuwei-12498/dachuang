@@ -4,7 +4,13 @@ import AutoImport from 'unplugin-auto-import/vite'
 import Components from 'unplugin-vue-components/vite'
 import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 import { visualizer } from 'rollup-plugin-visualizer'
+import path from 'node:path'
 import { fileURLToPath, URL } from 'node:url'
+import { resolveProxyTargetFromRepoRoot } from './build/resolveDevProxyTarget.js'
+
+const frontendRoot = fileURLToPath(new URL('.', import.meta.url))
+const repoRoot = path.resolve(frontendRoot, '..')
+const apiProxyTarget = resolveProxyTargetFromRepoRoot(repoRoot)
 
 export default defineConfig({
   plugins: [
@@ -42,7 +48,7 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8081',
+        target: apiProxyTarget,
         changeOrigin: true
       }
     }

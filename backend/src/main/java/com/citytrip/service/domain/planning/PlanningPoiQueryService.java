@@ -6,6 +6,7 @@ import com.citytrip.model.entity.Poi;
 import com.citytrip.model.vo.ItineraryNodeVO;
 import com.citytrip.service.impl.ItineraryRouteOptimizer;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -16,6 +17,7 @@ import java.util.stream.Collectors;
 
 @Service
 public class PlanningPoiQueryService {
+    private static final int PLANNING_POOL_FETCH_LIMIT = 240;
 
     private final PoiMapper poiMapper;
     private final ItineraryRouteOptimizer routeOptimizer;
@@ -27,7 +29,29 @@ public class PlanningPoiQueryService {
 
     public List<Poi> loadPlanningPool(GenerateReqDTO req) {
         GenerateReqDTO normalized = routeOptimizer.normalizeRequest(req);
-        return routeOptimizer.prepareCandidates(poiMapper.selectList(null), normalized, true);
+        boolean rainy = normalized != null && Boolean.TRUE.equals(normalized.getIsRainy());
+        String walkingLevel = normalized == null ? null : normalized.getWalkingLevel();
+        boolean explicitCity = req != null
+                && (StringUtils.hasText(req.getCityCode()) || StringUtils.hasText(req.getCityName()));
+        List<Poi> raw = explicitCity
+                ? poiMapper.selectPlanningCandidates(
+                rainy,
+                walkingLevel,
+                normalized == null ? null : normalized.getCityCode(),
+                normalized == null ? null : normalized.getCityName(),
+                PLANNING_POOL_FETCH_LIMIT
+        )
+                : poiMapper.selectPlanningCandidates(
+                rainy,
+                walkingLevel,
+                PLANNING_POOL_FETCH_LIMIT
+        );
+        if (raw != null) {
+            raw.stream()
+                    .filter(Objects::nonNull)
+                    .forEach(poi -> poi.setSourceType("local"));
+        }
+        return routeOptimizer.prepareCandidates(raw, normalized, true);
     }
 
     public List<Poi> loadOrderedPois(List<ItineraryNodeVO> nodes) {
@@ -45,10 +69,16 @@ public class PlanningPoiQueryService {
         if (ids == null || ids.isEmpty()) {
             return Collections.emptyList();
         }
-        Map<Long, Poi> byId = poiMapper.selectBatchIds(ids).stream()
+        List<Poi> fetched = poiMapper.selectBatchIds(ids);
+        if (fetched == null || fetched.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        Map<Long, Poi> byId = fetched.stream()
                 .filter(Objects::nonNull)
                 .filter(poi -> poi.getId() != null)
-                .collect(Collectors.toMap(Poi::getId, poi -> poi));
+                .peek(poi -> poi.setSourceType("local"))
+                .collect(Collectors.toMap(Poi::getId, poi -> poi, (left, right) -> left));
 
         List<Poi> ordered = new ArrayList<>(ids.size());
         for (Long id : ids) {

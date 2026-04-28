@@ -172,6 +172,16 @@
   font-size: 24rpx;
 }
 
+.evidence-wrap {
+  border-top: 2rpx dashed #f0f2f5;
+}
+
+.evidence-tag {
+  border-color: #f8d8b4;
+  color: #d17c00;
+  background: #fff8ee;
+}
+
 .chat-footer {
   display: flex;
   align-items: center;

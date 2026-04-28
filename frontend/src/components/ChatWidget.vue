@@ -10,7 +10,7 @@
         <div class="chat-header">
           <div class="header-info">
             <el-icon :size="20"><LocationInformation /></el-icon>
-            <span class="chat-title">行程灵感助手</span>
+            <span class="chat-title">路线灵感助手</span>
           </div>
           <el-icon class="close-icon" @click="toggleChat"><Close /></el-icon>
         </div>
@@ -42,8 +42,21 @@
             size="small"
             class="tip-tag"
             effect="plain"
-            @click="sendQuestion(tip)">
+            @click="sendQuestion(tip)"
+          >
             {{ tip }}
+          </el-tag>
+        </div>
+
+        <div class="quick-tips" v-if="chatState.currentEvidence.length > 0">
+          <el-tag
+            v-for="(item, idx) in chatState.currentEvidence"
+            :key="`evidence-${idx}`"
+            size="small"
+            class="tip-tag evidence-tag"
+            effect="plain"
+          >
+            {{ item }}
           </el-tag>
         </div>
 
@@ -52,7 +65,8 @@
             v-model="inputVal"
             placeholder="想问哪里更适合你？我来帮你想路线..."
             @keyup.enter="handleSend"
-            class="chat-input">
+            class="chat-input"
+          >
             <template #append>
               <el-button @click="handleSend" icon="Position" type="primary" :disabled="!inputVal.trim() || chatState.loading" />
             </template>
@@ -69,6 +83,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthState } from '@/store/auth'
 import { askChatQuestion, useChatState } from '@/store/chat'
+import { buildSharedChatContext } from '@/utils/chatContext'
 
 const route = useRoute()
 const router = useRouter()
@@ -97,29 +112,9 @@ const ensureLogin = () => {
   return false
 }
 
-const buildContext = () => {
-  const contextStr = sessionStorage.getItem('original_req_form')
-  if (!contextStr) {
-    return {
-      pageType: route.name ? String(route.name).toLowerCase() : 'page'
-    }
-  }
-
-  try {
-    const saved = JSON.parse(contextStr)
-    return {
-      pageType: route.name ? String(route.name).toLowerCase() : 'page',
-      preferences: saved.themes || [],
-      rainy: saved.isRainy || false,
-      nightMode: saved.isNight || false,
-      companionType: saved.companionType || ''
-    }
-  } catch (e) {
-    return {
-      pageType: route.name ? String(route.name).toLowerCase() : 'page'
-    }
-  }
-}
+const buildContext = () => buildSharedChatContext({
+  pageType: route.name ? String(route.name).toLowerCase() : 'page'
+})
 
 const toggleChat = () => {
   if (!authState.user) {
@@ -358,6 +353,15 @@ watch(() => chatState.loading, () => {
 .tip-tag:hover {
   background: #ecf5ff;
   border-color: #b3d8ff;
+}
+
+.evidence-tag {
+  cursor: default;
+}
+
+.evidence-tag:hover {
+  background: inherit;
+  border-color: inherit;
 }
 
 .chat-footer {

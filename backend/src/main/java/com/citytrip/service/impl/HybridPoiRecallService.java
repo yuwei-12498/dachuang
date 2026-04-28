@@ -107,12 +107,18 @@ public class HybridPoiRecallService {
             return contentFallback(filteredCandidates, normalizedRecallLimit, CONTENT_FALLBACK_STRATEGY + "-seed-empty");
         }
 
-        List<Long> similarUserIds = userBehaviorEventMapper.selectSimilarUserIdsByPoiIds(
-                seedPoiIds,
-                userId,
-                RECENT_DAYS,
-                SIMILAR_USER_LIMIT
-        );
+        List<Long> similarUserIds;
+        try {
+            similarUserIds = userBehaviorEventMapper.selectSimilarUserIdsByPoiIds(
+                    seedPoiIds,
+                    userId,
+                    RECENT_DAYS,
+                    SIMILAR_USER_LIMIT
+            );
+        } catch (DataAccessException ex) {
+            log.warn("用户协同召回降级为内容召回（邻居用户查询失败），userId={}, reason={}", userId, ex.getMessage());
+            return contentFallback(filteredCandidates, normalizedRecallLimit, CONTENT_FALLBACK_STRATEGY + "-analytics-unavailable");
+        }
         if (similarUserIds == null || similarUserIds.isEmpty()) {
             return contentFallback(filteredCandidates, normalizedRecallLimit, CONTENT_FALLBACK_STRATEGY + "-no-neighbor");
         }
@@ -120,11 +126,17 @@ public class HybridPoiRecallService {
         Set<Long> relevantPoiIds = new LinkedHashSet<>();
         filteredCandidates.stream().map(Poi::getId).filter(Objects::nonNull).forEach(relevantPoiIds::add);
         relevantPoiIds.addAll(seedPoiIds);
-        List<UserPoiPreferenceStat> neighborRows = userBehaviorEventMapper.selectUserPoiPreferencesByUserIdsAndPoiIds(
-                similarUserIds,
-                new ArrayList<>(relevantPoiIds),
-                RECENT_DAYS
-        );
+        List<UserPoiPreferenceStat> neighborRows;
+        try {
+            neighborRows = userBehaviorEventMapper.selectUserPoiPreferencesByUserIdsAndPoiIds(
+                    similarUserIds,
+                    new ArrayList<>(relevantPoiIds),
+                    RECENT_DAYS
+            );
+        } catch (DataAccessException ex) {
+            log.warn("用户协同召回降级为内容召回（邻居偏好查询失败），userId={}, reason={}", userId, ex.getMessage());
+            return contentFallback(filteredCandidates, normalizedRecallLimit, CONTENT_FALLBACK_STRATEGY + "-analytics-unavailable");
+        }
         if (neighborRows == null || neighborRows.isEmpty()) {
             return contentFallback(filteredCandidates, normalizedRecallLimit, CONTENT_FALLBACK_STRATEGY + "-neighbor-empty");
         }
@@ -172,7 +184,13 @@ public class HybridPoiRecallService {
     }
 
     private Map<Long, Double> loadUserVector(Long userId) {
-        List<UserPoiPreferenceStat> rows = userBehaviorEventMapper.selectUserPoiPreferences(userId, RECENT_DAYS);
+        List<UserPoiPreferenceStat> rows;
+        try {
+            rows = userBehaviorEventMapper.selectUserPoiPreferences(userId, RECENT_DAYS);
+        } catch (DataAccessException ex) {
+            log.warn("用户画像查询失败，使用内容召回兜底，userId={}, reason={}", userId, ex.getMessage());
+            return Collections.emptyMap();
+        }
         if (rows == null || rows.isEmpty()) {
             return Collections.emptyMap();
         }

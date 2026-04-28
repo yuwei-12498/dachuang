@@ -1,33 +1,40 @@
-<template>
+﻿<template>
   <el-header class="app-navbar">
     <div class="navbar-container">
-      <div class="navbar-left" @click="router.push('/')">
-        <el-icon class="logo-icon" :size="24"><Location /></el-icon>
-        <span class="logo-text">行城有数</span>
-      </div>
+      <button type="button" class="brand-button" @click="router.push('/')">
+        <span class="logo-badge">
+          <el-icon :size="18"><Location /></el-icon>
+        </span>
+        <span class="brand-copy">
+          <strong class="logo-text">行城有数</strong>
+          <small class="logo-subtitle">City route studio</small>
+        </span>
+      </button>
 
-      <div class="navbar-center" v-if="isHome">
+      <nav v-if="isHome" class="navbar-center" aria-label="首页导航">
         <a href="#hero" class="nav-link" @click.prevent="scrollTo('#hero')">首页</a>
         <a href="#core" class="nav-link" @click.prevent="scrollTo('#core')">开始规划</a>
         <a href="#scenarios" class="nav-link" @click.prevent="scrollTo('#scenarios')">热门场景</a>
         <a href="#features" class="nav-link" @click.prevent="scrollTo('#features')">系统能力</a>
         <a href="#examples" class="nav-link" @click.prevent="scrollTo('#examples')">示例路线</a>
-      </div>
+      </nav>
 
       <div class="navbar-right">
-        <el-button round class="ghost-btn" @click="goCommunity">社区大厅</el-button>
+        <el-button round class="glass-btn" @click="goCommunity">社区大厅</el-button>
         <el-button
           v-if="isAdmin && !isAdminPage"
           round
-          class="ghost-btn admin-btn"
-          @click="goAdmin">
+          class="glass-btn admin-btn"
+          @click="goAdmin"
+        >
           管理后台
         </el-button>
         <el-button
           v-if="authState.user && !isHistory"
           round
-          class="ghost-btn"
-          @click="goHistory">
+          class="glass-btn"
+          @click="goHistory"
+        >
           历史行程
         </el-button>
 
@@ -35,16 +42,17 @@
           v-if="isHome"
           type="primary"
           round
-          class="cta-btn"
-          @click="scrollTo('#core')">
-          立即体验
+          class="primary-btn"
+          @click="scrollTo('#core')"
+        >
+          立即规划
         </el-button>
         <el-button
           v-else
-          type="default"
           round
-          class="ghost-btn"
-          @click="router.push('/')">
+          class="glass-btn"
+          @click="router.push('/')"
+        >
           返回首页
         </el-button>
 
@@ -53,7 +61,8 @@
           trigger="click"
           placement="bottom-end"
           class="user-dropdown"
-          @command="handleUserCommand">
+          @command="handleUserCommand"
+        >
           <div class="user-entry">
             <span class="user-avatar">{{ userInitial }}</span>
             <span class="user-name">{{ displayName }}</span>
@@ -65,26 +74,14 @@
                 当前账号：{{ authState.user.username }}
               </el-dropdown-item>
               <el-dropdown-item command="community">社区大厅</el-dropdown-item>
-              <el-dropdown-item
-                v-if="isAdmin"
-                command="admin">
-                管理后台
-              </el-dropdown-item>
-              <el-dropdown-item command="history">
-                历史行程与收藏
-              </el-dropdown-item>
-              <el-dropdown-item command="logout" divided>
-                退出登录
-              </el-dropdown-item>
+              <el-dropdown-item v-if="isAdmin" command="admin">管理后台</el-dropdown-item>
+              <el-dropdown-item command="history">历史行程与收藏</el-dropdown-item>
+              <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>
 
-        <el-button
-          v-else
-          round
-          class="auth-btn"
-          @click="goAuth">
+        <el-button v-else round class="glass-btn auth-btn" @click="goAuth">
           登录 / 注册
         </el-button>
       </div>
@@ -113,7 +110,7 @@ const userInitial = computed(() => {
   return value ? value.slice(0, 1).toUpperCase() : 'U'
 })
 
-const scrollTo = (selector) => {
+const scrollTo = selector => {
   const el = document.querySelector(selector)
   if (el) {
     const y = el.getBoundingClientRect().top + window.scrollY - 80
@@ -143,7 +140,7 @@ const goAdmin = () => {
   router.push('/admin/users')
 }
 
-const handleUserCommand = async (command) => {
+const handleUserCommand = async command => {
   if (command === 'community') {
     goCommunity()
     return
@@ -173,101 +170,131 @@ const handleUserCommand = async (command) => {
   position: sticky;
   top: 0;
   width: 100%;
-  height: 64px !important;
-  background-color: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(235, 238, 245, 0.8);
+  height: 72px !important;
   z-index: 1000;
   padding: 0;
-  box-shadow: 0 1px 4px rgba(0, 21, 41, 0.04);
+  background: rgba(247, 251, 255, 0.68);
+  backdrop-filter: blur(18px);
+  border-bottom: 1px solid rgba(194, 216, 248, 0.72);
+  box-shadow: 0 6px 18px rgba(106, 145, 198, 0.08);
 }
 
 .navbar-container {
-  max-width: 1200px;
+  max-width: 1240px;
   height: 100%;
   margin: 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 24px;
   gap: 20px;
+  padding: 0 24px;
 }
 
-.navbar-left {
-  display: flex;
+.brand-button {
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+  border: none;
+  background: transparent;
   cursor: pointer;
-  flex-shrink: 0;
+  padding: 0;
 }
 
-.logo-icon {
-  color: #409eff;
+.logo-badge {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: linear-gradient(135deg, var(--brand-500), #8ac2ff);
+  box-shadow: 0 12px 26px rgba(95, 158, 255, 0.28);
+}
+
+.brand-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
 }
 
 .logo-text {
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-  color: #1f2d3d;
+  color: var(--text-strong);
+  font-size: 19px;
+  line-height: 1;
+}
+
+.logo-subtitle {
+  margin-top: 4px;
+  color: var(--text-soft);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .navbar-center {
   display: none;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 860px) {
   .navbar-center {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 32px;
+    gap: 24px;
+    padding: 10px 18px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid rgba(198, 220, 252, 0.84);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
   }
 }
 
 .nav-link {
+  color: var(--text-body);
+  font-size: 14px;
+  font-weight: 600;
   text-decoration: none;
-  color: #606266;
-  font-size: 15px;
-  font-weight: 500;
-  transition: color 0.3s;
+  transition: color 0.2s ease, transform 0.2s ease;
 }
 
 .nav-link:hover {
-  color: #409eff;
+  color: var(--brand-600);
+  transform: translateY(-1px);
 }
 
 .navbar-right {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 12px;
+  gap: 10px;
   flex-shrink: 0;
 }
 
-.cta-btn {
-  font-weight: 600;
-  padding: 0 24px;
-  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.3);
-  transition: transform 0.2s, box-shadow 0.2s;
-}
-
-.cta-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(64, 158, 255, 0.4);
-}
-
-.ghost-btn,
+.primary-btn,
+.glass-btn,
 .auth-btn {
+  min-height: 40px;
+  padding: 0 18px;
   border-radius: 999px;
-  border-color: #d9e6f7;
-  color: #315170;
-  background: rgba(255, 255, 255, 0.92);
 }
 
-.auth-btn:hover,
-.ghost-btn:hover {
-  border-color: #409eff;
-  color: #409eff;
+.primary-btn {
+  box-shadow: 0 12px 28px rgba(95, 158, 255, 0.26);
+}
+
+.glass-btn,
+.auth-btn {
+  color: var(--text-strong);
+  border-color: rgba(184, 212, 255, 0.84);
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
+}
+
+.glass-btn:hover,
+.auth-btn:hover {
+  color: var(--brand-600);
+  border-color: rgba(95, 158, 255, 0.5);
+  background: rgba(255, 255, 255, 0.96);
 }
 
 .user-dropdown {
@@ -279,18 +306,18 @@ const handleUserCommand = async (command) => {
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 40px;
+  min-height: 42px;
   padding: 0 14px 0 10px;
   border-radius: 999px;
-  background: linear-gradient(135deg, rgba(64, 158, 255, 0.12), rgba(102, 177, 255, 0.2));
-  border: 1px solid rgba(64, 158, 255, 0.18);
+  border: 1px solid rgba(184, 212, 255, 0.84);
+  background: rgba(255, 255, 255, 0.78);
   cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .user-entry:hover {
   transform: translateY(-1px);
-  box-shadow: 0 8px 20px rgba(64, 158, 255, 0.12);
+  box-shadow: 0 10px 24px rgba(95, 158, 255, 0.14);
 }
 
 .user-avatar {
@@ -303,49 +330,49 @@ const handleUserCommand = async (command) => {
   color: #fff;
   font-size: 13px;
   font-weight: 700;
-  background: linear-gradient(135deg, #409eff, #66b1ff);
-  box-shadow: 0 4px 10px rgba(64, 158, 255, 0.22);
+  background: linear-gradient(135deg, var(--brand-500), #8ac2ff);
 }
 
 .user-name {
-  color: #1f2d3d;
+  color: var(--text-strong);
   font-size: 14px;
   font-weight: 600;
-  max-width: 88px;
+  max-width: 96px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .user-arrow {
-  color: #6f87a0;
+  color: var(--text-soft);
   font-size: 12px;
 }
 
 @media (max-width: 767px) {
-  .navbar-container {
-    padding: 0 16px;
+  .app-navbar {
+    height: 64px !important;
   }
 
-  .logo-text {
-    font-size: 18px;
+  .navbar-container {
+    padding: 0 16px;
   }
 
   .navbar-right {
     gap: 8px;
   }
 
-  .cta-btn,
-  .ghost-btn,
-  .auth-btn {
-    padding: 0 16px;
+  .glass-btn,
+  .auth-btn,
+  .primary-btn {
+    padding: 0 14px;
   }
 
-  .admin-btn {
+  .admin-btn,
+  .user-name {
     display: none;
   }
 
-  .user-name {
+  .logo-subtitle {
     display: none;
   }
 }

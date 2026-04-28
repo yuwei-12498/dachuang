@@ -2,8 +2,8 @@
   <view class="panel-header">
     <view class="ai-avatar">AI</view>
     <view class="ai-title-wrap">
-      <text class="panel-title">行城向导</text>
-      <text class="panel-subtitle">{{user ? "说说你的偏好，我来帮你理顺游玩思路" : "登录后即可获得更贴合你的路线建议"}}</text>
+      <text class="panel-title">Trip Copilot</text>
+      <text class="panel-subtitle">{{user ? "Tell me your preference and I will optimize your route" : "Login to unlock personalized route suggestions"}}</text>
     </view>
   </view>
 
@@ -15,13 +15,13 @@
         </view>
       </block>
       <view wx:if="{{loading}}" class="msg-item msg-ai">
-        <view class="bubble">思考中...</view>
+        <view class="bubble">Thinking...</view>
       </view>
     </view>
   </scroll-view>
 
   <view wx:if="{{currentTips.length > 0}}" class="panel-quick-tips">
-    <text class="tips-title">不妨先从这些问题开始：</text>
+    <text class="tips-title">Try these:</text>
     <view class="tips-container">
       <text
         wx:for="{{currentTips}}"
@@ -33,20 +33,31 @@
     </view>
   </view>
 
+  <view wx:if="{{currentEvidence.length > 0}}" class="panel-quick-tips evidence-block">
+    <text class="tips-title">Evidence:</text>
+    <view class="tips-container">
+      <text
+        wx:for="{{currentEvidence}}"
+        wx:key="index"
+        class="tip-tag evidence-tag"
+      >{{item}}</text>
+    </view>
+  </view>
+
   <view wx:if="{{user}}" class="panel-footer">
     <input
       class="chat-input"
-      placeholder="例如：宽窄巷子最佳拍照点在哪？"
+      placeholder="Example: Best photo stop in Kuanzhai Alley?"
       value="{{inputVal}}"
       bindinput="onInput"
       bindconfirm="handleSend"
       confirm-type="send"
     />
-    <view class="send-btn {{(!inputVal || loading) ? 'disabled' : ''}}" bindtap="handleSend">发送</view>
+    <view class="send-btn {{(!inputVal || loading) ? 'disabled' : ''}}" bindtap="handleSend">Send</view>
   </view>
 
   <view wx:else class="panel-footer login-footer">
-    <text class="login-copy">登录后就能向 AI 询问景点灵感、路线建议和出行提醒，帮你把一天安排得更顺路。</text>
-    <view class="login-btn" bindtap="goLogin">登录后再问</view>
+    <text class="login-copy">Login to ask AI for stop ideas, route suggestions, and transport reminders.</text>
+    <view class="login-btn" bindtap="goLogin">Login</view>
   </view>
 </view>

@@ -1,6 +1,6 @@
 const { getAuthState } = require("../../store/auth")
 const { askChatQuestion, getChatState } = require("../../store/chat")
-const { ORIGINAL_FORM_KEY } = require("../../utils/storage")
+const { buildSharedChatContext } = require("../../utils/chatContext")
 
 Component({
   properties: {
@@ -14,6 +14,7 @@ Component({
     inputVal: "",
     messages: [],
     currentTips: [],
+    currentEvidence: [],
     loading: false
   },
   lifetimes: {
@@ -27,6 +28,7 @@ Component({
       this.setData({
         messages: chatState.messages || [],
         currentTips: chatState.currentTips || [],
+        currentEvidence: chatState.currentEvidence || [],
         loading: !!chatState.loading
       })
     },
@@ -75,19 +77,9 @@ Component({
       const pages = getCurrentPages()
       const current = pages[pages.length - 1]
       const route = current ? current.route : ""
-      const original = wx.getStorageSync(ORIGINAL_FORM_KEY)
-      if (!original) {
-        return {
-          pageType: route || "page"
-        }
-      }
-      return {
-        pageType: route || "page",
-        preferences: original.themes || [],
-        rainy: !!original.isRainy,
-        nightMode: !!original.isNight,
-        companionType: original.companionType || ""
-      }
+      return buildSharedChatContext({
+        pageType: route || "page"
+      })
     },
     async handleSend() {
       if (!this.ensureLogin()) {

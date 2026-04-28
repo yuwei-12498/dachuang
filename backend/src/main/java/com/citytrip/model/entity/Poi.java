@@ -15,6 +15,8 @@ import java.time.LocalTime;
 public class Poi {
     @TableId(type = IdType.AUTO)
     private Long id;
+    private String cityCode;
+    private String cityName;
     private String name;
     private String category;
     private String district;
@@ -39,6 +41,12 @@ public class Poi {
     private String description;
     private BigDecimal priorityScore;
     private BigDecimal crowdPenalty;
+
+    @TableField(exist = false)
+    private String sourceType;
+
+    @TableField(exist = false)
+    private String externalId;
 
     @TableField(exist = false)
     private Double tempScore;

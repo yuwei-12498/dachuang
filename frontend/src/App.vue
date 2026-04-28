@@ -31,11 +31,52 @@ onMounted(() => {
 </script>
 
 <style>
+:root {
+  --brand-25: #f8fbff;
+  --brand-50: #f1f7ff;
+  --brand-100: #deecff;
+  --brand-200: #c5ddff;
+  --brand-300: #9cc8ff;
+  --brand-500: #5f9eff;
+  --brand-600: #497fe0;
+  --brand-700: #305aa8;
+  --text-strong: #183153;
+  --text-body: #55708f;
+  --text-soft: #7c90aa;
+  --surface-card: rgba(255, 255, 255, 0.92);
+  --surface-soft: rgba(246, 250, 255, 0.9);
+  --surface-glass: rgba(248, 252, 255, 0.8);
+  --border-soft: rgba(188, 214, 255, 0.8);
+  --border-strong: rgba(120, 171, 245, 0.45);
+  --shadow-soft: 0 18px 40px rgba(81, 120, 177, 0.1);
+  --shadow-strong: 0 24px 54px rgba(81, 120, 177, 0.14);
+  --radius-panel: 28px;
+  --radius-card: 22px;
+  --font-display: 'Georgia', 'Times New Roman', 'STSong', serif;
+  --font-body: 'Avenir Next', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Segoe UI', sans-serif;
+}
+
+html {
+  background: linear-gradient(180deg, #f7fbff 0%, #f2f7ff 100%);
+}
+
 body {
   margin: 0;
-  background-color: #f7f8fa;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
-  color: #303133;
+  background:
+    radial-gradient(circle at top left, rgba(125, 182, 255, 0.12), transparent 24%),
+    radial-gradient(circle at top right, rgba(205, 229, 255, 0.16), transparent 26%),
+    linear-gradient(180deg, #f7fbff 0%, #f2f7ff 100%);
+  font-family: var(--font-body);
+  color: var(--text-strong);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
 }
 
 #app {
@@ -70,7 +111,7 @@ html.lenis body {
 
 .fade-enter-active,
 .fade-leave-active {
-  transition: opacity 0.3s ease, transform 0.3s ease;
+  transition: opacity 0.28s ease, transform 0.28s ease;
 }
 
 .fade-enter-from,

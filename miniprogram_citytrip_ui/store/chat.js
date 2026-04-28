@@ -1,14 +1,14 @@
 const { reqAskChat } = require("../api/chat")
 const { CHAT_PREFIX } = require("../utils/storage")
 
-const defaultAssistantMessage = "你好，我是你的旅行小助手。登录后，我可以结合你的时间和偏好，帮你规划更顺路、更省心的成都行程。"
+const defaultAssistantMessage = "Hi! I am your trip assistant. Ask me about route planning, transport, or stop suggestions."
 const defaultTips = [
-  "宽窄巷子最佳拍照点在哪？",
-  "春熙路附近有什么值得逛的？",
-  "雨天适合去哪里？",
-  "带小朋友去哪里玩比较好？"
+  "Which stop is best for photos?",
+  "What should I visit near Chunxi Road?",
+  "Where should I go on a rainy day?",
+  "Any kid-friendly attractions?"
 ]
-const fallbackTips = ["成都有哪些必吃美食？", "有什么适合一日游的路线？"]
+const fallbackTips = ["What are must-eat foods in Chengdu?", "Can you suggest a one-day route?"]
 
 const chatState = {
   messages: [
@@ -18,6 +18,7 @@ const chatState = {
     }
   ],
   currentTips: defaultTips.slice(),
+  currentEvidence: [],
   loading: false
 }
 
@@ -32,6 +33,7 @@ function cloneDefaultState() {
       }
     ],
     currentTips: defaultTips.slice(),
+    currentEvidence: [],
     loading: false
   }
 }
@@ -56,9 +58,13 @@ function applyChatState(payload) {
   if (payload && Array.isArray(payload.currentTips) && payload.currentTips.length) {
     next.currentTips = payload.currentTips.slice()
   }
+  if (payload && Array.isArray(payload.currentEvidence) && payload.currentEvidence.length) {
+    next.currentEvidence = payload.currentEvidence.slice()
+  }
 
   chatState.messages = next.messages
   chatState.currentTips = next.currentTips
+  chatState.currentEvidence = next.currentEvidence
   chatState.loading = false
 }
 
@@ -69,7 +75,8 @@ function persistChatState() {
 
   wx.setStorageSync(activeStorageKey, {
     messages: chatState.messages,
-    currentTips: chatState.currentTips
+    currentTips: chatState.currentTips,
+    currentEvidence: chatState.currentEvidence
   })
 }
 
@@ -105,6 +112,7 @@ async function askChatQuestion(question, context) {
 
   chatState.messages.push({ role: "user", content: value })
   chatState.currentTips = []
+  chatState.currentEvidence = []
   chatState.loading = true
   persistChatState()
 
@@ -121,15 +129,19 @@ async function askChatQuestion(question, context) {
     chatState.currentTips = Array.isArray(res.relatedTips) && res.relatedTips.length
       ? res.relatedTips.slice()
       : fallbackTips.slice()
+    chatState.currentEvidence = Array.isArray(res.evidence)
+      ? res.evidence.slice()
+      : []
     persistChatState()
     return true
   } catch (err) {
     if (!err || err.code !== 401) {
       chatState.messages.push({
         role: "assistant",
-        content: "暂时无法连接到知识库，请稍后再试。"
+        content: "I cannot connect right now. Please try again shortly."
       })
-      chatState.currentTips = ["重新连接"]
+      chatState.currentTips = ["Retry"]
+      chatState.currentEvidence = []
       persistChatState()
     }
     throw err

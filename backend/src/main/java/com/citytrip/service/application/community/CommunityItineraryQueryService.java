@@ -19,6 +19,7 @@ import com.citytrip.service.impl.CommunityItineraryCacheService;
 import com.citytrip.service.persistence.itinerary.SavedItineraryCodec;
 import com.citytrip.service.persistence.itinerary.SavedItineraryRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import org.springframework.beans.factory.annotation.Autowired;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
@@ -46,6 +47,7 @@ public class CommunityItineraryQueryService {
     private final ItinerarySummaryAssembler itinerarySummaryAssembler;
     @SuppressWarnings("unused")
     private final CommunityItineraryCacheService communityItineraryCacheService;
+    private final CommunitySemanticSearchService communitySemanticSearchService;
 
     public CommunityItineraryQueryService(SavedItineraryRepository savedItineraryRepository,
                                           CommunityCommentMapper communityCommentMapper,
@@ -54,6 +56,25 @@ public class CommunityItineraryQueryService {
                                           SavedItineraryCodec savedItineraryCodec,
                                           ItinerarySummaryAssembler itinerarySummaryAssembler,
                                           CommunityItineraryCacheService communityItineraryCacheService) {
+        this(savedItineraryRepository,
+                communityCommentMapper,
+                communityLikeMapper,
+                userMapper,
+                savedItineraryCodec,
+                itinerarySummaryAssembler,
+                communityItineraryCacheService,
+                null);
+    }
+
+    @Autowired
+    public CommunityItineraryQueryService(SavedItineraryRepository savedItineraryRepository,
+                                          CommunityCommentMapper communityCommentMapper,
+                                          CommunityLikeMapper communityLikeMapper,
+                                          UserMapper userMapper,
+                                          SavedItineraryCodec savedItineraryCodec,
+                                          ItinerarySummaryAssembler itinerarySummaryAssembler,
+                                          CommunityItineraryCacheService communityItineraryCacheService,
+                                          CommunitySemanticSearchService communitySemanticSearchService) {
         this.savedItineraryRepository = savedItineraryRepository;
         this.communityCommentMapper = communityCommentMapper;
         this.communityLikeMapper = communityLikeMapper;
@@ -61,6 +82,7 @@ public class CommunityItineraryQueryService {
         this.savedItineraryCodec = savedItineraryCodec;
         this.itinerarySummaryAssembler = itinerarySummaryAssembler;
         this.communityItineraryCacheService = communityItineraryCacheService;
+        this.communitySemanticSearchService = communitySemanticSearchService;
     }
 
     public CommunityItineraryPageVO listPublic(int page, int size) {
@@ -112,10 +134,14 @@ public class CommunityItineraryQueryService {
 
         List<CommunityItineraryVO> feedRecords = summaries.stream()
                 .filter(item -> !Boolean.TRUE.equals(item.getGlobalPinned()))
-                .filter(item -> matchesKeyword(item, normalizedKeyword))
+                .filter(item -> shouldKeepForKeyword(item, normalizedKeyword))
                 .filter(item -> matchesTheme(item, normalizedTheme))
                 .sorted(buildFeedComparator(normalizedSort))
                 .toList();
+
+        if (StringUtils.hasText(normalizedKeyword) && communitySemanticSearchService != null) {
+            feedRecords = applySemanticRanking(normalizedKeyword, feedRecords);
+        }
 
         int fromIndex = Math.min((normalizedPage - 1) * normalizedSize, feedRecords.size());
         int toIndex = Math.min(fromIndex + normalizedSize, feedRecords.size());
@@ -334,12 +360,55 @@ public class CommunityItineraryQueryService {
         return item.getThemes().stream().filter(StringUtils::hasText).anyMatch(value -> value.equalsIgnoreCase(theme.trim()));
     }
 
+    private boolean shouldKeepForKeyword(CommunityItineraryVO item, String keyword) {
+        if (StringUtils.hasText(keyword) && communitySemanticSearchService != null) {
+            return true;
+        }
+        return matchesKeyword(item, keyword);
+    }
+
     private Comparator<CommunityItineraryVO> buildFeedComparator(String sort) {
         if ("hot".equals(sort)) {
             return Comparator.comparing(this::interactionScore, Comparator.reverseOrder())
                     .thenComparing(CommunityItineraryVO::getUpdatedAt, Comparator.nullsLast(Comparator.reverseOrder()));
         }
         return Comparator.comparing(CommunityItineraryVO::getUpdatedAt, Comparator.nullsLast(Comparator.reverseOrder()));
+    }
+
+    private List<CommunityItineraryVO> applySemanticRanking(String keyword, List<CommunityItineraryVO> records) {
+        try {
+            List<CommunitySemanticSearchService.CommunitySemanticCandidate> candidates = records.stream()
+                    .map(this::toSemanticCandidate)
+                    .toList();
+            Map<Long, Double> scoreMap = communitySemanticSearchService.rank(keyword, candidates).stream()
+                    .collect(Collectors.toMap(
+                            CommunitySemanticSearchService.ScoredCommunityCandidate::id,
+                            CommunitySemanticSearchService.ScoredCommunityCandidate::score
+                    ));
+            return records.stream()
+                    .sorted(Comparator.comparing((CommunityItineraryVO item) -> scoreMap.getOrDefault(item.getId(), -1D)).reversed())
+                    .toList();
+        } catch (Exception ex) {
+            log.warn("Semantic community ranking failed, fallback to original ordering. keyword={}", keyword, ex);
+            return records;
+        }
+    }
+
+    private CommunitySemanticSearchService.CommunitySemanticCandidate toSemanticCandidate(CommunityItineraryVO item) {
+        List<String> parts = new java.util.ArrayList<>();
+        if (StringUtils.hasText(item.getTitle())) {
+            parts.add(item.getTitle().trim());
+        }
+        if (StringUtils.hasText(item.getShareNote())) {
+            parts.add(item.getShareNote().trim());
+        }
+        if (StringUtils.hasText(item.getRouteSummary())) {
+            parts.add(item.getRouteSummary().trim());
+        }
+        if (item.getThemes() != null && !item.getThemes().isEmpty()) {
+            parts.add(String.join(" ", item.getThemes()));
+        }
+        return new CommunitySemanticSearchService.CommunitySemanticCandidate(item.getId(), String.join("\n", parts));
     }
 
     private long interactionScore(CommunityItineraryVO item) {

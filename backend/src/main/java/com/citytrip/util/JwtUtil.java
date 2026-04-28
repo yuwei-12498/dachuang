@@ -16,6 +16,8 @@ import java.util.Map;
 @Component
 public class JwtUtil {
     private static final int MIN_SECRET_LENGTH = 32;
+    private static final long ONE_HOUR_MILLIS = 60L * 60L * 1000L;
+    private static final long MAX_EXPIRATION_HOURS = 24L * 365L * 10L;
 
     private final SecretKey secretKey;
     private final long expirationTimeMillis;
@@ -28,7 +30,8 @@ public class JwtUtil {
 
         this.secretKey = Keys.hmacShaKeyFor(secret.trim().getBytes(StandardCharsets.UTF_8));
         long expirationHours = Math.max(jwtProperties.getExpirationHours(), 1);
-        this.expirationTimeMillis = expirationHours * 60 * 60 * 1000L;
+        long boundedHours = Math.min(expirationHours, MAX_EXPIRATION_HOURS);
+        this.expirationTimeMillis = boundedHours * ONE_HOUR_MILLIS;
     }
 
     public String generateToken(Long userId, Integer role) {

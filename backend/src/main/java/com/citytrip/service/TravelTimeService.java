@@ -1,15 +1,47 @@
 package com.citytrip.service;
 
 import com.citytrip.model.entity.Poi;
+import com.citytrip.service.geo.GeoPoint;
+import com.citytrip.service.geo.GeoRouteEstimate;
+
+import java.math.BigDecimal;
+import java.util.List;
 
 /**
- * 通行时间估算服务
+ * ????????
  */
 public interface TravelTimeService {
-    
+
     /**
-     * 根据经纬度估算从 from 点到 to 点的通行时间（单位：分钟）
-     * 如果考虑更复杂的交通工具，可增加 mode 参数，这里暂时用本地哈弗辛距离+平均配速模拟
+     * ???????? from ? to ????????????
      */
     int estimateTravelTimeMinutes(Poi from, Poi to);
+
+    default TravelLegEstimate estimateTravelLeg(Poi from, Poi to) {
+        return new TravelLegEstimate(estimateTravelTimeMinutes(from, to), null, null);
+    }
+
+    record TravelLegEstimate(int estimatedMinutes,
+                             BigDecimal estimatedDistanceKm,
+                             String transportMode,
+                             List<GeoPoint> pathPoints,
+                             GeoRouteEstimate detailedRoute) {
+
+        public TravelLegEstimate(int estimatedMinutes,
+                                 BigDecimal estimatedDistanceKm,
+                                 String transportMode) {
+            this(estimatedMinutes, estimatedDistanceKm, transportMode, List.of(), null);
+        }
+
+        public TravelLegEstimate(int estimatedMinutes,
+                                 BigDecimal estimatedDistanceKm,
+                                 String transportMode,
+                                 List<GeoPoint> pathPoints) {
+            this(estimatedMinutes, estimatedDistanceKm, transportMode, pathPoints, null);
+        }
+
+        public TravelLegEstimate {
+            pathPoints = pathPoints == null ? List.of() : List.copyOf(pathPoints);
+        }
+    }
 }

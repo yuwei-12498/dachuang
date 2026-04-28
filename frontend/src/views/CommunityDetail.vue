@@ -359,10 +359,11 @@ onMounted(async () => {
 <style scoped>
 .detail-page {
   min-height: calc(100vh - 64px);
-  padding: 30px 20px 56px;
+  padding: 34px 20px 58px;
   background:
-    radial-gradient(circle at top left, rgba(200, 216, 202, 0.24), transparent 26%),
-    linear-gradient(180deg, #f6f1e8 0%, #f9f7f2 38%, #f3f7fa 100%);
+    radial-gradient(circle at top left, rgba(124, 182, 255, 0.16), transparent 22%),
+    radial-gradient(circle at top right, rgba(211, 230, 255, 0.2), transparent 28%),
+    linear-gradient(180deg, #f7fbff 0%, #f2f7ff 100%);
 }
 
 .detail-shell {
@@ -375,7 +376,7 @@ onMounted(async () => {
   min-height: 420px;
   border-radius: 34px;
   overflow: hidden;
-  box-shadow: 0 28px 72px rgba(15, 31, 49, 0.18);
+  box-shadow: var(--shadow-strong);
 }
 
 .hero-cover {
@@ -394,8 +395,8 @@ onMounted(async () => {
   justify-content: space-between;
   gap: 24px;
   padding: 30px;
-  background: linear-gradient(180deg, rgba(12, 18, 27, 0.18), rgba(12, 18, 27, 0.88));
-  color: #f9f6f0;
+  background: linear-gradient(180deg, rgba(18, 42, 79, 0.18), rgba(18, 42, 79, 0.72));
+  color: #f6fbff;
 }
 
 .hero-content {
@@ -407,13 +408,13 @@ onMounted(async () => {
 .hero-kicker,
 .section-kicker {
   margin: 0 0 10px;
-  color: #8f7550;
+  color: var(--brand-600);
   font-size: 12px;
   letter-spacing: 0.16em;
 }
 
 .hero-kicker {
-  color: rgba(247, 223, 184, 0.92);
+  color: rgba(222, 237, 255, 0.92);
 }
 
 .hero-content h1 {
@@ -421,13 +422,13 @@ onMounted(async () => {
   max-width: 720px;
   font-size: clamp(32px, 4vw, 52px);
   line-height: 1.08;
-  font-family: 'Georgia', 'Times New Roman', serif;
+  font-family: var(--font-display);
 }
 
 .hero-subtitle {
   margin: 16px 0 0;
   max-width: 720px;
-  color: rgba(245, 240, 232, 0.86);
+  color: rgba(236, 245, 255, 0.88);
   line-height: 1.85;
 }
 
@@ -441,7 +442,7 @@ onMounted(async () => {
 
 .hero-meta {
   margin-top: 18px;
-  color: rgba(245, 240, 232, 0.74);
+  color: rgba(236, 245, 255, 0.82);
   font-size: 13px;
 }
 
@@ -451,6 +452,19 @@ onMounted(async () => {
   gap: 12px;
   align-items: flex-end;
   justify-content: flex-start;
+}
+
+.hero-actions :deep(.el-button) {
+  min-width: 144px;
+  border-radius: 999px;
+  border-color: rgba(218, 234, 255, 0.34);
+  background: rgba(255, 255, 255, 0.14);
+  color: #f6fbff;
+  backdrop-filter: blur(10px);
+}
+
+.hero-actions :deep(.el-button--danger) {
+  background: rgba(255, 255, 255, 0.22);
 }
 
 .detail-grid {
@@ -465,11 +479,13 @@ onMounted(async () => {
 .comment-card,
 .side-card,
 .pinned-banner,
-.empty-card {
-  border-radius: 28px;
-  background: rgba(255, 252, 247, 0.96);
-  border: 1px solid rgba(221, 211, 194, 0.82);
-  box-shadow: 0 18px 48px rgba(17, 32, 49, 0.06);
+.empty-card,
+.reply-card,
+.comment-section {
+  border-radius: var(--radius-panel);
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(188, 214, 255, 0.84);
+  box-shadow: var(--shadow-soft);
 }
 
 .story-card,
@@ -490,8 +506,8 @@ onMounted(async () => {
 .pinned-banner h3,
 .timeline-body h3 {
   margin: 0;
-  color: #142033;
-  font-family: 'Georgia', 'Times New Roman', serif;
+  color: var(--text-strong);
+  font-family: var(--font-display);
 }
 
 .chip-row,
@@ -505,8 +521,9 @@ onMounted(async () => {
 .pinned-pill {
   padding: 6px 12px;
   border-radius: 999px;
-  background: rgba(211, 226, 215, 0.46);
-  color: #405a4a;
+  border: 1px solid rgba(188, 214, 255, 0.78);
+  background: rgba(244, 249, 255, 0.94);
+  color: var(--brand-600);
   font-size: 12px;
 }
 
@@ -516,13 +533,17 @@ onMounted(async () => {
 .comment-card p,
 .reply-card p {
   margin: 16px 0 0;
-  color: #5e6b79;
+  color: var(--text-body);
   line-height: 1.85;
+}
+
+.pinned-banner {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(240, 247, 255, 0.92));
 }
 
 .pinned-banner small,
 .comment-head small {
-  color: #8391a0;
+  color: var(--text-soft);
 }
 
 .timeline-section,
@@ -547,14 +568,14 @@ onMounted(async () => {
 
 .timeline-time,
 .timeline-index {
-  color: #8f7550;
+  color: var(--brand-600);
   font-size: 13px;
   letter-spacing: 0.08em;
 }
 
 .timeline-meta {
   margin-top: 14px;
-  color: #6b7784;
+  color: var(--text-soft);
   font-size: 13px;
 }
 
@@ -585,7 +606,7 @@ onMounted(async () => {
 }
 
 .reply-card {
-  background: rgba(247, 250, 252, 0.92);
+  background: rgba(247, 251, 255, 0.94);
   border-radius: 20px;
 }
 
@@ -605,16 +626,16 @@ onMounted(async () => {
 
 .metric-list span {
   display: block;
-  color: #7b8795;
+  color: var(--text-soft);
   font-size: 13px;
 }
 
 .metric-list strong {
   display: block;
   margin-top: 6px;
-  color: #142033;
+  color: var(--text-strong);
   font-size: 24px;
-  font-family: 'Georgia', 'Times New Roman', serif;
+  font-family: var(--font-display);
 }
 
 .side-actions {

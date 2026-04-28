@@ -1,11 +1,11 @@
-<template>
+﻿<template>
   <section v-if="items.length" class="pinned-section">
     <div class="section-head">
       <div>
         <p class="section-kicker">PINNED PICKS</p>
-        <h2>本周置顶路线</h2>
+        <h2>本周精选路线</h2>
       </div>
-      <span>管理员精选 · 不与下方动态流重复</span>
+      <span>管理员精选，不与下方动态流重复</span>
     </div>
 
     <div class="pinned-grid">
@@ -17,7 +17,7 @@
       >
         <img :src="item.coverImageUrl" :alt="item.title" class="cover-image">
         <div class="card-overlay">
-          <span class="card-badge">置顶推荐</span>
+          <span class="card-badge">精选推荐</span>
           <h3>{{ item.title }}</h3>
           <p>{{ item.shareNote || item.routeSummary || '这条路线适合被慢慢读完。' }}</p>
           <div class="card-meta">
@@ -53,7 +53,7 @@ const formatDuration = minutes => {
 
 <style scoped>
 .pinned-section {
-  margin-top: 28px;
+  margin-top: 0;
 }
 
 .section-head {
@@ -61,25 +61,29 @@ const formatDuration = minutes => {
   justify-content: space-between;
   gap: 16px;
   align-items: end;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 
 .section-kicker {
   margin: 0 0 8px;
-  color: #8f7550;
+  color: var(--brand-600);
   letter-spacing: 0.16em;
   font-size: 12px;
 }
 
 .section-head h2 {
   margin: 0;
-  color: #142033;
-  font-size: 28px;
-  font-family: 'Georgia', 'Times New Roman', serif;
+  color: var(--text-strong);
+  font-size: 30px;
+  font-family: var(--font-display);
 }
 
 .section-head span {
-  color: #6e7c8e;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(188, 214, 255, 0.78);
+  background: rgba(246, 250, 255, 0.94);
+  color: var(--text-soft);
   font-size: 13px;
 }
 
@@ -91,28 +95,48 @@ const formatDuration = minutes => {
 
 .pinned-card {
   position: relative;
-  min-height: 320px;
-  border-radius: 28px;
+  min-height: 344px;
+  border-radius: var(--radius-panel);
   overflow: hidden;
   cursor: pointer;
-  box-shadow: 0 20px 54px rgba(15, 31, 49, 0.14);
+  border: 1px solid rgba(188, 214, 255, 0.84);
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: var(--shadow-soft);
+}
+
+.pinned-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(27, 61, 114, 0.02), rgba(36, 82, 149, 0.14));
 }
 
 .cover-image {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.pinned-card:hover .cover-image {
+  transform: scale(1.04);
 }
 
 .card-overlay {
   position: absolute;
-  inset: 0;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  padding: 22px;
-  background: linear-gradient(180deg, rgba(16, 26, 37, 0.06), rgba(12, 18, 27, 0.84));
-  color: #f9f6f0;
+  padding: 20px;
+  border-radius: 24px;
+  border: 1px solid rgba(214, 229, 251, 0.9);
+  background: rgba(255, 255, 255, 0.74);
+  backdrop-filter: blur(14px);
+  color: var(--text-strong);
+  z-index: 1;
 }
 
 .card-badge {
@@ -120,22 +144,23 @@ const formatDuration = minutes => {
   margin-bottom: 12px;
   padding: 8px 12px;
   border-radius: 999px;
-  background: rgba(252, 236, 210, 0.16);
-  border: 1px solid rgba(252, 236, 210, 0.22);
-  color: #f7dfb8;
+  background: rgba(246, 250, 255, 0.94);
+  border: 1px solid rgba(188, 214, 255, 0.84);
+  color: var(--brand-600);
   font-size: 12px;
+  font-weight: 700;
 }
 
 .card-overlay h3 {
   margin: 0;
   font-size: 24px;
-  font-family: 'Georgia', 'Times New Roman', serif;
+  font-family: var(--font-display);
 }
 
 .card-overlay p {
   margin: 12px 0 0;
   line-height: 1.75;
-  color: rgba(245, 240, 232, 0.86);
+  color: var(--text-body);
 }
 
 .card-meta {
@@ -144,7 +169,7 @@ const formatDuration = minutes => {
   gap: 12px;
   margin-top: 14px;
   font-size: 12px;
-  color: rgba(245, 240, 232, 0.72);
+  color: var(--text-soft);
 }
 
 @media (max-width: 1100px) {

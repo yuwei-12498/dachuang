@@ -20,6 +20,25 @@ BEGIN
 END //
 DELIMITER ;
 
+DROP PROCEDURE IF EXISTS AddIndexIfMissing;
+DELIMITER //
+CREATE PROCEDURE AddIndexIfMissing(IN tableName VARCHAR(64), IN indexName VARCHAR(64), IN indexDef VARCHAR(255))
+BEGIN
+    IF NOT EXISTS (
+        SELECT *
+        FROM information_schema.STATISTICS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = tableName
+          AND INDEX_NAME = indexName
+    ) THEN
+        SET @sql = CONCAT('ALTER TABLE `', tableName, '` ADD INDEX `', indexName, '` ', indexDef);
+        PREPARE stmt FROM @sql;
+        EXECUTE stmt;
+        DEALLOCATE PREPARE stmt;
+    END IF;
+END //
+DELIMITER ;
+
 -- Apply POI upgrades
 CALL AddColumn('poi', 'closed_weekdays', 'VARCHAR(100) NULL AFTER `close_time`');
 CALL AddColumn('poi', 'temporarily_closed', 'TINYINT(1) NOT NULL DEFAULT 0 AFTER `closed_weekdays`');
@@ -62,6 +81,15 @@ CALL AddColumn('saved_itinerary', 'share_note', 'VARCHAR(300) NULL AFTER `custom
 CALL AddColumn('saved_itinerary', 'is_favorite', 'TINYINT(1) NOT NULL DEFAULT 0');
 CALL AddColumn('saved_itinerary', 'is_history', 'TINYINT(1) NOT NULL DEFAULT 1');
 CALL AddColumn('saved_itinerary', 'source_page', 'VARCHAR(50) NULL COMMENT "鐢熸垚鏉ユ簮椤甸潰鏍囪瘑"');
+CALL AddColumn('saved_itinerary', 'is_deleted', 'TINYINT(1) NOT NULL DEFAULT 0 COMMENT "community soft delete flag"');
+CALL AddColumn('saved_itinerary', 'deleted_at', 'DATETIME NULL COMMENT "community deletion time"');
+CALL AddColumn('saved_itinerary', 'deleted_by', 'BIGINT NULL COMMENT "community deletion operator"');
+CALL AddColumn('saved_itinerary', 'is_global_pinned', 'TINYINT(1) NOT NULL DEFAULT 0 COMMENT "community global pinned flag"');
+CALL AddColumn('saved_itinerary', 'global_pinned_at', 'DATETIME NULL COMMENT "community global pinned time"');
+CALL AddColumn('saved_itinerary', 'global_pinned_by', 'BIGINT NULL COMMENT "community global pinned operator"');
+CALL AddColumn('saved_itinerary', 'pinned_comment_id', 'BIGINT NULL COMMENT "community author pinned comment id"');
+CALL AddIndexIfMissing('saved_itinerary', 'idx_saved_itinerary_public_deleted_updated', '(`is_public`, `is_deleted`, `update_time`)');
+CALL AddIndexIfMissing('saved_itinerary', 'idx_saved_itinerary_global_pinned', '(`is_global_pinned`, `global_pinned_at`)');
 
 -- Apply Community upgrades
 CREATE TABLE IF NOT EXISTS `community_comment` (
@@ -92,8 +120,10 @@ CREATE TABLE IF NOT EXISTS `community_like` (
 UPDATE `trip_user` SET `role` = 1 WHERE `username` = 'admin';
 UPDATE `trip_user` SET `status` = 1 WHERE `status` = 0; -- Ensure existing users aren't locked out
 
+DROP PROCEDURE IF EXISTS AddIndexIfMissing;
 DROP PROCEDURE IF EXISTS AddColumn;
 
 source F:/dachuang/backend/sql/upgrade_analytics_fact_tables_20260417.sql;
+source F:/dachuang/backend/sql/upgrade_poi_city_dimension_20260424.sql;
 source F:/dachuang/backend/sql/seed_poi_web_20260408.sql;
 source F:/dachuang/backend/sql/refresh_poi_web_20260408.sql;

@@ -4,33 +4,39 @@
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.citytrip.mapper.PoiMapper">
 
+    <sql id="baseColumns">
+        id,
+        city_code,
+        city_name,
+        name,
+        category,
+        district,
+        address,
+        latitude,
+        longitude,
+        open_time,
+        close_time,
+        closed_weekdays,
+        temporarily_closed,
+        status_note,
+        status_source,
+        status_updated_at,
+        avg_cost,
+        stay_duration,
+        indoor,
+        night_available,
+        rain_friendly,
+        walking_level,
+        tags,
+        suitable_for,
+        description,
+        priority_score,
+        crowd_penalty
+    </sql>
+
     <select id="selectAdminPoiPageRecords" resultType="com.citytrip.model.entity.Poi">
         select
-            id,
-            name,
-            category,
-            district,
-            address,
-            latitude,
-            longitude,
-            open_time,
-            close_time,
-            closed_weekdays,
-            temporarily_closed,
-            status_note,
-            status_source,
-            status_updated_at,
-            avg_cost,
-            stay_duration,
-            indoor,
-            night_available,
-            rain_friendly,
-            walking_level,
-            tags,
-            suitable_for,
-            description,
-            priority_score,
-            crowd_penalty
+            <include refid="baseColumns" />
         from poi
         <where>
             <if test="name != null and name != ''">
@@ -53,34 +59,18 @@
 
     <select id="selectPlanningCandidates" resultType="com.citytrip.model.entity.Poi">
         select
-            id,
-            name,
-            category,
-            district,
-            address,
-            latitude,
-            longitude,
-            open_time,
-            close_time,
-            closed_weekdays,
-            temporarily_closed,
-            status_note,
-            status_source,
-            status_updated_at,
-            avg_cost,
-            stay_duration,
-            indoor,
-            night_available,
-            rain_friendly,
-            walking_level,
-            tags,
-            suitable_for,
-            description,
-            priority_score,
-            crowd_penalty
+            <include refid="baseColumns" />
         from poi
         <where>
             temporarily_closed = 0
+            <if test="cityCode != null and cityCode != ''">
+                and (city_code = #{cityCode}
+                    or (city_code is null and (#{cityCode} = 'CD' or #{cityCode} = 'cd')))
+            </if>
+            <if test="(cityCode == null or cityCode == '') and cityName != null and cityName != ''">
+                and (city_name = #{cityName}
+                    or (city_name is null and #{cityName} = '成都'))
+            </if>
             <if test="rainy">
                 and (indoor = 1 or rain_friendly = 1)
             </if>
@@ -106,8 +96,32 @@
         limit #{limit}
     </select>
 
+    <select id="searchByNameInCity" resultType="com.citytrip.model.entity.Poi">
+        select
+            <include refid="baseColumns" />
+        from poi
+        <where>
+            temporarily_closed = 0
+            <if test="keyword != null and keyword != ''">
+                and name like concat('%', #{keyword}, '%')
+            </if>
+            <if test="cityCode != null and cityCode != ''">
+                and (city_code = #{cityCode}
+                    or (city_code is null and (#{cityCode} = 'CD' or #{cityCode} = 'cd')))
+            </if>
+            <if test="(cityCode == null or cityCode == '') and cityName != null and cityName != ''">
+                and (city_name = #{cityName}
+                    or (city_name is null and #{cityName} = '成都'))
+            </if>
+        </where>
+        order by priority_score desc, id desc
+        limit #{limit}
+    </select>
+
     <insert id="insertAdminPoi" parameterType="com.citytrip.model.entity.Poi" useGeneratedKeys="true" keyProperty="id">
         insert into poi (
+            city_code,
+            city_name,
             name,
             category,
             district,
@@ -133,6 +147,8 @@
             priority_score,
             crowd_penalty
         ) values (
+            #{cityCode},
+            #{cityName},
             #{name},
             #{category},
             #{district},
@@ -163,6 +179,8 @@
     <update id="updateAdminPoi" parameterType="com.citytrip.model.entity.Poi">
         update poi
         set
+            city_code = #{cityCode},
+            city_name = #{cityName},
             name = #{name},
             category = #{category},
             district = #{district},

@@ -9,19 +9,24 @@ import com.citytrip.model.entity.Poi;
 import com.citytrip.model.vo.ItineraryNodeVO;
 import com.citytrip.model.vo.ItineraryVO;
 import com.citytrip.service.domain.ai.ItineraryAiDecorationService;
+import com.citytrip.service.domain.planning.ExternalPoiCandidateService;
 import com.citytrip.service.domain.planning.PlanningPoiQueryService;
 import com.citytrip.service.domain.policy.MaxStopsPolicy;
 import com.citytrip.service.impl.ItineraryRouteOptimizer;
 import com.citytrip.service.impl.PlanningOrchestrator;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -32,10 +37,32 @@ public class ReplanItineraryUseCase {
     private final PlanningPoiQueryService planningPoiQueryService;
     private final ItineraryComparisonAssembler itineraryComparisonAssembler;
     private final ItineraryAiDecorationService itineraryAiDecorationService;
+    private final ExternalPoiCandidateService externalPoiCandidateService;
     private final SavedItineraryCommandService savedItineraryCommandService;
     private final ItineraryQueryService itineraryQueryService;
     private final RoutePlanFactPublisher routePlanFactPublisher;
     private final MaxStopsPolicy maxStopsPolicy;
+
+    @Autowired
+    public ReplanItineraryUseCase(ItineraryRouteOptimizer routeOptimizer,
+                                  PlanningPoiQueryService planningPoiQueryService,
+                                  ItineraryComparisonAssembler itineraryComparisonAssembler,
+                                  ItineraryAiDecorationService itineraryAiDecorationService,
+                                  ExternalPoiCandidateService externalPoiCandidateService,
+                                  SavedItineraryCommandService savedItineraryCommandService,
+                                  ItineraryQueryService itineraryQueryService,
+                                  RoutePlanFactPublisher routePlanFactPublisher,
+                                  MaxStopsPolicy maxStopsPolicy) {
+        this.routeOptimizer = routeOptimizer;
+        this.planningPoiQueryService = planningPoiQueryService;
+        this.itineraryComparisonAssembler = itineraryComparisonAssembler;
+        this.itineraryAiDecorationService = itineraryAiDecorationService;
+        this.externalPoiCandidateService = externalPoiCandidateService;
+        this.savedItineraryCommandService = savedItineraryCommandService;
+        this.itineraryQueryService = itineraryQueryService;
+        this.routePlanFactPublisher = routePlanFactPublisher;
+        this.maxStopsPolicy = maxStopsPolicy;
+    }
 
     public ReplanItineraryUseCase(ItineraryRouteOptimizer routeOptimizer,
                                   PlanningPoiQueryService planningPoiQueryService,
@@ -45,14 +72,17 @@ public class ReplanItineraryUseCase {
                                   ItineraryQueryService itineraryQueryService,
                                   RoutePlanFactPublisher routePlanFactPublisher,
                                   MaxStopsPolicy maxStopsPolicy) {
-        this.routeOptimizer = routeOptimizer;
-        this.planningPoiQueryService = planningPoiQueryService;
-        this.itineraryComparisonAssembler = itineraryComparisonAssembler;
-        this.itineraryAiDecorationService = itineraryAiDecorationService;
-        this.savedItineraryCommandService = savedItineraryCommandService;
-        this.itineraryQueryService = itineraryQueryService;
-        this.routePlanFactPublisher = routePlanFactPublisher;
-        this.maxStopsPolicy = maxStopsPolicy;
+        this(
+                routeOptimizer,
+                planningPoiQueryService,
+                itineraryComparisonAssembler,
+                itineraryAiDecorationService,
+                null,
+                savedItineraryCommandService,
+                itineraryQueryService,
+                routePlanFactPublisher,
+                maxStopsPolicy
+        );
     }
 
     public ReplanRespDTO replan(Long userId, Long itineraryId, ReplanReqDTO req) {
@@ -71,7 +101,15 @@ public class ReplanItineraryUseCase {
         GenerateReqDTO normalized = routeOptimizer.normalizeRequest(req == null ? null : req.getOriginalReq());
         List<Poi> currentPois = planningPoiQueryService.loadOrderedPois(currentNodes);
         Set<Long> currentPoiIds = currentPois.stream().map(Poi::getId).collect(Collectors.toSet());
-        List<Poi> candidates = planningPoiQueryService.loadPlanningPool(normalized);
+
+        List<Poi> localCandidates = safeList(planningPoiQueryService.loadPlanningPool(normalized)).stream()
+                .peek(poi -> poi.setSourceType("local"))
+                .toList();
+        List<Poi> externalCandidates = externalPoiCandidateService == null
+                ? Collections.emptyList()
+                : safeList(externalPoiCandidateService.recallForReplan(currentPois, normalized, 10));
+        List<Poi> candidates = mergeCandidates(localCandidates, externalCandidates);
+
         int maxStops = maxStopsPolicy.resolve(normalized, candidates.size());
         List<ItineraryRouteOptimizer.RouteOption> ranked = routeOptimizer.rankRoutes(candidates, normalized, maxStops);
         if (ranked.isEmpty()) {
@@ -103,7 +141,7 @@ public class ReplanItineraryUseCase {
         if (chosen == null) {
             resp.setSuccess(true);
             resp.setChanged(false);
-            resp.setMessage("没有更优路线了。");
+            resp.setMessage("当前条件下暂无更优路线。");
             resp.setReason("在当前时间、偏好与营业状态约束下，暂时没有明显优于当前路线的新组合。");
             resp.setItinerary(itineraryQueryService.getLatest(userId));
             return resp;
@@ -200,5 +238,34 @@ public class ReplanItineraryUseCase {
                 .map(Poi::getId)
                 .filter(id -> !currentPoiIds.contains(id))
                 .count();
+    }
+
+    private List<Poi> mergeCandidates(List<Poi> localCandidates, List<Poi> externalCandidates) {
+        Map<String, Poi> deduped = new LinkedHashMap<>();
+        if (localCandidates != null) {
+            for (Poi poi : localCandidates) {
+                if (poi == null || !StringUtils.hasText(poi.getName())) {
+                    continue;
+                }
+                deduped.putIfAbsent(buildCandidateKey(poi), poi);
+            }
+        }
+        if (externalCandidates != null) {
+            for (Poi poi : externalCandidates) {
+                if (poi == null || !StringUtils.hasText(poi.getName())) {
+                    continue;
+                }
+                deduped.putIfAbsent(buildCandidateKey(poi), poi);
+            }
+        }
+        return new ArrayList<>(deduped.values());
+    }
+
+    private String buildCandidateKey(Poi poi) {
+        return (poi.getName() + "|" + poi.getLatitude() + "|" + poi.getLongitude()).toLowerCase();
+    }
+
+    private <T> List<T> safeList(List<T> source) {
+        return source == null ? Collections.emptyList() : source;
     }
 }

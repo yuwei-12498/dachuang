@@ -47,6 +47,8 @@ Thumbs.db
 # ===== Logs =====
 *.log
 logs/
+artifacts/dev-runtime/processes.json
+artifacts/dev-runtime/*.log
 
 # ===== Local snapshots / temp / private =====
 test_api.py

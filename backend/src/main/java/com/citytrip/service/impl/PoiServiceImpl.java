@@ -3,7 +3,11 @@ package com.citytrip.service.impl;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.citytrip.mapper.PoiMapper;
 import com.citytrip.model.entity.Poi;
+import com.citytrip.model.vo.PoiSearchResultVO;
 import com.citytrip.service.PoiService;
+import com.citytrip.service.geo.GeoPoiCandidate;
+import com.citytrip.service.geo.GeoSearchService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -22,6 +26,8 @@ import java.util.stream.Collectors;
 public class PoiServiceImpl extends ServiceImpl<PoiMapper, Poi> implements PoiService {
 
     private static final int STALE_DAYS = 14;
+    @Autowired(required = false)
+    private GeoSearchService geoSearchService;
 
     @Override
     public Poi getDetailWithStatus(Long id, LocalDate tripDate) {
@@ -41,6 +47,31 @@ public class PoiServiceImpl extends ServiceImpl<PoiMapper, Poi> implements PoiSe
         LocalDate effectiveDate = tripDate == null ? LocalDate.now() : tripDate;
         pois.forEach(poi -> applyOperatingStatus(poi, effectiveDate));
         return pois;
+    }
+
+    @Override
+    public List<PoiSearchResultVO> searchLive(String keyword, String city, int limit) {
+        if (!StringUtils.hasText(keyword)) {
+            return Collections.emptyList();
+        }
+        String normalizedKeyword = keyword.trim();
+        String normalizedCity = StringUtils.hasText(city) ? city.trim() : null;
+        int boundedLimit = Math.max(1, Math.min(limit <= 0 ? 8 : limit, 20));
+
+        if (geoSearchService != null) {
+            List<PoiSearchResultVO> liveResults = geoSearchService.searchByKeyword(normalizedKeyword, normalizedCity, boundedLimit).stream()
+                    .map(this::toSearchResult)
+                    .limit(boundedLimit)
+                    .toList();
+            if (!liveResults.isEmpty()) {
+                return liveResults;
+            }
+        }
+
+        return baseMapper.searchByNameInCity(normalizedKeyword, null, normalizedCity, boundedLimit).stream()
+                .map(this::toSearchResult)
+                .limit(boundedLimit)
+                .toList();
     }
 
     private void applyOperatingStatus(Poi poi, LocalDate tripDate) {
@@ -128,5 +159,31 @@ public class PoiServiceImpl extends ServiceImpl<PoiMapper, Poi> implements PoiSe
 
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private PoiSearchResultVO toSearchResult(GeoPoiCandidate candidate) {
+        return new PoiSearchResultVO(
+                candidate.getName(),
+                candidate.getAddress(),
+                candidate.getCategory(),
+                candidate.getLatitude(),
+                candidate.getLongitude(),
+                candidate.getCityName(),
+                null,
+                StringUtils.hasText(candidate.getSource()) ? candidate.getSource() : "vivo-geo"
+        );
+    }
+
+    private PoiSearchResultVO toSearchResult(Poi poi) {
+        return new PoiSearchResultVO(
+                poi.getName(),
+                poi.getAddress(),
+                poi.getCategory(),
+                poi.getLatitude(),
+                poi.getLongitude(),
+                poi.getCityName(),
+                poi.getCityCode(),
+                StringUtils.hasText(poi.getStatusSource()) ? poi.getStatusSource() : "local-db"
+        );
     }
 }

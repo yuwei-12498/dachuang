@@ -10,6 +10,7 @@ import com.citytrip.model.entity.SavedItinerary;
 import com.citytrip.model.entity.User;
 import com.citytrip.model.vo.CommunityItineraryDetailVO;
 import com.citytrip.model.vo.CommunityItineraryPageVO;
+import com.citytrip.model.vo.CommunityItineraryVO;
 import com.citytrip.model.vo.ItineraryNodeVO;
 import com.citytrip.model.vo.ItineraryVO;
 import com.citytrip.service.impl.CommunityItineraryCacheService;
@@ -29,6 +30,49 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class CommunityItineraryQueryServiceTest {
+
+    @Test
+    void listPublicShouldUseSemanticRankingWhenKeywordPresent() throws Exception {
+        SavedItineraryRepository repository = mock(SavedItineraryRepository.class);
+        CommunityCommentMapper commentMapper = mock(CommunityCommentMapper.class);
+        CommunityLikeMapper likeMapper = mock(CommunityLikeMapper.class);
+        UserMapper userMapper = mock(UserMapper.class);
+        SavedItineraryCodec codec = mock(SavedItineraryCodec.class);
+        CommunitySemanticSearchService semanticSearchService = mock(CommunitySemanticSearchService.class);
+
+        CommunityItineraryQueryService service = new CommunityItineraryQueryService(
+                repository,
+                commentMapper,
+                likeMapper,
+                userMapper,
+                codec,
+                new ItinerarySummaryAssembler(),
+                new CommunityItineraryCacheService(false, null, null, new ObjectMapper()),
+                semanticSearchService
+        );
+
+        SavedItinerary first = buildEntity(1L, 7L);
+        SavedItinerary second = buildEntity(2L, 7L);
+        User author = new User();
+        author.setId(7L);
+        author.setNickname("Tester");
+
+        when(repository.listPublicVisible()).thenReturn(List.of(first, second));
+        when(userMapper.selectBatchIds(any())).thenReturn(List.of(author));
+        when(codec.readRequest(any())).thenReturn(buildReq("Citywalk"));
+        when(codec.readItinerary(first)).thenReturn(buildItinerary("人民公园"));
+        when(codec.readItinerary(second)).thenReturn(buildItinerary("九眼桥夜游"));
+        when(commentMapper.selectList(any())).thenReturn(List.of());
+        when(likeMapper.selectList(any())).thenReturn(List.of());
+        when(semanticSearchService.rank(any(), any())).thenReturn(List.of(
+                new CommunitySemanticSearchService.ScoredCommunityCandidate(2L, 0.98D),
+                new CommunitySemanticSearchService.ScoredCommunityCandidate(1L, 0.87D)
+        ));
+
+        CommunityItineraryPageVO page = service.listPublic(1, 12, "latest", "适合情侣夜游散步", null, null);
+
+        assertThat(page.getRecords()).extracting(CommunityItineraryVO::getId).containsExactly(2L, 1L);
+    }
 
     @Test
     void listPublicFallsBackToZeroCountsWhenCommunityTablesAreUnavailable() throws Exception {
@@ -149,5 +193,32 @@ class CommunityItineraryQueryServiceTest {
         assertThat(detail.getPinnedComment().getId()).isEqualTo(101L);
         assertThat(detail.getCanDelete()).isTrue();
         assertThat(detail.getCanPinComment()).isTrue();
+    }
+
+    private SavedItinerary buildEntity(Long id, Long userId) {
+        SavedItinerary entity = new SavedItinerary();
+        entity.setId(id);
+        entity.setUserId(userId);
+        entity.setNodeCount(1);
+        entity.setTotalDuration(90);
+        entity.setTotalCost(new BigDecimal("30"));
+        entity.setUpdateTime(LocalDateTime.now());
+        entity.setIsPublic(1);
+        entity.setIsDeleted(0);
+        return entity;
+    }
+
+    private GenerateReqDTO buildReq(String theme) {
+        GenerateReqDTO req = new GenerateReqDTO();
+        req.setThemes(List.of(theme));
+        return req;
+    }
+
+    private ItineraryVO buildItinerary(String poiName) {
+        ItineraryNodeVO node = new ItineraryNodeVO();
+        node.setPoiName(poiName);
+        ItineraryVO itinerary = new ItineraryVO();
+        itinerary.setNodes(List.of(node));
+        return itinerary;
     }
 }

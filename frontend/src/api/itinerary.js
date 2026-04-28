@@ -8,6 +8,14 @@ export function reqGenerateItinerary(data) {
   })
 }
 
+export function reqSmartFill(data) {
+  return request({
+    url: '/api/itineraries/smart-fill',
+    method: 'post',
+    data
+  })
+}
+
 export function reqListItineraries(params = {}) {
   return request({
     url: '/api/itineraries',

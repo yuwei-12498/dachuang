@@ -1,12 +1,17 @@
 package com.citytrip.service.impl;
 
+import com.citytrip.config.GeoSearchProperties;
 import com.citytrip.config.LlmProperties;
 import com.citytrip.model.dto.ChatReqDTO;
 import com.citytrip.model.vo.ChatStatusVO;
 import com.citytrip.model.vo.ChatVO;
+import com.citytrip.service.application.community.CommunitySemanticSearchService;
 import com.citytrip.service.ChatService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
+import java.util.List;
 import java.util.function.Consumer;
 
 @Service
@@ -14,6 +19,10 @@ public class OpenAiChatServiceImpl implements ChatService {
 
     private final RealChatGatewayService realChatGatewayService;
     private final LlmProperties llmProperties;
+    @Autowired(required = false)
+    private GeoSearchProperties geoSearchProperties;
+    @Autowired(required = false)
+    private CommunitySemanticSearchService communitySemanticSearchService;
 
     public OpenAiChatServiceImpl(RealChatGatewayService realChatGatewayService,
                                  LlmProperties llmProperties) {
@@ -48,9 +57,32 @@ public class OpenAiChatServiceImpl implements ChatService {
         vo.setTimeoutSeconds(llmProperties.getTimeoutSeconds());
         vo.setModel(chatOptions.getModel());
         vo.setBaseUrl(chatOptions.getBaseUrl());
-        vo.setMessage(llmProperties.canTryRealChat()
-                ? "Real model config looks valid."
-                : "Real model config is incomplete.");
+        vo.setToolReady(llmProperties.canTryRealTool());
+        vo.setGeoReady(isGeoReady());
+        vo.setEmbeddingReady(isSemanticReady());
+        vo.setRerankReady(isSemanticReady());
+        vo.setWarnings(llmProperties.getRealModelConfigWarnings());
+        vo.setMessage(buildStatusMessage());
         return vo;
+    }
+
+    private boolean isGeoReady() {
+        return geoSearchProperties != null
+                && geoSearchProperties.isEnabled()
+                && StringUtils.hasText(geoSearchProperties.getBaseUrl());
+    }
+
+    private boolean isSemanticReady() {
+        return communitySemanticSearchService != null;
+    }
+
+    private String buildStatusMessage() {
+        if (!llmProperties.canTryRealChat()) {
+            return "Real model config is incomplete.";
+        }
+        if (llmProperties.canTryRealTool() && isGeoReady() && isSemanticReady()) {
+            return "vivo chat/tool/geo/semantic ready";
+        }
+        return "Real model config looks valid.";
     }
 }

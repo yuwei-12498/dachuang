@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div v-if="loggedIn" class="composer-shell">
     <div v-if="replyingTo" class="reply-banner">
       <span>正在回复 {{ replyingTo.authorLabel }}</span>
@@ -16,14 +16,14 @@
     />
 
     <div class="composer-actions">
-      <el-button v-if="replyingTo" round @click="$emit('cancel-reply')">取消回复</el-button>
-      <el-button type="primary" round :loading="loading" @click="$emit('submit')">{{ replyingTo ? '发表回复' : '发表评论' }}</el-button>
+      <el-button v-if="replyingTo" round class="ghost-btn" @click="$emit('cancel-reply')">取消回复</el-button>
+      <el-button type="primary" round class="primary-btn" :loading="loading" @click="$emit('submit')">{{ replyingTo ? '发表回复' : '发表评论' }}</el-button>
     </div>
   </div>
 
   <div v-else class="guest-shell">
     <p>登录后即可评论、回复并参与这条路线的讨论。</p>
-    <el-button round type="primary" @click="$emit('login')">登录后评论</el-button>
+    <el-button round type="primary" class="primary-btn" @click="$emit('login')">登录后评论</el-button>
   </div>
 </template>
 
@@ -55,8 +55,9 @@ defineEmits(['update:modelValue', 'submit', 'cancel-reply', 'login'])
 .guest-shell {
   padding: 20px;
   border-radius: 24px;
-  background: rgba(255, 252, 247, 0.96);
-  border: 1px solid rgba(221, 211, 194, 0.82);
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(188, 214, 255, 0.84);
+  box-shadow: 0 14px 36px rgba(95, 138, 198, 0.08);
 }
 
 .reply-banner {
@@ -67,8 +68,8 @@ defineEmits(['update:modelValue', 'submit', 'cancel-reply', 'login'])
   margin-bottom: 12px;
   padding: 10px 14px;
   border-radius: 16px;
-  background: rgba(225, 236, 228, 0.56);
-  color: #43594c;
+  background: rgba(237, 245, 255, 0.88);
+  color: var(--brand-700);
 }
 
 .composer-actions {
@@ -76,6 +77,16 @@ defineEmits(['update:modelValue', 'submit', 'cancel-reply', 'login'])
   justify-content: flex-end;
   gap: 12px;
   margin-top: 14px;
+}
+
+.primary-btn {
+  box-shadow: 0 12px 28px rgba(95, 158, 255, 0.24);
+}
+
+.ghost-btn {
+  border-color: rgba(188, 214, 255, 0.84);
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--text-strong);
 }
 
 .guest-shell {
@@ -87,8 +98,14 @@ defineEmits(['update:modelValue', 'submit', 'cancel-reply', 'login'])
 
 .guest-shell p {
   margin: 0;
-  color: #5e6b79;
+  color: var(--text-body);
   line-height: 1.7;
+}
+
+:deep(.el-textarea__inner) {
+  border-radius: 18px;
+  background: rgba(248, 252, 255, 0.96);
+  box-shadow: 0 0 0 1px rgba(188, 214, 255, 0.84) inset;
 }
 
 @media (max-width: 700px) {

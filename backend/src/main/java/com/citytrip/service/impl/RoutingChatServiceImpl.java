@@ -1,14 +1,18 @@
 package com.citytrip.service.impl;
 
+import com.citytrip.config.GeoSearchProperties;
 import com.citytrip.config.LlmProperties;
 import com.citytrip.model.dto.ChatReqDTO;
 import com.citytrip.model.vo.ChatStatusVO;
 import com.citytrip.model.vo.ChatVO;
 import com.citytrip.service.ChatService;
+import com.citytrip.service.application.community.CommunitySemanticSearchService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -22,6 +26,10 @@ public class RoutingChatServiceImpl implements ChatService {
     private final RealChatGatewayService realChatService;
     private final MockChatServiceImpl mockChatService;
     private final LlmProperties llmProperties;
+    @Autowired(required = false)
+    private GeoSearchProperties geoSearchProperties;
+    @Autowired(required = false)
+    private CommunitySemanticSearchService communitySemanticSearchService;
 
     public RoutingChatServiceImpl(RealChatGatewayService realChatService,
                                   MockChatServiceImpl mockChatService,
@@ -120,6 +128,11 @@ public class RoutingChatServiceImpl implements ChatService {
         vo.setTimeoutSeconds(llmProperties.resolveReadTimeoutSeconds());
         vo.setModel(chatOptions.getModel());
         vo.setBaseUrl(chatOptions.getBaseUrl());
+        vo.setToolReady(llmProperties.canTryRealTool());
+        vo.setGeoReady(isGeoReady());
+        vo.setEmbeddingReady(isSemanticReady());
+        vo.setRerankReady(isSemanticReady());
+        vo.setWarnings(llmProperties.getRealModelConfigWarnings());
 
         if (llmProperties.isMockOnly()) {
             vo.setMessage("Current chat provider is mock (provider=mock).");
@@ -134,17 +147,35 @@ public class RoutingChatServiceImpl implements ChatService {
 
         List<String> warnings = llmProperties.getRealModelConfigWarnings();
         if (!warnings.isEmpty()) {
+            vo.setWarnings(warnings);
             vo.setMessage("Real model config is available, but with warnings: " + String.join("; ", warnings));
             return vo;
         }
 
         if (llmProperties.isFallbackToMock()) {
-            vo.setMessage("Real model is preferred; fallback to mock is enabled.");
+            vo.setMessage(buildReadyMessage("Real model is preferred; fallback to mock is enabled."));
             return vo;
         }
 
-        vo.setMessage("Real model is preferred; fallback to mock is disabled.");
+        vo.setMessage(buildReadyMessage("Real model is preferred; fallback to mock is disabled."));
         return vo;
+    }
+
+    private boolean isGeoReady() {
+        return geoSearchProperties != null
+                && geoSearchProperties.isEnabled()
+                && StringUtils.hasText(geoSearchProperties.getBaseUrl());
+    }
+
+    private boolean isSemanticReady() {
+        return communitySemanticSearchService != null;
+    }
+
+    private String buildReadyMessage(String fallbackMessage) {
+        if (llmProperties.canTryRealTool() && isGeoReady() && isSemanticReady()) {
+            return "vivo chat/tool/geo/semantic ready";
+        }
+        return fallbackMessage;
     }
 
     private ChatVO buildErrorResponse(String message) {

@@ -1,5 +1,6 @@
 const { getAuthState } = require("../../store/auth")
 const { askChatQuestion, getChatState } = require("../../store/chat")
+const { buildSharedChatContext } = require("../../utils/chatContext")
 
 Component({
   properties: {
@@ -13,6 +14,7 @@ Component({
     inputVal: "",
     messages: [],
     currentTips: [],
+    currentEvidence: [],
     loading: false
   },
   lifetimes: {
@@ -28,6 +30,7 @@ Component({
         user: authState.user,
         messages: chatState.messages || [],
         currentTips: chatState.currentTips || [],
+        currentEvidence: chatState.currentEvidence || [],
         loading: !!chatState.loading
       })
     },
@@ -61,13 +64,10 @@ Component({
     },
     buildContext() {
       const form = this.properties.currentForm || {}
-      return {
+      return buildSharedChatContext({
         pageType: "home",
-        preferences: form.themes || [],
-        rainy: !!form.isRainy,
-        nightMode: !!form.isNight,
-        companionType: form.companionType || ""
-      }
+        currentForm: form
+      })
     },
     async handleSend() {
       if (!this.ensureLogin()) {

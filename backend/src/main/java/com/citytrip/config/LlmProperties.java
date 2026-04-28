@@ -5,9 +5,18 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 @ConfigurationProperties(prefix = "llm")
 public class LlmProperties {
+    private static final Set<String> VIVO_ALLOWED_MODELS = Set.of(
+            "Volc-DeepSeek-V3.2",
+            "Doubao-Seed-2.0-mini",
+            "Doubao-Seed-2.0-lite",
+            "Doubao-Seed-2.0-pro",
+            "qwen3.5-plus"
+    );
+
     private String provider = "real";
     private boolean fallbackToMock = false;
     private int timeoutSeconds = 20;
@@ -95,10 +104,19 @@ public class LlmProperties {
         return getRealTextConfigIssues().isEmpty();
     }
 
+    public boolean canTryRealTool() {
+        return getRealToolConfigIssues().isEmpty();
+    }
+
+    public static boolean isVivoAllowedModel(String model) {
+        return model != null && !model.trim().isEmpty() && VIVO_ALLOWED_MODELS.contains(model.trim());
+    }
+
     public List<String> getRealModelConfigIssues() {
         List<String> issues = new ArrayList<>();
         issues.addAll(getRealChatConfigIssues());
         issues.addAll(getRealTextConfigIssues());
+        issues.addAll(getRealToolConfigIssues());
         return issues.stream().distinct().toList();
     }
 
@@ -108,6 +126,10 @@ public class LlmProperties {
 
     public List<String> getRealTextConfigIssues() {
         return getRealSceneConfigIssues(openai == null ? null : openai.resolveTextOptions(), "text");
+    }
+
+    public List<String> getRealToolConfigIssues() {
+        return getRealSceneConfigIssues(openai == null ? null : openai.resolveToolOptions(), "tool");
     }
 
     private List<String> getRealSceneConfigIssues(ResolvedOpenAiOptions options, String scene) {
@@ -152,7 +174,23 @@ public class LlmProperties {
         if (looksLikeApiKey(openai.resolveTextOptions().getModel())) {
             warnings.add("OPENAI_TEXT_MODEL looks like an API key; check whether model/key are swapped");
         }
+        if (looksLikeApiKey(openai.resolveToolOptions().getModel())) {
+            warnings.add("OPENAI_TOOL_MODEL looks like an API key; check whether model/key are swapped");
+        }
+        appendVivoAllowListWarning(warnings, "OPENAI_MODEL", openai.getModel(), openai.getBaseUrl());
+        appendVivoAllowListWarning(warnings, "OPENAI_CHAT_MODEL", openai.resolveChatOptions().getModel(), openai.resolveChatOptions().getBaseUrl());
+        appendVivoAllowListWarning(warnings, "OPENAI_TEXT_MODEL", openai.resolveTextOptions().getModel(), openai.resolveTextOptions().getBaseUrl());
+        appendVivoAllowListWarning(warnings, "OPENAI_TOOL_MODEL", openai.resolveToolOptions().getModel(), openai.resolveToolOptions().getBaseUrl());
         return warnings;
+    }
+
+    private void appendVivoAllowListWarning(List<String> warnings, String key, String model, String baseUrl) {
+        if (!looksLikeVivoBaseUrl(baseUrl) || !hasText(model)) {
+            return;
+        }
+        if (!isVivoAllowedModel(model)) {
+            warnings.add(key + " is not in vivo allow-list");
+        }
     }
 
     private boolean hasText(String value) {
@@ -175,6 +213,10 @@ public class LlmProperties {
         return hasText(value) && value.trim().toLowerCase(Locale.ROOT).startsWith("sk-");
     }
 
+    private boolean looksLikeVivoBaseUrl(String value) {
+        return hasText(value) && value.toLowerCase(Locale.ROOT).contains("api-ai.vivo.com.cn");
+    }
+
     public static class OpenAiProperties {
         private boolean enabled = true;
         private String apiKey;
@@ -184,6 +226,7 @@ public class LlmProperties {
         private Integer maxOutputTokens = 600;
         private SceneProperties chat = new SceneProperties();
         private SceneProperties text = new SceneProperties();
+        private SceneProperties tool = new SceneProperties();
 
         public boolean isEnabled() {
             return enabled;
@@ -249,18 +292,32 @@ public class LlmProperties {
             this.text = text;
         }
 
+        public SceneProperties getTool() {
+            return tool;
+        }
+
+        public void setTool(SceneProperties tool) {
+            this.tool = tool;
+        }
+
         public ResolvedOpenAiOptions resolveChatOptions() {
-            return resolveSceneOptions(chat);
+            return resolveSceneOptions(chat, true);
         }
 
         public ResolvedOpenAiOptions resolveTextOptions() {
-            return resolveSceneOptions(text);
+            return resolveSceneOptions(text, true);
         }
 
-        private ResolvedOpenAiOptions resolveSceneOptions(SceneProperties scene) {
+        public ResolvedOpenAiOptions resolveToolOptions() {
+            return resolveSceneOptions(tool, false);
+        }
+
+        private ResolvedOpenAiOptions resolveSceneOptions(SceneProperties scene, boolean inheritDefaultModel) {
             SceneProperties resolvedScene = scene == null ? new SceneProperties() : scene;
             String resolvedBaseUrl = hasText(resolvedScene.getBaseUrl()) ? resolvedScene.getBaseUrl() : baseUrl;
-            String resolvedModel = hasText(resolvedScene.getModel()) ? resolvedScene.getModel() : model;
+            String resolvedModel = hasText(resolvedScene.getModel())
+                    ? resolvedScene.getModel()
+                    : (inheritDefaultModel ? model : null);
             Double resolvedTemperature = resolvedScene.getTemperature() != null ? resolvedScene.getTemperature() : temperature;
             Integer resolvedMaxOutputTokens = positiveOrNull(resolvedScene.getMaxOutputTokens());
             if (resolvedMaxOutputTokens == null) {

@@ -24,5 +24,7 @@ public class AdminCommunityPostVO {
     private Boolean globalPinned;
     private Boolean deleted;
     private LocalDateTime globalPinnedAt;
+    private LocalDateTime deletedAt;
+    private Long deletedBy;
     private LocalDateTime updatedAt;
 }

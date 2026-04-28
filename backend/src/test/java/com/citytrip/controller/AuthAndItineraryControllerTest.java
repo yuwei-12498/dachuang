@@ -21,6 +21,7 @@ import com.citytrip.model.dto.GenerateReqDTO;
 import com.citytrip.model.dto.LoginReqDTO;
 import com.citytrip.model.dto.PublicStatusReqDTO;
 import com.citytrip.model.dto.SaveItineraryReqDTO;
+import com.citytrip.model.dto.SmartFillReqDTO;
 import com.citytrip.model.entity.Poi;
 import com.citytrip.model.entity.User;
 import com.citytrip.model.vo.AdminUserVO;
@@ -28,12 +29,18 @@ import com.citytrip.model.vo.CommunityCommentVO;
 import com.citytrip.model.vo.CommunityItineraryDetailVO;
 import com.citytrip.model.vo.CommunityItineraryPageVO;
 import com.citytrip.model.vo.CommunityItineraryVO;
+import com.citytrip.model.vo.ItineraryNodeVO;
+import com.citytrip.model.vo.RoutePathPointVO;
+import com.citytrip.model.vo.SegmentRouteGuideVO;
+import com.citytrip.model.vo.SegmentRouteStepVO;
 import com.citytrip.model.vo.ItinerarySummaryVO;
 import com.citytrip.model.vo.ItineraryVO;
+import com.citytrip.model.vo.SmartFillVO;
 import com.citytrip.model.vo.UserSessionVO;
 import com.citytrip.service.AdminService;
 import com.citytrip.service.ItineraryService;
 import com.citytrip.service.UserService;
+import com.citytrip.service.application.itinerary.SmartFillUseCase;
 import com.citytrip.util.JwtUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -92,6 +99,9 @@ class AuthAndItineraryControllerTest {
 
     @MockBean
     private ItineraryService itineraryService;
+
+    @MockBean
+    private SmartFillUseCase smartFillUseCase;
 
     @MockBean
     private AdminService adminService;
@@ -210,6 +220,56 @@ class AuthAndItineraryControllerTest {
     }
 
     @Test
+    void generateItineraryEndpointSerializesSegmentRouteGuide() throws Exception {
+        GenerateReqDTO req = new GenerateReqDTO();
+        req.setCityName("Chengdu");
+        req.setTripDate("2026-05-01");
+        req.setStartTime("09:30");
+        req.setEndTime("21:30");
+
+        ItineraryVO itineraryVO = buildItinerary(602L, 420, "AI generated route");
+        ItineraryNodeVO node = new ItineraryNodeVO();
+        node.setStepOrder(1);
+        node.setPoiName("Museum");
+        node.setSegmentRouteGuide(buildSegmentRouteGuide("walk 5 min"));
+        itineraryVO.setNodes(List.of(node));
+
+        when(itineraryService.generateUserItinerary(eq(101L), any(GenerateReqDTO.class))).thenReturn(itineraryVO);
+
+        mockMvc.perform(post("/api/itineraries/generate")
+                        .header("Authorization", bearerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nodes[0].segmentRouteGuide.summary").value("walk 5 min"))
+                .andExpect(jsonPath("$.nodes[0].segmentRouteGuide.transportMode").value("walk"))
+                .andExpect(jsonPath("$.nodes[0].segmentRouteGuide.steps[0].instruction").value("Walk to the next stop"))
+                .andExpect(jsonPath("$.nodes[0].segmentRouteGuide.pathPoints[0].latitude").value(30.6573))
+                .andExpect(jsonPath("$.nodes[0].segmentRouteGuide.pathPoints[0].longitude").value(104.0817));
+    }
+
+    @Test
+    void smartFillEndpointReturnsStructuredPayload() throws Exception {
+        SmartFillVO vo = new SmartFillVO();
+        vo.setThemes(List.of("购物"));
+        vo.setMustVisitPoiNames(List.of("IFS国际金融中心"));
+        vo.setSummary(List.of("必去：IFS国际金融中心"));
+
+        when(smartFillUseCase.parse(any(SmartFillReqDTO.class))).thenReturn(vo);
+
+        mockMvc.perform(post("/api/itineraries/smart-fill")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"text":"我想去IFS金融中心"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.mustVisitPoiNames[0]").value("IFS国际金融中心"))
+                .andExpect(jsonPath("$.summary[0]").value("必去：IFS国际金融中心"));
+
+        verify(smartFillUseCase).parse(any(SmartFillReqDTO.class));
+    }
+
+    @Test
     void favoriteItineraryUsesJwtUserId() throws Exception {
         FavoriteReqDTO req = new FavoriteReqDTO();
         req.setSelectedOptionKey("balanced");
@@ -308,7 +368,7 @@ class AuthAndItineraryControllerTest {
         page.setTotal(1L);
         page.setRecords(List.of(summary));
 
-        when(itineraryService.listCommunityItineraries(1, 12)).thenReturn(page);
+        when(itineraryService.listCommunityItineraries(1, 12, "latest", null, null, null)).thenReturn(page);
 
         mockMvc.perform(get("/api/community/itineraries")
                         .param("page", "1")
@@ -351,7 +411,7 @@ class AuthAndItineraryControllerTest {
         page.setTotal(1L);
         page.setRecords(List.of(summary));
 
-        when(itineraryService.listCommunityItineraries(1, 12)).thenReturn(page);
+        when(itineraryService.listCommunityItineraries(1, 12, "latest", null, null, null)).thenReturn(page);
 
         mockMvc.perform(get("/api/itineraries/community")
                         .param("page", "1")
@@ -593,6 +653,34 @@ class AuthAndItineraryControllerTest {
         vo.setTotalCost(new BigDecimal("99.00"));
         vo.setRecommendReason(reason);
         return vo;
+    }
+
+    private SegmentRouteGuideVO buildSegmentRouteGuide(String summary) {
+        SegmentRouteStepVO step = new SegmentRouteStepVO();
+        step.setStepOrder(1);
+        step.setType("walk");
+        step.setInstruction("Walk to the next stop");
+        step.setDistanceMeters(320);
+        step.setDurationMinutes(5);
+        step.setPathPoints(List.of(buildRoutePoint("30.6573", "104.0817"), buildRoutePoint("30.6581", "104.0792")));
+
+        SegmentRouteGuideVO guide = new SegmentRouteGuideVO();
+        guide.setSummary(summary);
+        guide.setTransportMode("walk");
+        guide.setDurationMinutes(5);
+        guide.setDistanceKm(new BigDecimal("0.3"));
+        guide.setDetailAvailable(true);
+        guide.setSteps(List.of(step));
+        guide.setPathPoints(List.of(buildRoutePoint("30.6573", "104.0817"), buildRoutePoint("30.6581", "104.0792")));
+        guide.setSource("provider");
+        return guide;
+    }
+
+    private RoutePathPointVO buildRoutePoint(String latitude, String longitude) {
+        RoutePathPointVO point = new RoutePathPointVO();
+        point.setLatitude(new BigDecimal(latitude));
+        point.setLongitude(new BigDecimal(longitude));
+        return point;
     }
 
     private User buildUser(Long id, String username, String nickname, Integer role, Integer status) {

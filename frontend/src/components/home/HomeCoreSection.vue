@@ -1,5 +1,5 @@
 <template>
-  <section class="core-section" id="core">
+  <section ref="sectionRef" class="core-section" id="core">
     <div class="core-container">
       <div class="section-header text-center">
         <h2 class="section-title">{{ text.title }}</h2>
@@ -23,7 +23,7 @@
                     class="smart-fill-input"
                   />
                   <div class="smart-fill-actions">
-                    <el-button round @click="fillFormFromText">{{ text.smartFillAction }}</el-button>
+                    <el-button round :loading="smartFillLoading" @click="fillFormFromText">{{ text.smartFillAction }}</el-button>
                     <span class="smart-fill-tip">{{ text.smartFillTip }}</span>
                   </div>
                   <div v-if="parsedSummary.length" class="smart-fill-summary">
@@ -43,6 +43,30 @@
 
                 <div class="form-section">
                   <div class="sub-section-title">{{ text.sectionBasic }}</div>
+                  <el-row :gutter="24">
+                    <el-col :xs="24" :sm="12">
+                      <el-form-item :label="text.city" prop="cityCode">
+                        <el-select v-model="form.cityCode" :placeholder="text.cityPlaceholder" style="width: 100%" @change="handleCityChange">
+                          <el-option
+                            v-for="option in cityOptions"
+                            :key="option.code"
+                            :label="option.label"
+                            :value="option.code"
+                          />
+                        </el-select>
+                      </el-form-item>
+                    </el-col>
+                    <el-col :xs="24" :sm="12">
+                      <el-form-item :label="text.departurePlace">
+                        <el-input
+                          v-model="form.departurePlaceName"
+                          clearable
+                          :placeholder="text.departurePlacePlaceholder"
+                        />
+                      </el-form-item>
+                    </el-col>
+                  </el-row>
+
                   <el-row :gutter="24">
                     <el-col :xs="24" :sm="12">
                       <el-form-item :label="text.tripMode" prop="tripDays">
@@ -211,7 +235,25 @@
           </el-col>
 
           <el-col :md="10" :lg="9" class="ai-panel-col">
-            <HomeAiPanel :currentForm="form" :style="aiPanelStyle" />
+            <component
+              :is="AsyncHomeAiPanel"
+              v-if="aiPanelVisible"
+              :currentForm="form"
+              :style="aiPanelStyle"
+            />
+            <div v-else class="ai-panel-placeholder" :style="aiPanelStyle">
+              <div class="ai-placeholder-header">
+                <span class="ai-placeholder-dot"></span>
+                <span class="ai-placeholder-dot"></span>
+                <span class="ai-placeholder-dot"></span>
+              </div>
+              <div class="ai-placeholder-body">
+                <span class="ai-placeholder-line w-80"></span>
+                <span class="ai-placeholder-line w-66"></span>
+                <span class="ai-placeholder-line w-92"></span>
+                <span class="ai-placeholder-line w-58"></span>
+              </div>
+            </div>
           </el-col>
         </el-row>
       </div>
@@ -220,13 +262,14 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { reqGenerateItinerary } from '@/api/itinerary'
-import HomeAiPanel from '@/components/HomeAiPanel.vue'
+import { reqGenerateItinerary, reqSmartFill } from '@/api/itinerary'
 import { useAuthState } from '@/store/auth'
 import { getDefaultTripDate, saveItinerarySnapshot } from '@/store/itinerary'
+
+const AsyncHomeAiPanel = defineAsyncComponent(() => import('@/components/HomeAiPanel.vue'))
 
 const text = {
   title: '\u5B9A\u5236\u4E13\u5C5E\u884C\u7A0B',
@@ -240,6 +283,10 @@ const text = {
   sectionBasic: '\u57FA\u7840\u65F6\u95F4\u5B89\u6392',
   sectionPreference: '\u504F\u597D\u8BBE\u7F6E',
   sectionAdvanced: '\u66F4\u591A\u504F\u597D',
+  city: '\u76EE\u7684\u5730\u57CE\u5E02',
+  cityPlaceholder: '\u9009\u62E9\u8981\u89C4\u5212\u7684\u57CE\u5E02',
+  departurePlace: '\u51FA\u53D1\u5730\uFF08\u53EF\u9009\uFF09',
+  departurePlacePlaceholder: '\u5982\uFF1A\u6625\u7199\u8DEF / \u4F4F\u5B85 / \u9152\u5E97\u540D\u79F0',
   tripMode: '\u51FA\u884C\u6A21\u5F0F',
   tripDate: '\u51FA\u884C\u65E5\u671F',
   tripDatePlaceholder: '\u9009\u62E9\u51FA\u884C\u65E5\u671F',
@@ -264,19 +311,32 @@ const text = {
   smartFillEmpty: '\u5148\u8F93\u5165\u4E00\u6BB5\u63CF\u8FF0\uFF0C\u6211\u518D\u5E2E\u4F60\u63D0\u53D6',
   smartFillSuccess: '\u5DF2\u6839\u636E\u63CF\u8FF0\u56DE\u586B\u8868\u5355',
   smartFillNoMatch: '\u8FD9\u6BB5\u63CF\u8FF0\u91CC\u6682\u65F6\u6CA1\u6293\u5230\u660E\u786E\u504F\u597D\uFF0C\u4F60\u53EF\u4EE5\u8BF4\u5F97\u518D\u5177\u4F53\u4E00\u70B9',
+  smartFillFailed: '\u667A\u80FD\u586B\u5199\u6682\u65F6\u4E0D\u53EF\u7528\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5',
   tripModeHint: '\u4E24\u65E5\u6A21\u5F0F\u4F1A\u63D0\u9AD8\u5019\u9009\u70B9\u4F4D\u4E0E\u6253\u5361\u5BC6\u5EA6\uFF0C\u5F53\u524D\u4ECD\u4EE5\u9996\u65E5\u7684\u51FA\u53D1\u65F6\u95F4\u7A97\u53E3\u751F\u6210\u4E3B\u8DEF\u7EBF\u3002',
+  cityRequired: '\u8BF7\u9009\u62E9\u51FA\u53D1\u57CE\u5E02',
   dateRequired: '\u8BF7\u9009\u62E9\u51FA\u884C\u65E5\u671F',
   startRequired: '\u8BF7\u9009\u62E9\u51FA\u53D1\u65F6\u95F4',
   endRequired: '\u8BF7\u9009\u62E9\u7ED3\u675F\u65F6\u95F4',
   timeoutError: '\u884C\u7A0B\u751F\u6210\u8D85\u65F6\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5\u3002',
   authExpired: '\u767B\u5F55\u72B6\u6001\u5DF2\u5931\u6548\uFF0C\u8BF7\u91CD\u65B0\u767B\u5F55\u540E\u518D\u7EE7\u7EED\u89C4\u5212\u3002',
-  generateFailed: '\u751F\u6210\u5931\u8D25\uFF0C\u8BF7\u68C0\u67E5\u7F51\u7EDC\u540E\u91CD\u8BD5\u3002'
+  generateFailed: '\u751F\u6210\u5931\u8D25\uFF0C\u8BF7\u68C0\u67E5\u7F51\u7EDC\u540E\u91CD\u8BD5\u3002',
+  locationRequired: '\u8BF7\u5141\u8BB8\u5B9A\u4F4D\u6743\u9650\uFF0C\u6211\u4EEC\u9700\u8981\u4ECE\u4F60\u7684\u5F53\u524D\u4F4D\u7F6E\u8D77\u7B97\u9996\u6BB5\u901A\u884C\u65F6\u957F\u3002',
+  locationUnavailable: '\u5B9A\u4F4D\u5931\u8D25\uFF0C\u8BF7\u68C0\u67E5\u7F51\u7EDC\u4E0E\u5B9A\u4F4D\u670D\u52A1\u540E\u91CD\u8BD5\u3002'
 }
 
 const tripDayOptions = [
   { label: '\u534A\u5929\u95F2\u901B', value: 0.5 },
   { label: '\u5168\u5929\u6E38\u73A9', value: 1.0 },
   { label: '\u4E24\u65E5\u6DF1\u5EA6', value: 2.0 }
+]
+
+const cityOptions = [
+  { code: 'CD', name: '成都', label: '成都' },
+  { code: 'CQ', name: '重庆', label: '重庆' },
+  { code: 'BJ', name: '北京', label: '北京' },
+  { code: 'SH', name: '上海', label: '上海' },
+  { code: 'GZ', name: '广州', label: '广州' },
+  { code: 'SZ', name: '深圳', label: '深圳' }
 ]
 
 const budgetOptions = [
@@ -310,16 +370,22 @@ const walkingOptions = [
 const route = useRoute()
 const router = useRouter()
 const authState = useAuthState()
+const sectionRef = ref(null)
 const formRef = ref()
 const formPaneRef = ref(null)
 const loading = ref(false)
+const smartFillLoading = ref(false)
 const panelHeight = ref(0)
+const aiPanelVisible = ref(false)
 const showAdvanced = ref(false)
 const naturalInput = ref('')
 const parsedSummary = ref([])
 let formPaneObserver = null
+let sectionObserver = null
 
 const form = reactive({
+  cityCode: 'CD',
+  cityName: '成都',
   tripDays: 1.0,
   tripDate: getDefaultTripDate(),
   startTime: '09:00',
@@ -329,177 +395,18 @@ const form = reactive({
   isRainy: false,
   isNight: true,
   walkingLevel: '\u4E2D',
-  companionType: '\u670B\u53CB'
+  companionType: '\u670B\u53CB',
+  mustVisitPoiNames: [],
+  departurePlaceName: '',
+  departureLatitude: null,
+  departureLongitude: null
 })
 
 const rules = {
+  cityCode: [{ required: true, message: text.cityRequired, trigger: 'change' }],
   tripDate: [{ required: true, message: text.dateRequired, trigger: 'change' }],
   startTime: [{ required: true, message: text.startRequired, trigger: 'change' }],
   endTime: [{ required: true, message: text.endRequired, trigger: 'change' }]
-}
-
-const THEME_KEYWORDS = [
-  { value: '\u6587\u5316', words: ['\u6587\u5316', '\u5386\u53F2', '\u535A\u7269\u9986', '\u53E4\u8FF9', '\u4EBA\u6587'] },
-  { value: '\u7F8E\u98DF', words: ['\u7F8E\u98DF', '\u597D\u5403', '\u5403', '\u5C0F\u5403', '\u706B\u9505', '\u591C\u5E02', '\u591C\u5BB5'] },
-  { value: '\u81EA\u7136', words: ['\u81EA\u7136', '\u516C\u56ED', '\u722C\u5C71', '\u68EE\u6797', '\u98CE\u666F', '\u6237\u5916'] },
-  { value: '\u8D2D\u7269', words: ['\u8D2D\u7269', '\u5546\u573A', '\u901B\u8857', '\u4E70\u4E1C\u897F', '\u592A\u53E4\u91CC'] },
-  { value: '\u7F51\u7EA2', words: ['\u62CD\u7167', '\u6253\u5361', '\u7F51\u7EA2', '\u51FA\u7247', '\u6C1B\u56F4\u611F'] },
-  { value: '\u4F11\u95F2', words: ['\u4F11\u95F2', '\u653E\u677E', '\u8F7B\u677E', '\u6563\u6B65', '\u6162\u6162\u901B'] }
-]
-
-const parseDateOffset = (baseDate, offsetDays) => {
-  const next = new Date(baseDate)
-  next.setDate(next.getDate() + offsetDays)
-  const year = next.getFullYear()
-  const month = String(next.getMonth() + 1).padStart(2, '0')
-  const day = String(next.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-const nextWeekdayDate = (weekday) => {
-  const now = new Date()
-  const today = now.getDay()
-  let delta = (weekday - today + 7) % 7
-  if (delta === 0) {
-    delta = 7
-  }
-  return parseDateOffset(now, delta)
-}
-
-const parseSmartInput = (input) => {
-  const textValue = (input || '').trim()
-  const payload = {}
-  const summary = []
-
-  if (!textValue) {
-    return { payload, summary }
-  }
-
-  const lower = textValue.toLowerCase()
-
-  if (/(半天|半日)/.test(textValue)) {
-    payload.tripDays = 0.5
-    summary.push('半天')
-  } else if (/(两天|2天|两日|周末)/.test(textValue)) {
-    payload.tripDays = 2.0
-    summary.push('两天')
-  } else if (/(一天|1天|一日|全天)/.test(textValue)) {
-    payload.tripDays = 1.0
-    summary.push('一天')
-  }
-
-  if (/(今天)/.test(textValue)) {
-    payload.tripDate = getDefaultTripDate()
-    summary.push('今天出发')
-  } else if (/(明天)/.test(textValue)) {
-    payload.tripDate = parseDateOffset(new Date(), 1)
-    summary.push('明天出发')
-  } else if (/(后天)/.test(textValue)) {
-    payload.tripDate = parseDateOffset(new Date(), 2)
-    summary.push('后天出发')
-  } else if (/(周六|星期六|礼拜六)/.test(textValue)) {
-    payload.tripDate = nextWeekdayDate(6)
-    summary.push('周六')
-  } else if (/(周日|星期日|星期天|礼拜天)/.test(textValue)) {
-    payload.tripDate = nextWeekdayDate(0)
-    summary.push('周日')
-  }
-
-  const budgetMatch = textValue.match(/预算\s*([0-9]{2,5})/)
-  if (budgetMatch) {
-    const amount = Number(budgetMatch[1])
-    if (amount <= 100) {
-      payload.budgetLevel = '\u4F4E'
-      summary.push('低预算')
-    } else if (amount <= 300) {
-      payload.budgetLevel = '\u4E2D'
-      summary.push('中预算')
-    } else {
-      payload.budgetLevel = '\u9AD8'
-      summary.push('高预算')
-    }
-  } else if (/(穷游|省钱|低预算)/.test(textValue)) {
-    payload.budgetLevel = '\u4F4E'
-    summary.push('低预算')
-  } else if (/(高预算|预算充足|不差钱|贵一点也行)/.test(textValue)) {
-    payload.budgetLevel = '\u9AD8'
-    summary.push('高预算')
-  }
-
-  if (/(女朋友|男朋友|对象|情侣|约会)/.test(textValue)) {
-    payload.companionType = '\u60C5\u4FA3'
-    summary.push('情侣')
-  } else if (/(朋友|同学|闺蜜|兄弟)/.test(textValue)) {
-    payload.companionType = '\u670B\u53CB'
-    summary.push('朋友')
-  } else if (/(亲子|带娃|孩子|小朋友|宝宝)/.test(textValue)) {
-    payload.companionType = '\u4EB2\u5B50'
-    summary.push('亲子')
-  } else if (/(一个人|独自|自己去|单人)/.test(textValue)) {
-    payload.companionType = '\u72EC\u81EA'
-    summary.push('独自')
-  }
-
-  if (/(别太累|轻松|少走路|不想走太多|慢慢逛)/.test(textValue)) {
-    payload.walkingLevel = '\u4F4E'
-    summary.push('少走路')
-  } else if (/(暴走|能走|多走走|特种兵|爬山)/.test(textValue)) {
-    payload.walkingLevel = '\u9AD8'
-    summary.push('能走')
-  }
-
-  if (/(下雨|雨天|阴天|室内)/.test(textValue)) {
-    payload.isRainy = true
-    summary.push('雨天/室内优先')
-  }
-
-  if (/(夜景|夜游|夜市|晚上想逛|晚点结束|酒吧)/.test(textValue)) {
-    payload.isNight = true
-    summary.push('夜游')
-  } else if (/(不想太晚|早点结束|傍晚结束)/.test(textValue)) {
-    payload.isNight = false
-    summary.push('不夜游')
-  }
-
-  if (/(早上|上午)/.test(textValue) && !/([0-2]?\d)[:：]([0-5]\d)/.test(textValue)) {
-    payload.startTime = '09:00'
-    summary.push('上午出发')
-  } else if (/(中午)/.test(textValue) && !/([0-2]?\d)[:：]([0-5]\d)/.test(textValue)) {
-    payload.startTime = '12:00'
-    summary.push('中午出发')
-  } else if (/(下午)/.test(textValue) && !/([0-2]?\d)[:：]([0-5]\d)/.test(textValue)) {
-    payload.startTime = '14:00'
-    summary.push('下午出发')
-  }
-
-  const timeMatches = [...textValue.matchAll(/([0-2]?\d)[:：]([0-5]\d)/g)]
-  if (timeMatches[0]) {
-    const hour = String(Number(timeMatches[0][1])).padStart(2, '0')
-    const minute = timeMatches[0][2]
-    payload.startTime = `${hour}:${minute}`
-  }
-  if (timeMatches[1]) {
-    const hour = String(Number(timeMatches[1][1])).padStart(2, '0')
-    const minute = timeMatches[1][2]
-    payload.endTime = `${hour}:${minute}`
-  }
-
-  if (/(晚上前结束|傍晚结束|下午结束)/.test(textValue) && !payload.endTime) {
-    payload.endTime = '18:00'
-  } else if (/(玩到晚上|玩到夜里|晚点结束)/.test(textValue) && !payload.endTime) {
-    payload.endTime = '21:30'
-  }
-
-  const themes = THEME_KEYWORDS
-    .filter(item => item.words.some(word => lower.includes(word.toLowerCase())))
-    .map(item => item.value)
-
-  if (themes.length) {
-    payload.themes = [...new Set(themes)]
-    summary.push(...payload.themes)
-  }
-
-  return { payload, summary: [...new Set(summary)] }
 }
 
 const syncPanelHeight = () => {
@@ -515,6 +422,31 @@ const aiPanelStyle = computed(() => {
   return panelHeight.value ? { height: `${panelHeight.value}px` } : {}
 })
 
+const revealAiPanel = () => {
+  aiPanelVisible.value = true
+  if (sectionObserver) {
+    sectionObserver.disconnect()
+    sectionObserver = null
+  }
+}
+
+const observeAiPanelEntry = () => {
+  if (typeof IntersectionObserver === 'undefined' || !sectionRef.value) {
+    revealAiPanel()
+    return
+  }
+
+  sectionObserver = new IntersectionObserver((entries) => {
+    if (!entries.some(entry => entry.isIntersecting)) return
+    revealAiPanel()
+  }, {
+    rootMargin: '320px 0px',
+    threshold: 0.05,
+  })
+
+  sectionObserver.observe(sectionRef.value)
+}
+
 watch(() => form.tripDays, (newVal) => {
   if (newVal === 0.5) {
     form.startTime = '09:00'
@@ -525,8 +457,19 @@ watch(() => form.tripDays, (newVal) => {
   }
 })
 
+watch(() => form.cityCode, (newVal) => {
+  if (!newVal) return
+  const matched = resolveCityByCode(newVal)
+  if (form.cityName !== matched.name) {
+    form.cityName = matched.name
+  }
+})
+
 onMounted(() => {
-  nextTick(syncPanelHeight)
+  nextTick(() => {
+    syncPanelHeight()
+    observeAiPanelEntry()
+  })
   if (typeof window !== 'undefined') {
     window.addEventListener('resize', syncPanelHeight)
   }
@@ -544,7 +487,26 @@ onBeforeUnmount(() => {
     formPaneObserver.disconnect()
     formPaneObserver = null
   }
+  if (sectionObserver) {
+    sectionObserver.disconnect()
+    sectionObserver = null
+  }
 })
+
+const resolveCityByCode = (code) => {
+  return cityOptions.find(option => option.code === code) || cityOptions[0]
+}
+
+const resolveCityByName = (name) => {
+  if (!name) return null
+  return cityOptions.find(option => option.name === name)
+}
+
+const handleCityChange = (code) => {
+  const matched = resolveCityByCode(code)
+  form.cityCode = matched.code
+  form.cityName = matched.name
+}
 
 const onSubmit = async () => {
   if (!formRef.value) return
@@ -553,7 +515,26 @@ const onSubmit = async () => {
 
   loading.value = true
   try {
-    const responseData = await reqGenerateItinerary(form)
+    const selectedCity = resolveCityByCode(form.cityCode)
+    const payload = {
+      ...form,
+      cityCode: selectedCity.code,
+      cityName: selectedCity.name,
+      mustVisitPoiNames: Array.isArray(form.mustVisitPoiNames) ? [...form.mustVisitPoiNames] : []
+    }
+
+    const currentLocation = await resolveCurrentLocation()
+    if (!currentLocation) {
+      ElMessage.error(text.locationRequired)
+      return
+    }
+    payload.departureLatitude = currentLocation.latitude
+    payload.departureLongitude = currentLocation.longitude
+    if (!payload.departurePlaceName) {
+      payload.departurePlaceName = 'CURRENT_LOCATION'
+    }
+
+    const responseData = await reqGenerateItinerary(payload)
     saveItinerarySnapshot(responseData)
     router.push('/result')
   } catch (err) {
@@ -573,42 +554,110 @@ const onSubmit = async () => {
   }
 }
 
-const fillFormFromText = () => {
+const fillFormFromText = async () => {
   if (!naturalInput.value.trim()) {
     ElMessage.warning(text.smartFillEmpty)
     return
   }
 
-  const { payload, summary } = parseSmartInput(naturalInput.value)
-  parsedSummary.value = summary
+  smartFillLoading.value = true
+  try {
+    const payload = await reqSmartFill({ text: naturalInput.value.trim() })
+    const summary = Array.isArray(payload?.summary) ? payload.summary.filter(Boolean) : []
+    parsedSummary.value = summary
 
-  if (!Object.keys(payload).length) {
-    ElMessage.warning(text.smartFillNoMatch)
-    return
+    const hasAnyField = Boolean(
+      payload &&
+      (
+        payload.tripDays !== undefined ||
+        payload.tripDate ||
+        payload.startTime ||
+        payload.endTime ||
+        payload.budgetLevel ||
+        (Array.isArray(payload.themes) && payload.themes.length) ||
+        payload.companionType ||
+        payload.walkingLevel ||
+        payload.isRainy !== undefined ||
+        payload.isNight !== undefined ||
+        (Array.isArray(payload.mustVisitPoiNames) && payload.mustVisitPoiNames.length) ||
+        payload.cityName ||
+        payload.departureText ||
+        typeof payload.departureLatitude === 'number' ||
+        typeof payload.departureLongitude === 'number'
+      )
+    )
+
+    if (!hasAnyField) {
+      ElMessage.warning(text.smartFillNoMatch)
+      return
+    }
+
+    if (payload.tripDays !== undefined) form.tripDays = payload.tripDays
+    if (payload.tripDate) form.tripDate = payload.tripDate
+    if (payload.startTime) form.startTime = payload.startTime
+    if (payload.endTime) form.endTime = payload.endTime
+    if (payload.budgetLevel) form.budgetLevel = payload.budgetLevel
+    if (Array.isArray(payload.themes)) form.themes = payload.themes
+    if (payload.companionType) form.companionType = payload.companionType
+    if (payload.walkingLevel) form.walkingLevel = payload.walkingLevel
+    if (payload.isRainy !== undefined) form.isRainy = payload.isRainy
+    if (payload.isNight !== undefined) form.isNight = payload.isNight
+    if (Array.isArray(payload.mustVisitPoiNames)) form.mustVisitPoiNames = payload.mustVisitPoiNames
+    if (payload.cityName) {
+      const matchedCity = resolveCityByName(payload.cityName)
+      if (matchedCity) {
+        form.cityCode = matchedCity.code
+        form.cityName = matchedCity.name
+      } else {
+        form.cityName = payload.cityName
+      }
+    }
+    if (payload.departureText) form.departurePlaceName = payload.departureText
+    if (typeof payload.departureLatitude === 'number') form.departureLatitude = payload.departureLatitude
+    if (typeof payload.departureLongitude === 'number') form.departureLongitude = payload.departureLongitude
+
+    if (
+      payload.budgetLevel ||
+      payload.companionType ||
+      payload.walkingLevel ||
+      payload.isRainy !== undefined ||
+      payload.isNight !== undefined ||
+      (Array.isArray(payload.mustVisitPoiNames) && payload.mustVisitPoiNames.length)
+    ) {
+      showAdvanced.value = true
+    }
+
+    ElMessage.success(text.smartFillSuccess)
+  } catch (error) {
+    ElMessage.error(text.smartFillFailed)
+  } finally {
+    smartFillLoading.value = false
   }
+}
 
-  if (payload.tripDays !== undefined) form.tripDays = payload.tripDays
-  if (payload.tripDate) form.tripDate = payload.tripDate
-  if (payload.startTime) form.startTime = payload.startTime
-  if (payload.endTime) form.endTime = payload.endTime
-  if (payload.budgetLevel) form.budgetLevel = payload.budgetLevel
-  if (payload.themes) form.themes = payload.themes
-  if (payload.companionType) form.companionType = payload.companionType
-  if (payload.walkingLevel) form.walkingLevel = payload.walkingLevel
-  if (payload.isRainy !== undefined) form.isRainy = payload.isRainy
-  if (payload.isNight !== undefined) form.isNight = payload.isNight
-
-  if (
-    payload.budgetLevel ||
-    payload.companionType ||
-    payload.walkingLevel ||
-    payload.isRainy !== undefined ||
-    payload.isNight !== undefined
-  ) {
-    showAdvanced.value = true
+const resolveCurrentLocation = () => {
+  if (typeof window === 'undefined' || !navigator?.geolocation) {
+    return Promise.resolve(null)
   }
-
-  ElMessage.success(text.smartFillSuccess)
+  const requestPosition = options => new Promise((resolve) => {
+    navigator.geolocation.getCurrentPosition(
+      position => {
+        resolve({
+          latitude: Number(position.coords.latitude),
+          longitude: Number(position.coords.longitude)
+        })
+      },
+      () => resolve(null),
+      options
+    )
+  })
+  return requestPosition({ enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 })
+    .then(result => {
+      if (result) {
+        return result
+      }
+      return requestPosition({ enableHighAccuracy: false, timeout: 5000, maximumAge: 180000 })
+    })
 }
 </script>
 
@@ -674,13 +723,55 @@ const fillFormFromText = () => {
 
 .custom-form,
 .form-pane,
-.ai-panel-col :deep(.home-ai-panel) {
+.ai-panel-col :deep(.home-ai-panel),
+.ai-panel-placeholder {
   width: 100%;
 }
 
 .ai-panel-col :deep(.home-ai-panel) {
   min-height: 0;
 }
+
+.ai-panel-placeholder {
+  min-height: 100%;
+  border-radius: 18px;
+  border: 1px solid #e4e7ed;
+  background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
+  box-shadow: 0 16px 32px rgba(31, 45, 61, 0.04);
+  padding: 18px 16px;
+  box-sizing: border-box;
+}
+
+.ai-placeholder-header {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.ai-placeholder-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(64, 158, 255, 0.18);
+}
+
+.ai-placeholder-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ai-placeholder-line {
+  display: block;
+  height: 12px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(64, 158, 255, 0.08), rgba(64, 158, 255, 0.18));
+}
+
+.ai-placeholder-line.w-92 { width: 92%; }
+.ai-placeholder-line.w-80 { width: 80%; }
+.ai-placeholder-line.w-66 { width: 66%; }
+.ai-placeholder-line.w-58 { width: 58%; }
 
 .form-section {
   margin-bottom: 10px;

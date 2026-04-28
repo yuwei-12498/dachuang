@@ -13,12 +13,15 @@ import com.citytrip.model.dto.ReplaceReqDTO;
 import com.citytrip.model.dto.ReplanReqDTO;
 import com.citytrip.model.dto.ReplanRespDTO;
 import com.citytrip.model.dto.SaveItineraryReqDTO;
+import com.citytrip.model.dto.SmartFillReqDTO;
 import com.citytrip.model.vo.CommunityCommentVO;
 import com.citytrip.model.vo.CommunityItineraryDetailVO;
 import com.citytrip.model.vo.CommunityItineraryPageVO;
 import com.citytrip.model.vo.ItinerarySummaryVO;
 import com.citytrip.model.vo.ItineraryVO;
+import com.citytrip.model.vo.SmartFillVO;
 import com.citytrip.service.ItineraryService;
+import com.citytrip.service.application.itinerary.SmartFillUseCase;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,9 +47,11 @@ public class ItineraryController {
     private static final Logger log = LoggerFactory.getLogger(ItineraryController.class);
 
     private final ItineraryService itineraryService;
+    private final SmartFillUseCase smartFillUseCase;
 
-    public ItineraryController(ItineraryService itineraryService) {
+    public ItineraryController(ItineraryService itineraryService, SmartFillUseCase smartFillUseCase) {
         this.itineraryService = itineraryService;
+        this.smartFillUseCase = smartFillUseCase;
     }
 
     @TrackBehavior(
@@ -94,6 +99,11 @@ public class ItineraryController {
                 vo == null ? null : vo.getTotalCost());
 
         return ResponseEntity.ok(vo);
+    }
+
+    @PostMapping("/smart-fill")
+    public SmartFillVO smartFill(@RequestBody SmartFillReqDTO req) {
+        return smartFillUseCase.parse(req);
     }
 
     @LoginRequired

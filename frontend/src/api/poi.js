@@ -14,3 +14,11 @@ export function reqGetPoiDetail(id, tripDate) {
     params: tripDate ? { tripDate } : {}
   })
 }
+
+export function reqSearchPoi(keyword, city, limit = 8) {
+  return request({
+    url: '/api/pois/search',
+    method: 'get',
+    params: { keyword, city, limit }
+  })
+}

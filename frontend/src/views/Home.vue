@@ -22,10 +22,14 @@ import HomeScenarioCards from '@/components/home/HomeScenarioCards.vue'
 import HomeFeatureSection from '@/components/home/HomeFeatureSection.vue'
 import HomeRouteExamples from '@/components/home/HomeRouteExamples.vue'
 import HomeFooterCTA from '@/components/home/HomeFooterCTA.vue'
+import { readHeroRuntimeProfile } from '@/utils/heroPerformance'
 
 let lenis = null
 let rafId = null
 const coreReveal = ref(0)
+const heroRuntime = ref({
+  allowSmoothScroll: true,
+})
 
 const raf = (time) => {
   if (!lenis) return
@@ -34,6 +38,12 @@ const raf = (time) => {
 }
 
 onMounted(() => {
+  heroRuntime.value = readHeroRuntimeProfile()
+
+  if (!heroRuntime.value.allowSmoothScroll) {
+    return
+  }
+
   lenis = new Lenis({
     duration: 1.2,
     easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),

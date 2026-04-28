@@ -6,6 +6,7 @@ import com.citytrip.model.entity.Poi;
 import com.citytrip.model.vo.ItineraryNodeVO;
 import com.citytrip.model.vo.ItineraryOptionVO;
 import com.citytrip.model.vo.ItineraryVO;
+import com.citytrip.service.domain.planning.ExternalPoiCandidateService;
 import com.citytrip.service.domain.policy.MaxStopsPolicy;
 import com.citytrip.service.PoiService;
 import com.citytrip.service.TravelTimeService;
@@ -27,11 +28,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -39,15 +42,91 @@ import static org.mockito.Mockito.when;
 class PlanningOrchestratorTest {
 
     @Test
+    @DisplayName("当选择两天行程时，会为每天独立规划并合并为多天路线")
+    void buildsCombinedMultiDayRouteWhenTripDaysIsTwo() {
+        PoiMapper poiMapper = mock(PoiMapper.class);
+        HybridPoiRecallService hybridPoiRecallService = mock(HybridPoiRecallService.class);
+        ExternalPoiCandidateService externalPoiCandidateService = mockExternalRecallServiceReturningEmpty();
+        ItineraryRouteOptimizer routeOptimizer = mock(ItineraryRouteOptimizer.class);
+
+        GenerateReqDTO request = buildRequest();
+        request.setTripDays(2.0D);
+        GenerateReqDTO normalized = buildRequest();
+        normalized.setTripDays(2.0D);
+
+        when(routeOptimizer.normalizeRequest(request)).thenReturn(normalized);
+
+        List<Poi> candidates = new ArrayList<>();
+        candidates.add(createPoi(201L, "Day1-POI-1", "scenic", "A", 4.8D, 0.2D));
+        candidates.add(createPoi(202L, "Day1-POI-2", "scenic", "A", 4.7D, 0.2D));
+        candidates.add(createPoi(203L, "Day2-POI-1", "museum", "B", 4.6D, 0.2D));
+        candidates.add(createPoi(204L, "Day2-POI-2", "museum", "B", 4.5D, 0.2D));
+
+        when(poiMapper.selectPlanningCandidates(eq(false), eq("medium"), any(), any(), eq(200))).thenReturn(candidates);
+        when(hybridPoiRecallService.recall(eq(101L), any(GenerateReqDTO.class), eq(candidates), eq(18)))
+                .thenReturn(new HybridPoiRecallService.RecallResult(candidates, candidates, "hybrid-usercf-content-v1", 4, 4, false));
+
+        ItineraryRouteOptimizer.RouteOption dayOneRoute = new ItineraryRouteOptimizer.RouteOption(
+                List.of(candidates.get(0), candidates.get(1)),
+                "201-202",
+                88.0D
+        );
+        ItineraryRouteOptimizer.RouteOption dayTwoRoute = new ItineraryRouteOptimizer.RouteOption(
+                List.of(candidates.get(2), candidates.get(3)),
+                "203-204",
+                86.0D
+        );
+
+        when(routeOptimizer.rankRoutes(argThat(list -> list != null && list.size() == 4), eq(normalized), any(Integer.class)))
+                .thenReturn(List.of(dayOneRoute));
+        when(routeOptimizer.rankRoutes(
+                argThat(list -> list != null
+                        && list.size() == 2
+                        && list.stream().allMatch(p -> p != null && (p.getId().equals(203L) || p.getId().equals(204L)))),
+                eq(normalized),
+                any(Integer.class)
+        )).thenReturn(List.of(dayTwoRoute));
+
+        Executor directExecutor = Runnable::run;
+        PlanningOrchestrator orchestrator = new PlanningOrchestrator(
+                poiMapper,
+                routeOptimizer,
+                hybridPoiRecallService,
+                externalPoiCandidateService,
+                new MaxStopsPolicy(),
+                directExecutor,
+                directExecutor,
+                50
+        );
+
+        PlanningOrchestrator.PlanningResult result = orchestrator.generate(
+                101L,
+                request,
+                snapshot -> {
+                    assertThat(snapshot.rankedRoutes()).hasSize(1);
+                    ItineraryRouteOptimizer.RouteOption merged = snapshot.rankedRoutes().get(0);
+                    assertThat(merged.path()).extracting(Poi::getId).containsExactly(201L, 202L, 203L, 204L);
+                    assertThat(merged.signature()).isEqualTo("201-202|203-204");
+                    return buildBaseItinerary(snapshot.normalizedRequest(), snapshot.rankedRoutes());
+                },
+                (normalizedRequest, baseItinerary) -> baseItinerary
+        );
+
+        assertThat(result.success()).isTrue();
+        verify(routeOptimizer, times(2)).rankRoutes(anyList(), eq(normalized), any(Integer.class));
+    }
+
+    @Test
     @DisplayName("数据库候选查询超时时，规划编排器降级为空结果而不是抛 500")
     void fallsBackToEmptyPlanningResultWhenCandidateQueryTimesOut() {
         PoiMapper poiMapper = mock(PoiMapper.class);
         HybridPoiRecallService hybridPoiRecallService = mock(HybridPoiRecallService.class);
+        ExternalPoiCandidateService externalPoiCandidateService = mockExternalRecallServiceReturningEmpty();
         ItineraryRouteOptimizer routeOptimizer = mock(ItineraryRouteOptimizer.class);
         GenerateReqDTO request = buildRequest();
         GenerateReqDTO normalized = buildRequest();
         when(routeOptimizer.normalizeRequest(request)).thenReturn(normalized);
-        when(poiMapper.selectPlanningCandidates(eq(false), eq("medium"), eq(200)))
+        when(poiMapper.selectPlanningCandidates(eq(false), eq("medium"), any(), any(), eq(200)))
                 .thenThrow(new QueryTimeoutException("planning db timeout"));
 
         Executor directExecutor = Runnable::run;
@@ -55,6 +134,7 @@ class PlanningOrchestratorTest {
                 poiMapper,
                 routeOptimizer,
                 hybridPoiRecallService,
+                externalPoiCandidateService,
                 new MaxStopsPolicy(),
                 directExecutor,
                 directExecutor,
@@ -85,10 +165,91 @@ class PlanningOrchestratorTest {
     }
 
     @Test
+    @DisplayName("生成路线时会合并外部 POI 召回结果")
+    void mergesExternalPoiCandidatesDuringGenerateStage() {
+        PoiMapper poiMapper = mock(PoiMapper.class);
+        HybridPoiRecallService hybridPoiRecallService = mock(HybridPoiRecallService.class);
+        ExternalPoiCandidateService externalPoiCandidateService = mock(ExternalPoiCandidateService.class);
+        ItineraryRouteOptimizer routeOptimizer = mock(ItineraryRouteOptimizer.class);
+
+        GenerateReqDTO request = buildRequest();
+        GenerateReqDTO normalized = buildRequest();
+        when(routeOptimizer.normalizeRequest(request)).thenReturn(normalized);
+
+        List<Poi> localCandidates = new ArrayList<>();
+        localCandidates.add(createPoi(401L, "本地点位A", "scenic", "A", 4.6D, 0.2D));
+        when(poiMapper.selectPlanningCandidates(eq(false), eq("medium"), any(), any(), eq(200))).thenReturn(localCandidates);
+        when(hybridPoiRecallService.recall(eq(11L), any(GenerateReqDTO.class), eq(localCandidates), eq(18)))
+                .thenReturn(new HybridPoiRecallService.RecallResult(
+                        localCandidates,
+                        localCandidates,
+                        "hybrid-usercf-content-v1",
+                        1,
+                        1,
+                        false
+                ));
+
+        Poi externalPoi = createPoi(-10001L, "外部点位B", "museum", "B", 4.4D, 0.2D);
+        externalPoi.setSourceType("external");
+        externalPoi.setTempScore(5.2D);
+        when(externalPoiCandidateService.recallForReplan(eq(localCandidates), eq(normalized), eq(8)))
+                .thenReturn(List.of(externalPoi));
+        when(routeOptimizer.prepareCandidates(
+                argThat(list -> list != null
+                        && list.size() == 1
+                        && list.get(0) != null
+                        && Long.valueOf(-10001L).equals(list.get(0).getId())),
+                eq(normalized),
+                eq(false)
+        )).thenReturn(List.of(externalPoi));
+
+        ItineraryRouteOptimizer.RouteOption route = new ItineraryRouteOptimizer.RouteOption(
+                List.of(localCandidates.get(0), externalPoi),
+                "401--10001",
+                92.0D
+        );
+        when(routeOptimizer.rankRoutes(
+                argThat(list -> list != null
+                        && list.size() == 2
+                        && list.stream().anyMatch(poi -> poi != null && Long.valueOf(-10001L).equals(poi.getId()))),
+                eq(normalized),
+                any(Integer.class)
+        )).thenReturn(List.of(route));
+
+        Executor directExecutor = Runnable::run;
+        PlanningOrchestrator orchestrator = new PlanningOrchestrator(
+                poiMapper,
+                routeOptimizer,
+                hybridPoiRecallService,
+                externalPoiCandidateService,
+                new MaxStopsPolicy(),
+                directExecutor,
+                directExecutor,
+                50
+        );
+
+        PlanningOrchestrator.PlanningResult result = orchestrator.generate(
+                11L,
+                request,
+                snapshot -> {
+                    assertThat(snapshot.finalCandidateCount()).isEqualTo(2);
+                    assertThat(snapshot.recallStrategy()).contains("+geo-poi");
+                    return buildBaseItinerary(snapshot.normalizedRequest(), snapshot.rankedRoutes());
+                },
+                (normalizedRequest, baseItinerary) -> baseItinerary
+        );
+
+        assertThat(result.success()).isTrue();
+        verify(externalPoiCandidateService, times(1))
+                .recallForReplan(eq(localCandidates), eq(normalized), eq(8));
+    }
+
+    @Test
     @DisplayName("大模型返回乱码导致解析失败时，规划编排器回退到 rule-based itinerary")
     void fallsBackToRuleBasedItineraryWhenAiDecoratorThrowsOnGarbledResponse() {
         PoiMapper poiMapper = mock(PoiMapper.class);
         HybridPoiRecallService hybridPoiRecallService = mock(HybridPoiRecallService.class);
+        ExternalPoiCandidateService externalPoiCandidateService = mockExternalRecallServiceReturningEmpty();
         PoiService poiService = mock(PoiService.class);
         when(poiService.enrichOperatingStatus(anyList(), any(LocalDate.class))).thenAnswer(invocation -> {
             @SuppressWarnings("unchecked")
@@ -102,7 +263,7 @@ class PlanningOrchestratorTest {
         });
 
         List<Poi> candidates = buildCandidates();
-        when(poiMapper.selectPlanningCandidates(eq(false), eq("medium"), eq(200))).thenReturn(candidates);
+        when(poiMapper.selectPlanningCandidates(eq(false), eq("medium"), any(), any(), eq(200))).thenReturn(candidates);
         when(hybridPoiRecallService.recall(eq(99L), any(GenerateReqDTO.class), eq(candidates), eq(18)))
                 .thenReturn(new HybridPoiRecallService.RecallResult(candidates, candidates, "hybrid-usercf-content-v1", 2, 2, false));
 
@@ -113,6 +274,7 @@ class PlanningOrchestratorTest {
                 poiMapper,
                 routeOptimizer,
                 hybridPoiRecallService,
+                externalPoiCandidateService,
                 new MaxStopsPolicy(),
                 directExecutor,
                 directExecutor,
@@ -140,6 +302,7 @@ class PlanningOrchestratorTest {
     void returnsRouteImmediatelyWhenLlmStageTimesOut() {
         PoiMapper poiMapper = mock(PoiMapper.class);
         HybridPoiRecallService hybridPoiRecallService = mock(HybridPoiRecallService.class);
+        ExternalPoiCandidateService externalPoiCandidateService = mockExternalRecallServiceReturningEmpty();
         PoiService poiService = mock(PoiService.class);
         when(poiService.enrichOperatingStatus(anyList(), any(LocalDate.class))).thenAnswer(invocation -> {
             @SuppressWarnings("unchecked")
@@ -153,7 +316,7 @@ class PlanningOrchestratorTest {
         });
 
         List<Poi> candidates = buildCandidates();
-        when(poiMapper.selectPlanningCandidates(eq(false), eq("medium"), eq(200))).thenReturn(candidates);
+        when(poiMapper.selectPlanningCandidates(eq(false), eq("medium"), any(), any(), eq(200))).thenReturn(candidates);
         when(hybridPoiRecallService.recall(eq(88L), any(GenerateReqDTO.class), eq(candidates), eq(18)))
                 .thenReturn(new HybridPoiRecallService.RecallResult(candidates, candidates, "hybrid-usercf-content-v1", 2, 2, false));
 
@@ -166,6 +329,7 @@ class PlanningOrchestratorTest {
                 poiMapper,
                 routeOptimizer,
                 hybridPoiRecallService,
+                externalPoiCandidateService,
                 new MaxStopsPolicy(),
                 planningExecutor,
                 aiExecutor,
@@ -199,6 +363,74 @@ class PlanningOrchestratorTest {
             planningExecutor.shutdownNow();
             aiExecutor.shutdownNow();
         }
+    }
+
+    @Test
+    @DisplayName("召回结果漏掉必去点时，规划编排器会把必去点补回候选集")
+    void addsMustVisitPoiBackToCandidatesWhenRecallMissesIt() {
+        PoiMapper poiMapper = mock(PoiMapper.class);
+        HybridPoiRecallService hybridPoiRecallService = mock(HybridPoiRecallService.class);
+        ExternalPoiCandidateService externalPoiCandidateService = mockExternalRecallServiceReturningEmpty();
+        PoiService poiService = mock(PoiService.class);
+        when(poiService.enrichOperatingStatus(anyList(), any(LocalDate.class))).thenAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            List<Poi> pois = invocation.getArgument(0);
+            for (Poi poi : pois) {
+                poi.setAvailableOnTripDate(true);
+                poi.setStatusStale(false);
+                poi.setOperatingStatus("OPEN");
+            }
+            return pois;
+        });
+
+        List<Poi> rawCandidates = new ArrayList<>();
+        rawCandidates.add(createPoi(301L, "宽窄巷子", "district", "Qingyang", 4.9D, 0.3D));
+        rawCandidates.add(createPoi(302L, "春熙路", "shopping", "Jinjiang", 4.8D, 0.3D));
+        rawCandidates.add(createPoi(303L, "IFS国际金融中心", "shopping", "Jinjiang", 4.1D, 0.2D));
+
+        List<Poi> recalledWithoutIfs = List.of(rawCandidates.get(0), rawCandidates.get(1));
+
+        when(poiMapper.selectPlanningCandidates(eq(false), eq("medium"), any(), any(), eq(200))).thenReturn(rawCandidates);
+        when(hybridPoiRecallService.recall(eq(66L), any(GenerateReqDTO.class), eq(rawCandidates), eq(18)))
+                .thenReturn(new HybridPoiRecallService.RecallResult(
+                        rawCandidates,
+                        recalledWithoutIfs,
+                        "hybrid-usercf-content-v1",
+                        2,
+                        2,
+                        false
+                ));
+
+        Map<Long, Integer> indexByPoiId = buildIndex(rawCandidates);
+        ItineraryRouteOptimizer routeOptimizer = new ItineraryRouteOptimizer(poiService, new MatrixTravelTimeService(indexByPoiId));
+        Executor directExecutor = Runnable::run;
+        PlanningOrchestrator orchestrator = new PlanningOrchestrator(
+                poiMapper,
+                routeOptimizer,
+                hybridPoiRecallService,
+                externalPoiCandidateService,
+                new MaxStopsPolicy(),
+                directExecutor,
+                directExecutor,
+                50
+        );
+
+        GenerateReqDTO request = buildRequest();
+        request.setThemes(List.of("shopping"));
+        request.setMustVisitPoiNames(List.of("IFS国际金融中心"));
+
+        PlanningOrchestrator.PlanningResult result = orchestrator.generate(
+                66L,
+                request,
+                snapshot -> {
+                    assertThat(snapshot.finalCandidateCount()).isEqualTo(3);
+                    return buildBaseItinerary(snapshot.normalizedRequest(), snapshot.rankedRoutes());
+                },
+                (normalizedRequest, baseItinerary) -> baseItinerary
+        );
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.itinerary().getNodes()).extracting(ItineraryNodeVO::getPoiName).contains("IFS国际金融中心");
     }
 
     private GenerateReqDTO buildRequest() {
@@ -341,6 +573,13 @@ class PlanningOrchestratorTest {
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
         }
+    }
+
+    private ExternalPoiCandidateService mockExternalRecallServiceReturningEmpty() {
+        ExternalPoiCandidateService externalPoiCandidateService = mock(ExternalPoiCandidateService.class);
+        when(externalPoiCandidateService.recallForReplan(anyList(), any(GenerateReqDTO.class), eq(8)))
+                .thenReturn(List.of());
+        return externalPoiCandidateService;
     }
 
     private static final class MatrixTravelTimeService implements TravelTimeService {

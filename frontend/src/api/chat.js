@@ -13,7 +13,14 @@ export function reqGetChatStatus() {
     url: '/api/chat/messages/status',
     method: 'get',
     skipErrorMessage: true
-  })
+  }).then(payload => ({
+    ...payload,
+    toolReady: Boolean(payload?.toolReady),
+    geoReady: Boolean(payload?.geoReady),
+    embeddingReady: Boolean(payload?.embeddingReady),
+    rerankReady: Boolean(payload?.rerankReady),
+    warnings: Array.isArray(payload?.warnings) ? payload.warnings : []
+  }))
 }
 
 export async function reqStreamChat(data, handlers = {}) {
@@ -43,6 +50,7 @@ export async function reqStreamChat(data, handlers = {}) {
   let buffer = ''
   let answer = ''
   let relatedTips = []
+  let evidence = []
 
   const handlePayload = (payload) => {
     if (!payload || typeof payload !== 'object') {
@@ -63,15 +71,16 @@ export async function reqStreamChat(data, handlers = {}) {
 
     if (payload.type === 'meta') {
       relatedTips = Array.isArray(payload.relatedTips) ? payload.relatedTips : []
+      evidence = Array.isArray(payload.evidence) ? payload.evidence : []
       if (typeof handlers.onMeta === 'function') {
-        handlers.onMeta({ relatedTips })
+        handlers.onMeta({ relatedTips, evidence })
       }
       return
     }
 
     if (payload.type === 'done') {
       if (typeof handlers.onDone === 'function') {
-        handlers.onDone({ answer, relatedTips })
+        handlers.onDone({ answer, relatedTips, evidence })
       }
       return
     }
@@ -112,7 +121,8 @@ export async function reqStreamChat(data, handlers = {}) {
 
   return {
     answer,
-    relatedTips
+    relatedTips,
+    evidence
   }
 }
 

@@ -19,6 +19,7 @@ import com.citytrip.model.vo.AdminUserVO;
 import com.citytrip.model.vo.ItineraryVO;
 import com.citytrip.service.AdminService;
 import com.citytrip.service.application.community.CommunityCacheInvalidationService;
+import com.citytrip.service.geo.CityResolverService;
 import com.citytrip.service.persistence.itinerary.SavedItineraryCodec;
 import com.citytrip.service.persistence.itinerary.SavedItineraryRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -53,6 +54,7 @@ public class AdminServiceImpl implements AdminService {
     private final CommunityLikeMapper communityLikeMapper;
     private final CommunityCacheInvalidationService communityCacheInvalidationService;
     private final ItinerarySummaryAssembler itinerarySummaryAssembler;
+    private final CityResolverService cityResolverService;
 
     public AdminServiceImpl(UserMapper userMapper,
                             PoiMapper poiMapper,
@@ -61,7 +63,8 @@ public class AdminServiceImpl implements AdminService {
                             CommunityCommentMapper communityCommentMapper,
                             CommunityLikeMapper communityLikeMapper,
                             CommunityCacheInvalidationService communityCacheInvalidationService,
-                            ItinerarySummaryAssembler itinerarySummaryAssembler) {
+                            ItinerarySummaryAssembler itinerarySummaryAssembler,
+                            CityResolverService cityResolverService) {
         this.userMapper = userMapper;
         this.poiMapper = poiMapper;
         this.savedItineraryRepository = savedItineraryRepository;
@@ -70,6 +73,7 @@ public class AdminServiceImpl implements AdminService {
         this.communityLikeMapper = communityLikeMapper;
         this.communityCacheInvalidationService = communityCacheInvalidationService;
         this.itinerarySummaryAssembler = itinerarySummaryAssembler;
+        this.cityResolverService = cityResolverService;
     }
 
     @Override
@@ -241,6 +245,8 @@ public class AdminServiceImpl implements AdminService {
             vo.setGlobalPinned(Integer.valueOf(1).equals(entity.getIsGlobalPinned()));
             vo.setDeleted(Integer.valueOf(1).equals(entity.getIsDeleted()));
             vo.setGlobalPinnedAt(entity.getGlobalPinnedAt());
+            vo.setDeletedAt(entity.getDeletedAt());
+            vo.setDeletedBy(entity.getDeletedBy());
             vo.setUpdatedAt(entity.getUpdateTime());
             return vo;
         } catch (JsonProcessingException ex) {
@@ -317,6 +323,10 @@ public class AdminServiceImpl implements AdminService {
 
         Poi prepared = new Poi();
         prepared.setName(source.getName().trim());
+        String resolvedCityName = cityResolverService.resolveCityName(source.getCityName(), source.getCityCode());
+        String resolvedCityCode = cityResolverService.resolveCityCode(source.getCityCode(), resolvedCityName);
+        prepared.setCityName(resolvedCityName);
+        prepared.setCityCode(resolvedCityCode);
         prepared.setCategory(source.getCategory().trim());
         prepared.setDistrict(trimToNull(source.getDistrict()));
         prepared.setAddress(trimToNull(source.getAddress()));
