@@ -3,6 +3,7 @@ package com.citytrip.service.impl;
 import com.citytrip.config.LlmProperties;
 import com.citytrip.model.dto.ChatReqDTO;
 import com.citytrip.model.entity.Poi;
+import com.citytrip.model.vo.ChatSkillPayloadVO;
 import com.citytrip.model.vo.ChatVO;
 import com.citytrip.service.domain.ai.ChatEvidenceSkillService;
 import com.citytrip.service.domain.ai.ChatFactGuardService;
@@ -12,6 +13,9 @@ import com.citytrip.service.domain.ai.ChatPoiSkillService;
 import com.citytrip.service.domain.ai.ChatRouteContextSkillService;
 import com.citytrip.service.domain.ai.ChatSegmentTransportSkillService;
 import com.citytrip.service.impl.vivo.VivoFunctionCallingService;
+import com.citytrip.service.skill.SkillRouterService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.util.StringUtils;
 import org.springframework.stereotype.Service;
@@ -28,7 +32,7 @@ import java.util.function.Consumer;
 
 @Service
 public class RealChatGatewayService {
-
+    private static final Logger log = LoggerFactory.getLogger(RealChatGatewayService.class);
     private final OpenAiGatewayClient openAiGatewayClient;
     private final LlmProperties llmProperties;
     private final SafePromptBuilder safePromptBuilder;
@@ -39,6 +43,8 @@ public class RealChatGatewayService {
     private final ChatFirstLegEtaSkillService chatFirstLegEtaSkillService;
     private final ChatSegmentTransportSkillService chatSegmentTransportSkillService;
     private final ChatEvidenceSkillService chatEvidenceSkillService;
+    @Autowired(required = false)
+    private SkillRouterService skillRouterService;
     @Autowired(required = false)
     private VivoFunctionCallingService vivoFunctionCallingService;
 
@@ -89,6 +95,7 @@ public class RealChatGatewayService {
         vo.setAnswer(result.answer());
         vo.setRelatedTips(buildRelatedTips(req));
         vo.setEvidence(result.evidence());
+        vo.setSkillPayload(result.skillPayload());
         return vo;
     }
 
@@ -98,6 +105,7 @@ public class RealChatGatewayService {
         vo.setAnswer(result.answer());
         vo.setRelatedTips(buildRelatedTips(req));
         vo.setEvidence(result.evidence());
+        vo.setSkillPayload(result.skillPayload());
         return vo;
     }
 
@@ -120,6 +128,11 @@ public class RealChatGatewayService {
         ChatGenerationResult directSkillResult = tryDirectSkillAnswer(req, tokenConsumer, routeContext, usedSkills);
         if (directSkillResult != null) {
             return directSkillResult;
+        }
+
+        ChatGenerationResult skillRouterResult = trySkillRouterAnswer(req, tokenConsumer, routeContext, usedSkills);
+        if (skillRouterResult != null) {
+            return skillRouterResult;
         }
 
         LlmProperties.ResolvedOpenAiOptions chatOptions = llmProperties.getOpenai().resolveChatOptions();
@@ -152,7 +165,8 @@ public class RealChatGatewayService {
                             usedSkills,
                             "geo-disambiguation",
                             buildRouteContextEvidence(routeContext)
-                    )
+                    ),
+                    null
             );
         }
 
@@ -205,7 +219,7 @@ public class RealChatGatewayService {
                 tokenConsumer.accept(delta);
             }
         }
-        return new ChatGenerationResult(guarded.answer(), evidence);
+        return new ChatGenerationResult(guarded.answer(), evidence, null);
     }
 
     private String maybePrefetchToolPayload(ChatReqDTO req) {
@@ -281,10 +295,10 @@ public class RealChatGatewayService {
 
     private ChatGenerationResult applyFactGuard(String answer, List<ChatGeoSkillService.GeoFact> facts) {
         if (chatFactGuardService == null) {
-            return new ChatGenerationResult(answer, Collections.emptyList());
+            return new ChatGenerationResult(answer, Collections.emptyList(), null);
         }
         ChatFactGuardService.GuardResult guardResult = chatFactGuardService.guard(answer, facts);
-        return new ChatGenerationResult(guardResult.answer(), guardResult.evidence());
+        return new ChatGenerationResult(guardResult.answer(), guardResult.evidence(), null);
     }
 
     private ChatGenerationResult tryDirectSkillAnswer(ChatReqDTO req,
@@ -320,7 +334,8 @@ public class RealChatGatewayService {
                             usedSkills,
                             segmentResult.source(),
                             skillEvidence
-                    )
+                    ),
+                    null
             );
         }
 
@@ -347,10 +362,119 @@ public class RealChatGatewayService {
                             usedSkills,
                             firstLegResult.source(),
                             skillEvidence
-                    )
+                    ),
+                    null
             );
         }
         return null;
+    }
+
+    private ChatGenerationResult trySkillRouterAnswer(ChatReqDTO req,
+                                                     Consumer<String> tokenConsumer,
+                                                     ChatRouteContextSkillService.RouteContext routeContext,
+                                                     Set<String> usedSkills) {
+        if (skillRouterService == null) {
+            log.warn("Skill router service is not injected; skipping local skill routing.");
+            return null;
+        }
+        log.info("Trying local skill router. question='{}', routeContextAvailable={}",
+                req == null ? "" : safe(req.getQuestion()),
+                routeContext != null && routeContext.available());
+        java.util.Optional<ChatSkillPayloadVO> routed = skillRouterService.route(req);
+        if (routed.isEmpty()) {
+            log.info("Local skill router returned empty.");
+            return null;
+        }
+        ChatSkillPayloadVO payload = routed.get();
+        if (payload == null) {
+            log.warn("Local skill router returned null payload.");
+            return null;
+        }
+        log.info("Local skill router selected skillName={}, status={}, messageType={}, workflowType={}",
+                payload.getSkillName(),
+                payload.getStatus(),
+                payload.getMessageType(),
+                payload.getWorkflowType());
+
+        String skillName = StringUtils.hasText(payload.getSkillName()) ? payload.getSkillName().trim() : "local-skill";
+        usedSkills.add(skillName);
+        List<String> skillEvidence = mergeSkillEvidence(
+                payload.getEvidence(),
+                List.of("skill:" + skillName),
+                buildRouteContextEvidence(routeContext)
+        );
+        List<String> mergedEvidence = mergeEvidence(
+                Collections.emptyList(),
+                routeContext,
+                usedSkills,
+                payload.getSource(),
+                skillEvidence
+        );
+
+        if (requiresClarification(payload)) {
+            String clarification = resolveSkillFallbackMessage(payload, "请先补充更明确的位置，我再继续帮你查。");
+            if (tokenConsumer != null) {
+                tokenConsumer.accept(clarification);
+            }
+            return new ChatGenerationResult(clarification, mergedEvidence, payload);
+        }
+
+        if (shouldBypassSkillSummaryModel(payload)) {
+            String workflowMessage = resolveSkillFallbackMessage(payload, "我先按当前找到的方案整理好了，你确认后我再帮你正式应用。");
+            if (tokenConsumer != null) {
+                tokenConsumer.accept(workflowMessage);
+            }
+            return new ChatGenerationResult(workflowMessage, mergedEvidence, payload);
+        }
+
+        if (payload.getResults() == null || payload.getResults().isEmpty()) {
+            String fallback = resolveSkillFallbackMessage(payload, "暂时没有查到合适结果。");
+            if (tokenConsumer != null) {
+                tokenConsumer.accept(fallback);
+            }
+            return new ChatGenerationResult(fallback, mergedEvidence, payload);
+        }
+
+        try {
+            LlmProperties.ResolvedOpenAiOptions chatOptions = llmProperties.getOpenai().resolveChatOptions();
+            List<OpenAiGatewayClient.OpenAiMessage> messages = new ArrayList<>();
+            messages.add(new OpenAiGatewayClient.OpenAiMessage("system", safePromptBuilder.buildChatSystemPrompt()));
+            messages.add(new OpenAiGatewayClient.OpenAiMessage("user", safePromptBuilder.buildSkillGroundedUserPrompt(req, payload)));
+            String answer = openAiGatewayClient.request(chatOptions, llmProperties.getOpenai().getApiKey(), messages);
+            if (!StringUtils.hasText(answer)) {
+                throw new IllegalStateException("OpenAI returned empty skill summary");
+            }
+            String trimmedAnswer = answer.trim();
+            if (tokenConsumer != null) {
+                tokenConsumer.accept(trimmedAnswer);
+            }
+            return new ChatGenerationResult(trimmedAnswer, mergedEvidence, payload);
+        } catch (RuntimeException ex) {
+            String fallback = resolveSkillFallbackMessage(payload, "我先把查到的结果直接发给你。");
+            if (tokenConsumer != null) {
+                tokenConsumer.accept(fallback);
+            }
+            return new ChatGenerationResult(fallback, mergedEvidence, payload);
+        }
+    }
+
+    private boolean requiresClarification(ChatSkillPayloadVO payload) {
+        return payload != null
+                && StringUtils.hasText(payload.getStatus())
+                && "clarification_required".equalsIgnoreCase(payload.getStatus().trim());
+    }
+
+    private boolean shouldBypassSkillSummaryModel(ChatSkillPayloadVO payload) {
+        return payload != null
+                && "workflow".equalsIgnoreCase(safe(payload.getMessageType()))
+                && StringUtils.hasText(payload.getFallbackMessage());
+    }
+
+    private String resolveSkillFallbackMessage(ChatSkillPayloadVO payload, String defaultMessage) {
+        if (payload != null && StringUtils.hasText(payload.getFallbackMessage())) {
+            return payload.getFallbackMessage().trim();
+        }
+        return defaultMessage;
     }
 
     private List<String> buildRouteContextEvidence(ChatRouteContextSkillService.RouteContext routeContext) {
@@ -494,7 +618,7 @@ public class RealChatGatewayService {
         merged.putIfAbsent(key, fact);
     }
 
-    private record ChatGenerationResult(String answer, List<String> evidence) {
+    private record ChatGenerationResult(String answer, List<String> evidence, ChatSkillPayloadVO skillPayload) {
         private ChatGenerationResult {
             evidence = evidence == null ? Collections.emptyList() : evidence;
         }

@@ -14,6 +14,16 @@ function canUseStorage(type) {
   return typeof window !== 'undefined' && typeof window[type] !== 'undefined'
 }
 
+function emitItineraryUpdate(snapshot) {
+  if (typeof window === 'undefined' || typeof window.dispatchEvent !== 'function') {
+    return
+  }
+  try {
+    window.dispatchEvent(new CustomEvent('citytrip:itinerary-updated', { detail: snapshot || null }))
+  } catch (err) {
+  }
+}
+
 function stripDeprecatedBusinessHints(value) {
   if (typeof value !== 'string' || !value.trim()) {
     return value
@@ -260,6 +270,8 @@ export function saveItinerarySnapshot(snapshot) {
       window.sessionStorage.setItem('original_req_form', JSON.stringify(normalized.originalReq))
     }
   }
+
+  emitItineraryUpdate(normalized)
 }
 
 export function loadItinerarySnapshot() {
@@ -305,4 +317,6 @@ export function clearItinerarySnapshot() {
     window.sessionStorage.removeItem('current_itinerary')
     window.sessionStorage.removeItem('original_req_form')
   }
+
+  emitItineraryUpdate(null)
 }

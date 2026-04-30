@@ -53,15 +53,6 @@ public class RoutingLlmServiceImpl implements LlmService {
     }
 
     @Override
-    public String generatePoiWarmTips(GenerateReqDTO userReq, ItineraryNodeVO node) {
-        return routeCall(
-                () -> realLlmService.generatePoiWarmTips(userReq, node),
-                () -> mockLlmService.generatePoiWarmTips(userReq, node),
-                "generatePoiWarmTips"
-        );
-    }
-
-    @Override
     public String generateRouteWarmTip(GenerateReqDTO userReq, List<ItineraryNodeVO> nodes) {
         return routeCall(
                 () -> realLlmService.generateRouteWarmTip(userReq, nodes),

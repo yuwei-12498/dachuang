@@ -1,16 +1,16 @@
 <template>
-  <div class="chat-widget" v-if="showWidget">
-    <div class="chat-fab" @click="toggleChat" v-if="!isOpen">
+  <div v-if="showWidget" class="chat-widget">
+    <div v-if="!isOpen" class="chat-fab" @click="toggleChat">
       <el-icon :size="24" color="#fff"><Service /></el-icon>
-      <span class="fab-text">问问行程助手</span>
+      <span class="fab-text">行程助手</span>
     </div>
 
     <transition name="chat-slide">
-      <div class="chat-panel" v-if="isOpen" @wheel.stop.prevent="handleWheelScroll">
+      <div v-if="isOpen" class="chat-panel" @wheel.stop.prevent="handleWheelScroll">
         <div class="chat-header">
           <div class="header-info">
             <el-icon :size="20"><LocationInformation /></el-icon>
-            <span class="chat-title">路线灵感助手</span>
+            <span class="chat-title">行程助手</span>
           </div>
           <el-icon class="close-icon" @click="toggleChat"><Close /></el-icon>
         </div>
@@ -18,26 +18,64 @@
         <div class="chat-body" ref="chatBodyRef">
           <div class="msg-container">
             <template v-for="(msg, index) in chatState.messages" :key="index">
-              <div v-if="msg.role === 'assistant'" class="msg-row msg-left">
-                <div class="avatar bg-blue">AI</div>
-                <div class="msg-bubble assistant-bubble">{{ msg.content }}</div>
+              <div v-if="msg.role === 'assistant'" class="msg-block msg-left">
+                <div class="msg-row">
+                  <div class="avatar bg-blue">AI</div>
+                  <div class="msg-bubble assistant-bubble">{{ msg.content }}</div>
+                </div>
+                <div v-if="msg.meta?.actions?.length" class="message-actions">
+                  <el-button
+                    v-for="(action, actionIndex) in msg.meta.actions"
+                    :key="`${index}-action-${action.key || actionIndex}`"
+                    size="small"
+                    round
+                    class="action-btn"
+                    :type="resolveActionButtonType(action.style)"
+                    :plain="action.style !== 'primary'"
+                    :loading="pendingActionKey === buildActionKey(action, index)"
+                    @click="handleMessageAction(msg, action, index)"
+                  >
+                    {{ action.label }}
+                  </el-button>
+                </div>
               </div>
 
-              <div v-if="msg.role === 'user'" class="msg-row msg-right">
+              <div v-else class="msg-row msg-right">
                 <div class="msg-bubble user-bubble">{{ msg.content }}</div>
                 <div class="avatar bg-gray">我</div>
               </div>
             </template>
+
             <div v-if="chatState.loading" class="msg-row msg-left">
               <div class="avatar bg-blue">AI</div>
-              <div class="msg-bubble assistant-bubble loading-dots">正在帮你梳理路线<span>.</span><span>.</span><span>.</span></div>
+              <div class="msg-bubble assistant-bubble loading-dots">正在思考<span>.</span><span>.</span><span>.</span></div>
             </div>
           </div>
         </div>
 
-        <div class="quick-tips" v-if="chatState.currentTips.length > 0">
+        <div v-if="visibleSkillResults.length > 0" class="skill-results">
+          <div class="skill-results__title">
+            为你找到
+          </div>
+          <div
+            v-for="(item, idx) in visibleSkillResults"
+            :key="`${item.name || 'skill-result'}-${idx}`"
+            class="skill-result-card"
+          >
+            <div class="skill-result-card__name">{{ item.name || '未命名地点' }}</div>
+            <div class="skill-result-card__meta">
+              {{ item.category || '未知分类' }}
+              <span v-if="item.address"> · {{ item.address }}</span>
+            </div>
+            <div v-if="hasFiniteDistance(item.distanceMeters)" class="skill-result-card__meta">
+              距离 {{ Math.round(Number(item.distanceMeters)) }} 米
+            </div>
+          </div>
+        </div>
+
+        <div v-if="visibleTips.length > 0" class="quick-tips">
           <el-tag
-            v-for="(tip, idx) in chatState.currentTips"
+            v-for="(tip, idx) in visibleTips"
             :key="idx"
             size="small"
             class="tip-tag"
@@ -48,27 +86,20 @@
           </el-tag>
         </div>
 
-        <div class="quick-tips" v-if="chatState.currentEvidence.length > 0">
-          <el-tag
-            v-for="(item, idx) in chatState.currentEvidence"
-            :key="`evidence-${idx}`"
-            size="small"
-            class="tip-tag evidence-tag"
-            effect="plain"
-          >
-            {{ item }}
-          </el-tag>
-        </div>
-
         <div class="chat-footer">
           <el-input
             v-model="inputVal"
-            placeholder="想问哪里更适合你？我来帮你想路线..."
-            @keyup.enter="handleSend"
+            placeholder="输入你想了解的地点、酒店或路线..."
             class="chat-input"
+            @keyup.enter="handleSend"
           >
             <template #append>
-              <el-button @click="handleSend" icon="Position" type="primary" :disabled="!inputVal.trim() || chatState.loading" />
+              <el-button
+                icon="Position"
+                type="primary"
+                :disabled="!inputVal.trim() || chatState.loading"
+                @click="handleSend"
+              />
             </template>
           </el-input>
         </div>
@@ -82,8 +113,9 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthState } from '@/store/auth'
-import { askChatQuestion, useChatState } from '@/store/chat'
+import { askChatQuestion, appendAssistantMessage, useChatState } from '@/store/chat'
 import { buildSharedChatContext } from '@/utils/chatContext'
+import { handleChatWorkflowAction } from '@/utils/chatWorkflowActions'
 
 const route = useRoute()
 const router = useRouter()
@@ -93,6 +125,15 @@ const showWidget = computed(() => route.path !== '/' && !route.meta.hideGlobalCh
 const isOpen = ref(false)
 const inputVal = ref('')
 const chatBodyRef = ref(null)
+const pendingActionKey = ref('')
+
+const visibleTips = computed(() => chatState.currentTips.slice(0, 2))
+const visibleSkillResults = computed(() => {
+  const results = chatState.currentSkillPayload?.results
+  return Array.isArray(results) ? results.slice(0, 3) : []
+})
+
+const hasFiniteDistance = distanceMeters => Number.isFinite(Number(distanceMeters))
 
 const goLogin = () => {
   router.push({
@@ -107,7 +148,7 @@ const ensureLogin = () => {
   if (authState.user) {
     return true
   }
-  ElMessage.warning('登录后即可继续向 AI 咨询路线和景点建议。')
+  ElMessage.warning('请先登录后再使用 AI 行程助手')
   goLogin()
   return false
 }
@@ -115,6 +156,18 @@ const ensureLogin = () => {
 const buildContext = () => buildSharedChatContext({
   pageType: route.name ? String(route.name).toLowerCase() : 'page'
 })
+
+const buildActionKey = (action, index) => `${index}:${action?.key || action?.type || action?.label || 'action'}`
+
+const resolveActionButtonType = style => {
+  if (style === 'primary') {
+    return 'primary'
+  }
+  if (style === 'danger') {
+    return 'danger'
+  }
+  return 'default'
+}
 
 const toggleChat = () => {
   if (!authState.user) {
@@ -127,9 +180,9 @@ const toggleChat = () => {
   }
 }
 
-const sendQuestion = (q) => {
+const sendQuestion = question => {
   if (!ensureLogin()) return
-  inputVal.value = q
+  inputVal.value = question
   handleSend()
 }
 
@@ -144,11 +197,33 @@ const handleSend = async () => {
   try {
     await askChatQuestion(question, buildContext())
   } catch (err) {
-    if (err && err.code === 401) {
-      ElMessage.warning('登录状态已失效，请重新登录后继续提问。')
+    if (err?.code === 401) {
+      ElMessage.warning('登录状态已失效，请重新登录')
       goLogin()
     }
   } finally {
+    scrollToBottom()
+  }
+}
+
+const handleMessageAction = async (message, action, index) => {
+  if (!ensureLogin()) return
+
+  const actionKey = buildActionKey(action, index)
+  pendingActionKey.value = actionKey
+  try {
+    const handled = await handleChatWorkflowAction({
+      action,
+      message,
+      buildContext
+    })
+    if (!handled) {
+      appendAssistantMessage('这个操作暂时还不支持，你可以换个说法继续告诉我。')
+    }
+  } catch (error) {
+    ElMessage.error(error?.response?.data?.message || error?.message || '操作失败，请稍后重试')
+  } finally {
+    pendingActionKey.value = ''
     scrollToBottom()
   }
 }
@@ -161,7 +236,7 @@ const scrollToBottom = () => {
   })
 }
 
-const handleWheelScroll = (event) => {
+const handleWheelScroll = event => {
   const container = chatBodyRef.value
   if (!container) return
 
@@ -280,6 +355,12 @@ watch(() => chatState.loading, () => {
   gap: 16px;
 }
 
+.msg-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .msg-row {
   display: flex;
   align-items: flex-start;
@@ -335,6 +416,17 @@ watch(() => chatState.loading, () => {
   border-top-right-radius: 2px;
 }
 
+.message-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-left: 46px;
+}
+
+.action-btn {
+  min-height: 30px;
+}
+
 .quick-tips {
   padding: 10px 16px;
   background: #fdfdfd;
@@ -355,13 +447,34 @@ watch(() => chatState.loading, () => {
   border-color: #b3d8ff;
 }
 
-.evidence-tag {
-  cursor: default;
+.skill-results {
+  margin: 0 16px 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #f6f8fb;
+  border: 1px solid #e6edf7;
 }
 
-.evidence-tag:hover {
-  background: inherit;
-  border-color: inherit;
+.skill-results__title {
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: #607089;
+}
+
+.skill-result-card + .skill-result-card {
+  margin-top: 8px;
+}
+
+.skill-result-card__name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1f2d3d;
+}
+
+.skill-result-card__meta {
+  margin-top: 2px;
+  font-size: 12px;
+  color: #7c8da5;
 }
 
 .chat-footer {
@@ -394,7 +507,9 @@ watch(() => chatState.loading, () => {
 }
 
 @keyframes typing {
-  0%, 80%, 100% {
+  0%,
+  80%,
+  100% {
     transform: scale(0);
     opacity: 0;
   }
@@ -402,6 +517,85 @@ watch(() => chatState.loading, () => {
   40% {
     transform: scale(1);
     opacity: 1;
+  }
+}
+
+@media (max-width: 768px) {
+  .chat-widget {
+    right: 12px;
+    bottom: 12px;
+  }
+
+  .chat-fab {
+    height: 48px;
+    padding: 0 16px;
+    border-radius: 24px;
+  }
+
+  .fab-text {
+    font-size: 14px;
+  }
+
+  .chat-panel {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: 72px;
+    width: auto;
+    max-width: none;
+    height: min(70vh, 560px);
+    border-radius: 20px;
+  }
+
+  .chat-header {
+    height: 52px;
+    padding: 0 14px;
+  }
+
+  .chat-body {
+    padding: 12px;
+  }
+
+  .msg-container {
+    gap: 12px;
+  }
+
+  .avatar {
+    min-width: 30px;
+    height: 30px;
+    font-size: 12px;
+  }
+
+  .msg-row {
+    gap: 8px;
+  }
+
+  .msg-bubble {
+    max-width: calc(100vw - 112px);
+    padding: 9px 12px;
+    font-size: 13px;
+  }
+
+  .message-actions {
+    padding-left: 38px;
+  }
+
+  .quick-tips {
+    padding: 8px 12px;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+  }
+
+  .tip-tag {
+    flex: 0 0 auto;
+  }
+
+  .skill-results {
+    margin: 0 12px 8px;
+  }
+
+  .chat-footer {
+    padding: 10px 12px;
   }
 }
 </style>

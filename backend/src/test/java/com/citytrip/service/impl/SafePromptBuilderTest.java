@@ -133,7 +133,11 @@ class SafePromptBuilderTest {
         node.setStartTime("09:00");
         node.setEndTime("10:30");
         node.setTravelTime(15);
+        node.setTravelTransportMode("walk");
+        node.setTravelDistanceKm(BigDecimal.valueOf(1.2D));
         node.setStayDuration(90);
+        node.setSourceType("external");
+        node.setStatusNote("External POI requires real-time map confirmation.");
         node.setSysReason("Matches the preferred themes.");
 
         ItineraryOptionVO option = new ItineraryOptionVO();
@@ -148,7 +152,38 @@ class SafePromptBuilderTest {
         assertThat(prompt).contains("highlights=[Balanced, Budget friendly]");
         assertThat(prompt).contains("tradeoffs=[Slightly lower check-in density]");
         assertThat(prompt).contains("travel_minutes=15");
+        assertThat(prompt).contains("transport_mode=walk");
+        assertThat(prompt).contains("distance_km=1.2");
+        assertThat(prompt).contains("source_type=external");
+        assertThat(prompt).contains("status_note=External POI requires real-time map confirmation.");
         assertThat(prompt).contains("reason=Matches the preferred themes.");
+        assertThat(prompt).contains("必须点名路线中的 2-3 个具体 POI");
+        assertThat(prompt).contains("解释路线顺序为什么成立");
+        assertThat(prompt).contains("禁止只写综合得分、总花费、耗时更少");
+    }
+
+    @Test
+    void shouldBuildChineseSegmentTransportSchemaWithoutGarbledCopy() {
+        GenerateReqDTO req = new GenerateReqDTO();
+        req.setCityName("成都");
+
+        ItineraryNodeVO fromNode = new ItineraryNodeVO();
+        fromNode.setPoiName("宽窄巷子");
+        fromNode.setCategory("街区");
+
+        ItineraryNodeVO toNode = new ItineraryNodeVO();
+        toNode.setPoiName("成都博物馆");
+        toNode.setCategory("博物馆");
+        toNode.setDistrict("青羊区");
+        toNode.setTravelTime(18);
+        toNode.setTravelDistanceKm(BigDecimal.valueOf(2.6D));
+
+        String prompt = safePromptBuilder.buildSegmentTransportAnalysisPrompt(req, fromNode, toNode);
+
+        assertThat(prompt).contains("\"transportMode\": \"步行/骑行/地铁+步行/公交+步行/打车\"");
+        assertThat(prompt).contains("\"narrative\": \"一句中文，解释为什么这段适合这种出行方式\"");
+        assertThat(prompt).doesNotContain("涓");
+        assertThat(prompt).doesNotContain("??");
     }
 
     @Test

@@ -4,9 +4,6 @@
       <div>
         <p class="eyebrow">路线地图</p>
         <h2>把这条路线放到地图上看</h2>
-        <p class="header-copy">
-          先从空间分布判断顺路程度，再对照右侧时间线确认每一站的节奏；地图区现在更偏专业预览面板，而不是普通地图截图。
-        </p>
       </div>
       <div class="header-badge">{{ headerBadge }}</div>
     </div>
@@ -58,7 +55,7 @@
       >
         <span class="stop-index">{{ index + 1 }}</span>
         <div class="stop-copy">
-          <span class="stop-name">{{ node.poiName }}</span>
+          <span class="stop-name">{{ getNodeName(node, '未命名点位') }}</span>
           <div class="stop-meta-row">
             <small>{{ node.district || node.category || "待补充信息" }}</small>
             <div class="stop-tag-row">
@@ -81,6 +78,14 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { buildLeafletFitTarget } from './mapFitLayers'
+import {
+  buildCurvedConnectionPath,
+  getNodeName,
+  normalizeRoutePathPoints,
+  pathAnchorsMatchSegment,
+  toDisplayText,
+  toLatLng
+} from './itineraryMapGeometry'
 
 const props = defineProps({
   nodes: {
@@ -128,28 +133,6 @@ const motionStage = computed(() => props.motionStage || 'steady')
 const currentLocationLabel = computed(() => '当前位置')
 const firstStopLabel = computed(() => '首站')
 
-const toFiniteNumber = value => {
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : null
-}
-
-const isValidCoordinate = (latitude, longitude) => {
-  return Number.isFinite(latitude)
-    && Number.isFinite(longitude)
-    && Math.abs(latitude) <= 90
-    && Math.abs(longitude) <= 180
-}
-
-const toLatLng = point => {
-  if (!point) return null
-  const latitude = toFiniteNumber(point.latitude ?? point.lat)
-  const longitude = toFiniteNumber(point.longitude ?? point.lng)
-  if (!isValidCoordinate(latitude, longitude)) {
-    return null
-  }
-  return [latitude, longitude]
-}
-
 const normalizedDeparturePoint = computed(() => {
   if (!props.departurePoint) return null
   const position = toLatLng(props.departurePoint)
@@ -159,7 +142,9 @@ const normalizedDeparturePoint = computed(() => {
   return {
     latitude: position[0],
     longitude: position[1],
-    label: [props.departurePoint.label, props.departurePoint.name].find(item => item && item !== 'CURRENT_LOCATION') || '????'
+    label: [props.departurePoint.label, props.departurePoint.name]
+      .map(item => toDisplayText(item))
+      .find(Boolean) || currentLocationLabel.value
   }
 })
 
@@ -173,64 +158,6 @@ const startNode = computed(() => validNodes.value[0] || null)
 const endNode = computed(() => validNodes.value[validNodes.value.length - 1] || null)
 const externalNodeCount = computed(() => validNodes.value.filter(node => node?.sourceType === 'external').length)
 
-const normalizeRoutePathPoints = points => {
-  if (!Array.isArray(points)) {
-    return []
-  }
-  return points
-    .map(point => toLatLng(point))
-    .filter(Boolean)
-    .filter((point, index, list) => {
-      if (index === 0) return true
-      const previous = list[index - 1]
-      return previous[0] !== point[0] || previous[1] !== point[1]
-    })
-}
-
-const measurePointDistanceKm = (fromPoint, toPoint) => {
-  if (!fromPoint || !toPoint) {
-    return Number.POSITIVE_INFINITY
-  }
-  const [lat1, lng1] = fromPoint
-  const [lat2, lng2] = toPoint
-  const toRadians = value => value * Math.PI / 180
-  const deltaLat = toRadians(lat2 - lat1)
-  const deltaLng = toRadians(lng2 - lng1)
-  const a = Math.sin(deltaLat / 2) ** 2
-    + Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.sin(deltaLng / 2) ** 2
-  return 6371 * 2 * Math.asin(Math.sqrt(a))
-}
-
-const buildCurvedConnectionPath = (fromPoint, toPoint, index = 0) => {
-  if (!fromPoint || !toPoint) {
-    return []
-  }
-  const [fromLat, fromLng] = fromPoint
-  const [toLat, toLng] = toPoint
-  const deltaLat = toLat - fromLat
-  const deltaLng = toLng - fromLng
-  const vectorLength = Math.sqrt(deltaLat ** 2 + deltaLng ** 2)
-  if (!vectorLength) {
-    return [fromPoint]
-  }
-
-  const perpendicularLat = -deltaLng / vectorLength
-  const perpendicularLng = deltaLat / vectorLength
-  const curveBase = Math.max(0.0012, Math.min(0.014, measurePointDistanceKm(fromPoint, toPoint) * 0.0032))
-  const signedCurve = index % 2 === 0 ? curveBase : -curveBase
-  const buildIntermediatePoint = (ratio, curveOffset) => ([
-    Number((fromLat + deltaLat * ratio + perpendicularLat * curveOffset).toFixed(6)),
-    Number((fromLng + deltaLng * ratio + perpendicularLng * curveOffset).toFixed(6))
-  ])
-
-  return [
-    fromPoint,
-    buildIntermediatePoint(0.32, signedCurve),
-    buildIntermediatePoint(0.72, -signedCurve * 0.28),
-    toPoint
-  ]
-}
-
 const buildFallbackSegmentPath = (index, node) => {
   const fromPoint = index === 0 ? toLatLng(normalizedDeparturePoint.value) : toLatLng(validNodes.value[index - 1])
   const toPoint = toLatLng(node)
@@ -238,15 +165,6 @@ const buildFallbackSegmentPath = (index, node) => {
     return []
   }
   return buildCurvedConnectionPath(fromPoint, toPoint, index)
-}
-
-const pathAnchorsMatchSegment = (pathPoints, fromPoint, toPoint) => {
-  if (!Array.isArray(pathPoints) || pathPoints.length < 2 || !fromPoint || !toPoint) {
-    return false
-  }
-  const startDistance = measurePointDistanceKm(pathPoints[0], fromPoint)
-  const endDistance = measurePointDistanceKm(pathPoints[pathPoints.length - 1], toPoint)
-  return startDistance <= 1.2 && endDistance <= 1.2
 }
 
 const resolveSegmentPathPoints = (index, node, routePathPoints) => {
@@ -286,9 +204,9 @@ const buildSegmentCopy = (index, node, previousNode, isExternalLink, isFallbackG
     return '本段暂时缺少完整路线几何，已用起终点先行占位展示。'
   }
   if (index === 0) {
-    return `从${normalizedDeparturePoint.value?.label || '当前位置'}出发后先抵达${node?.poiName || '首站'}。`
+    return `从${normalizedDeparturePoint.value?.label || currentLocationLabel.value}出发后先抵达${getNodeName(node, firstStopLabel.value)}。`
   }
-  return `${previousNode?.poiName || '上一站'} 到 ${node?.poiName || '下一站'} 这段已按顺序串联展开。`
+  return `${getNodeName(previousNode, '上一站')} 到 ${getNodeName(node, '下一站')} 这段已按顺序串联展开。`
 }
 
 const segmentMeta = computed(() => {
@@ -312,9 +230,10 @@ const segmentMeta = computed(() => {
           ? '外部串联段'
           : `第 ${index + 1} 段`
     const fromName = isDeparture
-      ? normalizedDeparturePoint.value?.label || '当前位置'
-      : previousNode?.poiName || '上一站'
-    const title = `${fromName} → ${node?.poiName || '下一站'}`
+      ? normalizedDeparturePoint.value?.label || currentLocationLabel.value
+      : getNodeName(previousNode, '上一站')
+    const toName = getNodeName(node, '下一站')
+    const title = `${fromName} → ${toName}`
     return {
       id: `segment-${index}`,
       index,
@@ -322,7 +241,7 @@ const segmentMeta = computed(() => {
       to: pathPoints[pathPoints.length - 1],
       pathPoints,
       title,
-      shortTitle: isDeparture ? '当前位置出发' : title,
+      shortTitle: isDeparture ? `${currentLocationLabel.value}出发` : title,
       label,
       copy: buildSegmentCopy(index, node, previousNode, isExternalLink, isFallbackGeometry),
       isExternalLink,
@@ -390,12 +309,12 @@ const mapHeadline = computed(() => {
     return '等待路线数据'
   }
   if (normalizedDeparturePoint.value && endNode.value) {
-    return `${normalizedDeparturePoint.value.label} → ${endNode.value?.poiName || '终点'}`
+    return `${normalizedDeparturePoint.value.label} → ${getNodeName(endNode.value, '终点')}`
   }
   if (validNodes.value.length === 1) {
-    return startNode.value?.poiName || '当前路线站点'
+    return getNodeName(startNode.value, '当前路线站点')
   }
-  return `${startNode.value?.poiName || '起点'} → ${endNode.value?.poiName || '终点'}`
+  return `${getNodeName(startNode.value, '起点')} → ${getNodeName(endNode.value, '终点')}`
 })
 
 const mapNarrative = computed(() => {
@@ -449,7 +368,7 @@ const mapInsightItems = computed(() => {
       label: '路线类型',
       value: routeModeLabel.value,
       copy: validNodes.value.length > 1
-        ? `从 ${normalizedDeparturePoint.value?.label || startNode.value?.poiName || '--'} 走到 ${endNode.value?.poiName || '--'}`
+        ? `从 ${normalizedDeparturePoint.value?.label || getNodeName(startNode.value, currentLocationLabel.value)} 走到 ${getNodeName(endNode.value, '--')}`
         : '当前仅有一个有效点位'
     },
     {
@@ -707,12 +626,16 @@ const buildNodePopupHtml = (node, index) => {
   const roleLabel = getNodeRoleLabel(index)
   const sourceLabel = getNodeSourceLabel(node)
   const analysis = node?.travelNarrative ? `<div style="margin-top: 8px; color: #53708f; line-height: 1.6;">${node.travelNarrative}</div>` : ''
+  const nodeName = getNodeName(node, '未命名点位')
+  const category = toDisplayText(node?.category, '体验待补')
+  const district = toDisplayText(node?.district, '')
+  const districtCopy = district ? ` · ${district}` : ''
   return `
     <div style="min-width: 240px;">
-      <strong style="font-size: 15px; color: #163152;">${node?.poiName || '未命名点位'}</strong>
+      <strong style="font-size: 15px; color: #163152;">${nodeName}</strong>
       <div style="margin-top: 8px; color: #5f6f82;">${node?.startTime || '--'} - ${node?.endTime || '--'}</div>
-      <div style="margin-top: 6px; color: #7a8da3;">${node?.category || '体验待补'}${node?.district ? ` ? ${node.district}` : ''}</div>
-      <div style="margin-top: 8px; color: ${node?.sourceType === 'external' ? '#a66b08' : '#53708f'}; font-weight: 600;">${roleLabel} ? ${sourceLabel}</div>
+      <div style="margin-top: 6px; color: #7a8da3;">${category}${districtCopy}</div>
+      <div style="margin-top: 8px; color: ${node?.sourceType === 'external' ? '#a66b08' : '#53708f'}; font-weight: 600;">${roleLabel} · ${sourceLabel}</div>
       ${analysis}
     </div>
   `
@@ -1640,6 +1563,95 @@ watch(
 
   .map-canvas {
     height: 400px;
+  }
+}
+
+@media (max-width: 768px) {
+  .map-card {
+    padding: 18px;
+    border-radius: 20px;
+  }
+
+  .map-card:hover {
+    transform: none;
+  }
+
+  .card-header {
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .card-header h2 {
+    font-size: 26px;
+  }
+
+  .header-copy {
+    font-size: 14px;
+    line-height: 1.7;
+  }
+
+  .header-badge {
+    white-space: normal;
+  }
+
+  .map-stage {
+    min-height: 300px;
+    height: 38vh;
+    border-radius: 20px;
+  }
+
+  .map-canvas {
+    height: 38vh;
+    min-height: 300px;
+  }
+
+  .map-empty {
+    min-height: 300px;
+    padding: 18px;
+    text-align: center;
+  }
+
+  .overview-panel,
+  .legend-panel {
+    margin: 10px 10px 0;
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  .panel-metrics,
+  .legend-segment-row,
+  .insight-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .segment-strip,
+  .stop-strip {
+    display: flex;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 4px;
+    scroll-snap-type: x proximity;
+  }
+
+  .segment-pill {
+    flex: 0 0 min(86vw, 320px);
+    scroll-snap-align: start;
+  }
+
+  .stop-pill {
+    flex: 0 0 auto;
+    max-width: 86vw;
+  }
+
+  :deep(.leaflet-popup-content) {
+    max-width: 260px;
+    min-width: 0;
+  }
+
+  :deep(.leaflet-control-zoom a) {
+    width: 32px;
+    height: 32px;
+    line-height: 32px;
   }
 }
 </style>

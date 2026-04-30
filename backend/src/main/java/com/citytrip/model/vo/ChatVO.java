@@ -9,4 +9,6 @@ public class ChatVO {
     private String answer;
     private List<String> relatedTips;
     private List<String> evidence;
+    private ChatSkillPayloadVO skillPayload;
 }
+

@@ -22,3 +22,11 @@ export function reqSearchPoi(keyword, city, limit = 8) {
     params: { keyword, city, limit }
   })
 }
+
+export function reqListCustomPois() {
+  return request({
+    url: '/api/custom-pois',
+    method: 'get',
+    skipErrorMessage: true
+  })
+}

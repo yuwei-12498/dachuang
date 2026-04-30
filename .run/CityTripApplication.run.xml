@@ -1,0 +1,10 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="CityTripApplication" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot">
+    <module name="citytrip-backend" />
+    <option name="SPRING_BOOT_MAIN_CLASS" value="com.citytrip.CityTripApplication" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/backend" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

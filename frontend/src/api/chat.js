@@ -40,7 +40,7 @@ export async function reqStreamChat(data, handlers = {}) {
   }
 
   if (!response.body) {
-    const error = new Error('当前环境不支持流式响应')
+    const error = new Error('当前浏览器不支持流式响应')
     error.code = 'STREAM_UNSUPPORTED'
     throw error
   }
@@ -51,6 +51,7 @@ export async function reqStreamChat(data, handlers = {}) {
   let answer = ''
   let relatedTips = []
   let evidence = []
+  let skillPayload = null
 
   const handlePayload = (payload) => {
     if (!payload || typeof payload !== 'object') {
@@ -72,21 +73,25 @@ export async function reqStreamChat(data, handlers = {}) {
     if (payload.type === 'meta') {
       relatedTips = Array.isArray(payload.relatedTips) ? payload.relatedTips : []
       evidence = Array.isArray(payload.evidence) ? payload.evidence : []
+      skillPayload = isSkillPayload(payload.skillPayload) ? payload.skillPayload : null
       if (typeof handlers.onMeta === 'function') {
-        handlers.onMeta({ relatedTips, evidence })
+        handlers.onMeta({ relatedTips, evidence, skillPayload })
       }
       return
     }
 
     if (payload.type === 'done') {
+      if (isSkillPayload(payload.skillPayload)) {
+        skillPayload = payload.skillPayload
+      }
       if (typeof handlers.onDone === 'function') {
-        handlers.onDone({ answer, relatedTips, evidence })
+        handlers.onDone({ answer, relatedTips, evidence, skillPayload })
       }
       return
     }
 
     if (payload.type === 'error') {
-      const error = new Error(payload.message || '流式请求失败')
+      const error = new Error(payload.message || '聊天服务返回异常')
       error.code = payload.code || 'STREAM_ERROR'
       throw error
     }
@@ -122,8 +127,13 @@ export async function reqStreamChat(data, handlers = {}) {
   return {
     answer,
     relatedTips,
-    evidence
+    evidence,
+    skillPayload
   }
+}
+
+function isSkillPayload(candidate) {
+  return Boolean(candidate) && typeof candidate === 'object' && !Array.isArray(candidate)
 }
 
 function parseSsePayload(chunk) {

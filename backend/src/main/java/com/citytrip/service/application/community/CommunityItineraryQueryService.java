@@ -139,7 +139,7 @@ public class CommunityItineraryQueryService {
                 .sorted(buildFeedComparator(normalizedSort))
                 .toList();
 
-        if (StringUtils.hasText(normalizedKeyword) && communitySemanticSearchService != null) {
+        if (StringUtils.hasText(normalizedKeyword) && isSemanticKeywordSearchReady()) {
             feedRecords = applySemanticRanking(normalizedKeyword, feedRecords);
         }
 
@@ -361,10 +361,17 @@ public class CommunityItineraryQueryService {
     }
 
     private boolean shouldKeepForKeyword(CommunityItineraryVO item, String keyword) {
-        if (StringUtils.hasText(keyword) && communitySemanticSearchService != null) {
+        if (!StringUtils.hasText(keyword)) {
+            return true;
+        }
+        if (isSemanticKeywordSearchReady()) {
             return true;
         }
         return matchesKeyword(item, keyword);
+    }
+
+    private boolean isSemanticKeywordSearchReady() {
+        return communitySemanticSearchService != null && communitySemanticSearchService.isSemanticModelReady();
     }
 
     private Comparator<CommunityItineraryVO> buildFeedComparator(String sort) {

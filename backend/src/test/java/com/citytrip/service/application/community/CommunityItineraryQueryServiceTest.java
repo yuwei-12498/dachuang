@@ -27,6 +27,8 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class CommunityItineraryQueryServiceTest {
@@ -64,6 +66,7 @@ class CommunityItineraryQueryServiceTest {
         when(codec.readItinerary(second)).thenReturn(buildItinerary("九眼桥夜游"));
         when(commentMapper.selectList(any())).thenReturn(List.of());
         when(likeMapper.selectList(any())).thenReturn(List.of());
+        when(semanticSearchService.isSemanticModelReady()).thenReturn(true);
         when(semanticSearchService.rank(any(), any())).thenReturn(List.of(
                 new CommunitySemanticSearchService.ScoredCommunityCandidate(2L, 0.98D),
                 new CommunitySemanticSearchService.ScoredCommunityCandidate(1L, 0.87D)
@@ -72,6 +75,48 @@ class CommunityItineraryQueryServiceTest {
         CommunityItineraryPageVO page = service.listPublic(1, 12, "latest", "适合情侣夜游散步", null, null);
 
         assertThat(page.getRecords()).extracting(CommunityItineraryVO::getId).containsExactly(2L, 1L);
+    }
+
+    @Test
+    void listPublicShouldUseKeywordFilterWhenSemanticModelIsNotReady() throws Exception {
+        SavedItineraryRepository repository = mock(SavedItineraryRepository.class);
+        CommunityCommentMapper commentMapper = mock(CommunityCommentMapper.class);
+        CommunityLikeMapper likeMapper = mock(CommunityLikeMapper.class);
+        UserMapper userMapper = mock(UserMapper.class);
+        SavedItineraryCodec codec = mock(SavedItineraryCodec.class);
+        CommunitySemanticSearchService semanticSearchService = mock(CommunitySemanticSearchService.class);
+
+        CommunityItineraryQueryService service = new CommunityItineraryQueryService(
+                repository,
+                commentMapper,
+                likeMapper,
+                userMapper,
+                codec,
+                new ItinerarySummaryAssembler(),
+                new CommunityItineraryCacheService(false, null, null, new ObjectMapper()),
+                semanticSearchService
+        );
+
+        SavedItinerary museum = buildEntity(1L, 7L);
+        SavedItinerary nightWalk = buildEntity(2L, 7L);
+        User author = new User();
+        author.setId(7L);
+        author.setNickname("Tester");
+
+        when(repository.listPublicVisible()).thenReturn(List.of(museum, nightWalk));
+        when(userMapper.selectBatchIds(any())).thenReturn(List.of(author));
+        when(codec.readRequest(museum)).thenReturn(buildReq("museum"));
+        when(codec.readRequest(nightWalk)).thenReturn(buildReq("nightlife"));
+        when(codec.readItinerary(museum)).thenReturn(buildItinerary("City Museum"));
+        when(codec.readItinerary(nightWalk)).thenReturn(buildItinerary("River Bar Street"));
+        when(commentMapper.selectList(any())).thenReturn(List.of());
+        when(likeMapper.selectList(any())).thenReturn(List.of());
+        when(semanticSearchService.isSemanticModelReady()).thenReturn(false);
+
+        CommunityItineraryPageVO page = service.listPublic(1, 12, "latest", "museum", null, null);
+
+        assertThat(page.getRecords()).extracting(CommunityItineraryVO::getId).containsExactly(1L);
+        verify(semanticSearchService, never()).rank(any(), any());
     }
 
     @Test

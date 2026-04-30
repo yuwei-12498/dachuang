@@ -82,6 +82,50 @@ class HybridPoiRecallServiceTest {
         assertThat(result.recalledCandidates().get(0).getId()).isEqualTo(103L);
     }
 
+    @Test
+    void fallback_shouldAvoidRecentlyRepeatedPoi_whenNoNeighborFound() {
+        UserBehaviorEventMapper userBehaviorEventMapper = mock(UserBehaviorEventMapper.class);
+        PoiMapper poiMapper = mock(PoiMapper.class);
+        PoiService poiService = mock(PoiService.class);
+        when(poiService.enrichOperatingStatus(anyList(), any(LocalDate.class))).thenAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            List<Poi> pois = invocation.getArgument(0);
+            for (Poi poi : pois) {
+                poi.setAvailableOnTripDate(true);
+                poi.setStatusStale(false);
+                poi.setOperatingStatus("OPEN");
+            }
+            return pois;
+        });
+
+        List<Poi> candidates = buildCandidates();
+        Map<Long, Integer> indexByPoiId = buildIndex(candidates);
+        ItineraryRouteOptimizer routeOptimizer = new ItineraryRouteOptimizer(
+                poiService,
+                new MatrixTravelTimeService(indexByPoiId)
+        );
+        HybridPoiRecallService service = new HybridPoiRecallService(
+                userBehaviorEventMapper,
+                poiMapper,
+                routeOptimizer,
+                false,
+                null,
+                new ObjectMapper()
+        );
+
+        when(userBehaviorEventMapper.selectUserPoiPreferences(11L, 180)).thenReturn(List.of(
+                stat(11L, 101L, 20.0D)
+        ));
+        when(userBehaviorEventMapper.selectSimilarUserIdsByPoiIds(anyList(), eq(11L), eq(180), eq(120)))
+                .thenReturn(List.of());
+
+        HybridPoiRecallService.RecallResult result = service.recall(11L, buildRequest(), candidates, 3);
+
+        assertThat(result.recallStrategy()).contains("no-neighbor");
+        assertThat(result.recalledCandidates()).hasSize(3);
+        assertThat(result.recalledCandidates().get(0).getId()).isNotEqualTo(101L);
+    }
+
     private GenerateReqDTO buildRequest() {
         GenerateReqDTO request = new GenerateReqDTO();
         request.setTripDays(1.0D);

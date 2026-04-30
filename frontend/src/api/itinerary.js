@@ -143,3 +143,44 @@ export function reqToggleItineraryPublic(id, payload) {
     data
   })
 }
+
+
+export function reqApplyChatReplacement({ itineraryId, ...data }) {
+  return request({
+    url: `/api/itineraries/${itineraryId}/chat-replacements/apply`,
+    method: 'post',
+    data
+  })
+}
+
+export function reqRestoreChatReplacement({ itineraryId, ...data }) {
+  return request({
+    url: `/api/itineraries/${itineraryId}/chat-replacements/restore`,
+    method: 'post',
+    data
+  })
+}
+
+export function reqApplyItineraryEdits({ itineraryId, ...data }) {
+  return request({
+    url: `/api/itineraries/${itineraryId}/edits/apply`,
+    method: 'post',
+    data
+  })
+}
+
+export function reqRestoreItineraryEditVersion({ itineraryId, ...data }) {
+  return request({
+    url: `/api/itineraries/${itineraryId}/edits/restore`,
+    method: 'post',
+    data
+  })
+}
+
+export function reqListItineraryEditVersions(itineraryId) {
+  return request({
+    url: `/api/itineraries/${itineraryId}/edit-versions`,
+    method: 'get',
+    skipErrorMessage: true
+  })
+}

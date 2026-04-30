@@ -7,6 +7,7 @@ import com.citytrip.model.dto.LoginReqDTO;
 import com.citytrip.model.dto.RegisterReqDTO;
 import com.citytrip.model.vo.UserSessionVO;
 import com.citytrip.service.UserService;
+import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -28,13 +29,13 @@ public class AuthController {
     }
 
     @PostMapping({"/auth/register", "/users"})
-    public ResponseEntity<UserSessionVO> register(@RequestBody RegisterReqDTO req) {
+    public ResponseEntity<UserSessionVO> register(@Valid @RequestBody RegisterReqDTO req) {
         UserSessionVO vo = userService.register(req);
         return ResponseEntity.status(HttpStatus.CREATED).body(vo);
     }
 
     @PostMapping({"/auth/login", "/sessions"})
-    public UserSessionVO login(@RequestBody LoginReqDTO req) {
+    public UserSessionVO login(@Valid @RequestBody LoginReqDTO req) {
         return userService.login(req);
     }
 

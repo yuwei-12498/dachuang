@@ -9,14 +9,18 @@ import com.citytrip.model.vo.DepartureLegEstimateVO;
 import com.citytrip.model.vo.ItineraryNodeVO;
 import com.citytrip.model.vo.ItineraryOptionVO;
 import com.citytrip.model.vo.SmartFillVO;
+import com.citytrip.service.application.community.CommunitySemanticSearchService;
 import com.citytrip.service.domain.ai.ChatPoiSkillService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
 import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class OpenAiServiceDelegationTest {
 
@@ -66,6 +70,23 @@ class OpenAiServiceDelegationTest {
         assertThat(status.getTimeoutSeconds()).isEqualTo(18);
         assertThat(status.isConfigured()).isTrue();
         assertThat(status.isRealModelAvailable()).isTrue();
+    }
+
+    @Test
+    void shouldExposeSemanticReadinessFromSemanticSearchServiceCapabilities() {
+        StubRealChatGatewayService realChatGatewayService = new StubRealChatGatewayService();
+        LlmProperties llmProperties = buildValidChatProperties();
+        OpenAiChatServiceImpl service = new OpenAiChatServiceImpl(realChatGatewayService, llmProperties);
+        CommunitySemanticSearchService semanticSearchService = mock(CommunitySemanticSearchService.class);
+        when(semanticSearchService.isEmbeddingReady()).thenReturn(true);
+        when(semanticSearchService.isRerankReady()).thenReturn(false);
+        when(semanticSearchService.isSemanticModelReady()).thenReturn(true);
+        ReflectionTestUtils.setField(service, "communitySemanticSearchService", semanticSearchService);
+
+        ChatStatusVO status = service.getStatus();
+
+        assertThat(status.isEmbeddingReady()).isTrue();
+        assertThat(status.isRerankReady()).isFalse();
     }
 
     @Test

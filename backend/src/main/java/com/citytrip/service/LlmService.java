@@ -21,10 +21,6 @@ public interface LlmService {
      */
     String generateTips(GenerateReqDTO userReq);
 
-    /**
-     * 为单个地点生成 3-5 条温馨提示候选
-     */
-    String generatePoiWarmTips(GenerateReqDTO userReq, ItineraryNodeVO node);
 
     /**
      * 根据整条路线生成一条总的温馨提示

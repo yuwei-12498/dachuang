@@ -23,6 +23,9 @@ public class ItineraryVO {
     private List<String> alerts;
     private LocalDateTime lastSavedAt;
     private String selectedOptionKey;
+    private Long activeEditVersionId;
+    private List<String> scheduleWarnings;
+    private List<ItineraryDayWindowVO> dayWindows;
     private List<ItineraryOptionVO> options;
     private List<ItineraryNodeVO> nodes;
 }

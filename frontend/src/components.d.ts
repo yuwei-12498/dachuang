@@ -17,6 +17,8 @@ declare module 'vue' {
     ElAside: typeof import('element-plus/es')['ElAside']
     ElButton: typeof import('element-plus/es')['ElButton']
     ElCard: typeof import('element-plus/es')['ElCard']
+    ElCarousel: typeof import('element-plus/es')['ElCarousel']
+    ElCarouselItem: typeof import('element-plus/es')['ElCarouselItem']
     ElCheckboxButton: typeof import('element-plus/es')['ElCheckboxButton']
     ElCheckboxGroup: typeof import('element-plus/es')['ElCheckboxGroup']
     ElCol: typeof import('element-plus/es')['ElCol']
@@ -64,11 +66,11 @@ declare module 'vue' {
     HomeImmersiveStory: typeof import('./components/home/HomeImmersiveStory.vue')['default']
     HomeRouteExamples: typeof import('./components/home/HomeRouteExamples.vue')['default']
     HomeScenarioCards: typeof import('./components/home/HomeScenarioCards.vue')['default']
+    ItineraryEditDialog: typeof import('./components/itinerary/ItineraryEditDialog.vue')['default']
     ItineraryMapCard: typeof import('./components/itinerary/ItineraryMapCard.vue')['default']
     PublishRouteDialog: typeof import('./components/community/PublishRouteDialog.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
-    SegmentMiniMap: typeof import('./components/itinerary/SegmentMiniMap.vue')['default']
     SegmentRouteGuideCard: typeof import('./components/itinerary/SegmentRouteGuideCard.vue')['default']
   }
   export interface ComponentCustomProperties {

@@ -376,4 +376,60 @@ const handleUserCommand = async command => {
     display: none;
   }
 }
+
+@media (max-width: 768px) {
+  .app-navbar {
+    height: 60px !important;
+  }
+
+  .navbar-container {
+    padding: 0 12px;
+    gap: 10px;
+  }
+
+  .brand-button {
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .logo-badge {
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+  }
+
+  .logo-text {
+    font-size: 17px;
+    white-space: nowrap;
+  }
+
+  .navbar-right {
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .glass-btn,
+  .auth-btn,
+  .primary-btn {
+    min-height: 36px;
+    padding: 0 12px;
+    font-size: 13px;
+  }
+
+  .admin-btn,
+  .user-name,
+  .logo-subtitle {
+    display: none;
+  }
+
+  .user-entry {
+    min-height: 36px;
+    padding: 0 8px;
+  }
+
+  .user-avatar {
+    width: 26px;
+    height: 26px;
+  }
+}
 </style>

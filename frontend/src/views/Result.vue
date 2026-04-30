@@ -14,8 +14,6 @@
         </div>
 
         <aside class="hero-side">
-          <p class="hero-side-label">推荐理由</p>
-          <p class="hero-side-copy">{{ heroRecommendation }}</p>
           <div class="hero-primary-action">
             <el-button
               v-if="resultActionGroups.primary.includes('replan')"
@@ -50,6 +48,15 @@
                 @click="handleTogglePublic"
               >
                 {{ itinerary.isPublic ? '撤回社区展示' : '发布路线帖' }}
+              </el-button>
+
+              <el-button
+                v-if="itinerary?.id && isLoggedIn"
+                round
+                class="hero-soft-btn"
+                @click="editDialogVisible = true"
+              >
+                编辑路线
               </el-button>
               <el-button
                 v-if="resultActionGroups.secondary.includes('communityPost')"
@@ -194,22 +201,29 @@
       </section>
 
       <section class="result-focus-grid">
-        <div class="map-motion-stage" :class="[mapMotionStage, { switching: isMapSwitching }]">
-          <span :key="mapTransitionKey" class="map-motion-token" aria-hidden="true"></span>
-          <ItineraryMapCard
-            :nodes="displayNodes"
-            :departure-point="departurePoint"
-            :day-label="activeDayLabel"
-            :motion-stage="mapMotionStage"
-            :motion-token="mapTransitionKey"
-            :active-segment-index="activeTimelineSegmentIndex"
-            :pinned-segment-index="pinnedSegmentIndex"
-            :community-status-text="shareStatusText"
-            class="map-section"
-            @segment-hover="handleMapSegmentHover"
-            @segment-leave="handleMapSegmentLeave"
-            @segment-pin="handleMapSegmentPin"
-          />
+        <div class="result-map-column">
+          <div class="map-motion-stage" :class="[mapMotionStage, { switching: isMapSwitching }]">
+            <span :key="mapTransitionKey" class="map-motion-token" aria-hidden="true"></span>
+            <ItineraryMapCard
+              :nodes="displayNodes"
+              :departure-point="departurePoint"
+              :day-label="activeDayLabel"
+              :motion-stage="mapMotionStage"
+              :motion-token="mapTransitionKey"
+              :active-segment-index="activeTimelineSegmentIndex"
+              :pinned-segment-index="pinnedSegmentIndex"
+              :community-status-text="shareStatusText"
+              class="map-section"
+              @segment-hover="handleMapSegmentHover"
+              @segment-leave="handleMapSegmentLeave"
+              @segment-pin="handleMapSegmentPin"
+            />
+          </div>
+
+          <section v-if="heroRecommendation" class="map-recommendation-card">
+            <p class="map-recommendation-label">AI 推荐说明</p>
+            <p class="map-recommendation-copy">{{ heroRecommendation }}</p>
+          </section>
         </div>
 
         <section class="timeline-panel">
@@ -260,6 +274,10 @@
             <span v-for="item in activeAlerts" :key="item" class="alert-chip">{{ item }}</span>
           </section>
 
+          <section v-if="scheduleWarnings.length" class="alert-strip alert-strip-danger">
+            <span v-for="item in scheduleWarnings" :key="`warning-${item}`" class="alert-chip alert-chip-danger">{{ item }}</span>
+          </section>
+
           <div class="timeline-wrap">
             <div
               v-for="(node, nodeIndex) in displayNodes"
@@ -284,7 +302,7 @@
                   <div class="stop-head">
                     <div>
                       <p class="stop-index">第 {{ node.stepOrder || 1 }} 站</p>
-                      <h3>{{ node.poiName }}</h3>
+                      <h3>{{ formatPoiName(node.poiName, '未命名站点') }}</h3>
                     </div>
                     <div class="stop-tags">
                       <el-tag v-if="node.category" size="small" effect="plain">{{ node.category }}</el-tag>
@@ -313,11 +331,6 @@
                     <span class="stop-tip-label">AI 出行分析</span>
                     <p class="travel-analysis-copy">{{ node.travelNarrative }}</p>
                   </div>
-                  <div v-if="node.statusNote" class="stop-tip-box">
-                    <span class="stop-tip-label">AI 温馨提示</span>
-                    <p class="stop-note">{{ node.statusNote }}</p>
-                  </div>
-
                   <div v-if="hasNearbyServices(node)" class="nearby-box">
                     <span class="stop-tip-label">周边服务</span>
                     <p v-if="node.nearbyHotels?.length" class="nearby-row">
@@ -364,7 +377,7 @@
           <div class="poster-summary">
             <div class="poster-metric">
               <span>预算估算</span>
-              <strong>{{ formatCurrency(activeOption?.totalCost ?? itinerary.totalCost) }}</strong>
+              <strong>{{ formatCurrency(estimatedTotalBudget) }}</strong>
             </div>
             <div class="poster-metric">
               <span>当前视图点位</span>
@@ -389,7 +402,7 @@
               <div v-for="node in displayNodes" :key="`poster-${buildNodeKey(node)}`" class="poster-node">
                 <div class="poster-node-time">{{ node.startTime || '--:--' }} - {{ node.endTime || '--:--' }}</div>
                 <div class="poster-node-content">
-                  <strong>{{ node.poiName }}</strong>
+                  <strong>{{ formatPoiName(node.poiName, '未命名站点') }}</strong>
                   <span>{{ node.category || '主题待补充' }} / {{ node.district || '城区待定' }}</span>
                 </div>
               </div>
@@ -417,6 +430,12 @@
       <el-empty description="暂时没有找到行程，请先回首页生成。" />
     </div>
 
+    <ItineraryEditDialog
+      v-model="editDialogVisible"
+      :itinerary="itinerary"
+      @applied="handleItineraryEdited"
+    />
+
     <PublishRouteDialog
       v-model="publishDialogVisible"
       :itinerary="itinerary"
@@ -431,6 +450,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import PublishRouteDialog from '@/components/community/PublishRouteDialog.vue'
+import ItineraryEditDialog from '@/components/itinerary/ItineraryEditDialog.vue'
 import ItineraryMapCard from '@/components/itinerary/ItineraryMapCard.vue'
 import SegmentRouteGuideCard from '@/components/itinerary/SegmentRouteGuideCard.vue'
 import {
@@ -454,10 +474,20 @@ import {
   buildResultActionGroups,
   buildResultHeroContent,
   buildResultStatItems,
+  estimateTotalBudget,
   formatNodeTravelLabel,
   formatTravelDistance,
   formatTravelMode
 } from '@/utils/resultUi'
+import {
+  buildRouteSignature,
+  formatCurrency,
+  formatPoiName,
+  resolveActiveNodes,
+  resolveActiveOption,
+  resolveOptions,
+  sanitizeDisplayText
+} from '@/utils/resultOptions'
 
 const router = useRouter()
 const route = useRoute()
@@ -469,6 +499,7 @@ const publicLoading = ref(false)
 const posterLoading = ref(false)
 const posterRef = ref(null)
 const publishDialogVisible = ref(false)
+const editDialogVisible = ref(false)
 const publishAutoOpened = ref(false)
 const activeDayIndex = ref(0)
 const hoveredSegmentIndex = ref(null)
@@ -481,6 +512,7 @@ const MAP_SWITCH_OUT_MS = 110
 const MAP_SWITCH_RESET_MS = 440
 let mapSwitchOutTimer = null
 let mapSwitchResetTimer = null
+const ITINERARY_UPDATED_EVENT = 'citytrip:itinerary-updated'
 
 const originalReq = computed(() => itinerary.value?.originalReq || null)
 const isLoggedIn = computed(() => Boolean(authState.user))
@@ -488,81 +520,6 @@ const routeItineraryId = computed(() => {
   const raw = Number(route.query.id)
   return Number.isFinite(raw) && raw > 0 ? raw : null
 })
-
-const formatCurrency = value => {
-  if (value === null || value === undefined || value === '') {
-    return '--'
-  }
-  return `¥${value}`
-}
-
-const buildRouteSignature = nodes => {
-  return (nodes || [])
-    .map(node => node?.poiId)
-    .filter(Boolean)
-    .join('-')
-}
-
-const normalizeOption = (option, index = 0) => {
-  const nodes = Array.isArray(option?.nodes) ? option.nodes : []
-  const totalTravelTime = option?.totalTravelTime ?? nodes.reduce((sum, node) => sum + Number(node?.travelTime || 0), 0)
-  return {
-    optionKey: option?.optionKey || `option-${index + 1}`,
-    title: option?.title || `候选方案 ${index + 1}`,
-    subtitle: option?.subtitle || '已结合时间窗与顺路程度优化',
-    signature: option?.signature || buildRouteSignature(nodes),
-    totalDuration: Number(option?.totalDuration || 0),
-    totalCost: option?.totalCost ?? 0,
-    stopCount: option?.stopCount ?? nodes.length,
-    totalTravelTime,
-    summary: option?.summary || option?.recommendReason || '',
-    recommendReason: option?.recommendReason || '',
-    notRecommendReason: option?.notRecommendReason || '',
-    highlights: Array.isArray(option?.highlights) ? option.highlights : [],
-    tradeoffs: Array.isArray(option?.tradeoffs) ? option.tradeoffs : [],
-    alerts: Array.isArray(option?.alerts) ? option.alerts : [],
-    nodes
-  }
-}
-
-const buildFallbackOption = snapshot => {
-  const nodes = Array.isArray(snapshot?.nodes) ? snapshot.nodes : []
-  return normalizeOption({
-    optionKey: 'default',
-    title: snapshot?.customTitle || '当前默认方案',
-    subtitle: '当前保存的路线版本',
-    signature: buildRouteSignature(nodes),
-    totalDuration: snapshot?.totalDuration || 0,
-    totalCost: snapshot?.totalCost || 0,
-    stopCount: nodes.length,
-    totalTravelTime: nodes.reduce((total, node) => total + Number(node?.travelTime || 0), 0),
-    summary: snapshot?.recommendReason || snapshot?.tips || '',
-    recommendReason: snapshot?.recommendReason || '',
-    notRecommendReason: snapshot?.tips || '',
-    alerts: Array.isArray(snapshot?.alerts) ? snapshot.alerts : [],
-    nodes
-  })
-}
-
-const resolveOptions = snapshot => {
-  if (Array.isArray(snapshot?.options) && snapshot.options.length) {
-    return snapshot.options.map((option, index) => normalizeOption(option, index))
-  }
-  return snapshot ? [buildFallbackOption(snapshot)] : []
-}
-
-const resolveActiveOption = snapshot => {
-  const options = resolveOptions(snapshot)
-  if (!options.length) {
-    return null
-  }
-  return options.find(option => option.optionKey === snapshot?.selectedOptionKey) || options[0]
-}
-
-const resolveActiveNodes = snapshot => {
-  const option = resolveActiveOption(snapshot)
-  return Array.isArray(option?.nodes) ? option.nodes : (snapshot?.nodes || [])
-}
 
 const ensureSeenRouteSignatures = snapshot => {
   if (!snapshot) {
@@ -594,6 +551,20 @@ const persistItinerary = snapshot => {
   itinerary.value = nextSnapshot
   saveItinerarySnapshot(nextSnapshot)
   return nextSnapshot
+}
+
+const handleExternalItineraryUpdate = event => {
+  const snapshot = event?.detail || null
+  if (!snapshot) {
+    itinerary.value = null
+    return
+  }
+
+  const nextSnapshot = ensureSeenRouteSignatures(normalizeItinerarySnapshot(snapshot))
+  if (routeItineraryId.value && Number(nextSnapshot?.id) !== routeItineraryId.value) {
+    return
+  }
+  itinerary.value = nextSnapshot
 }
 
 const loadCurrentItinerary = async () => {
@@ -634,6 +605,9 @@ const loadCurrentItinerary = async () => {
 
 onMounted(() => {
   loadCurrentItinerary()
+  if (typeof window !== 'undefined') {
+    window.addEventListener(ITINERARY_UPDATED_EVENT, handleExternalItineraryUpdate)
+  }
 })
 
 watch(() => route.query.id, () => {
@@ -675,13 +649,7 @@ const displayNodes = computed(() => {
   }
   return dayPlans.value[activeDayIndex.value]?.nodes || dayPlans.value[0]?.nodes || activeNodes.value
 })
-const departureLabel = computed(() => {
-  const placeName = originalReq.value?.departurePlaceName
-  if (typeof placeName === 'string' && placeName.trim() && placeName !== 'CURRENT_LOCATION') {
-    return placeName.trim()
-  }
-  return '当前位置'
-})
+const departureLabel = computed(() => sanitizeDisplayText(originalReq.value?.departurePlaceName, '当前位置'))
 const departurePoint = computed(() => {
   const latitude = Number(originalReq.value?.departureLatitude)
   const longitude = Number(originalReq.value?.departureLongitude)
@@ -724,6 +692,9 @@ const activeAlerts = computed(() => {
   }
   return Array.isArray(itinerary.value?.alerts) ? itinerary.value.alerts : []
 })
+const scheduleWarnings = computed(() => {
+  return Array.isArray(itinerary.value?.scheduleWarnings) ? itinerary.value.scheduleWarnings : []
+})
 const shareStatusText = computed(() => {
   if (!isLoggedIn.value) {
     return '当前是游客查看模式，登录后才能收藏路线、保存到历史并发布到社区。'
@@ -735,6 +706,10 @@ const shareStatusText = computed(() => {
 const resultActionGroups = computed(() => buildResultActionGroups({
   isLoggedIn: isLoggedIn.value,
   isPublic: Boolean(itinerary.value?.isPublic)
+}))
+const estimatedTotalBudget = computed(() => estimateTotalBudget({
+  baseCost: activeOption.value?.totalCost ?? itinerary.value?.totalCost,
+  activeNodes: activeNodes.value
 }))
 const statItems = computed(() => buildResultStatItems({
   activeOption: activeOption.value,
@@ -766,7 +741,9 @@ const posterDistricts = computed(() => {
   return districts.length ? districts.slice(0, 4) : ['城市核心区']
 })
 const posterRoutePreview = computed(() => {
-  const names = displayNodes.value.map(node => node.poiName).filter(Boolean)
+  const names = displayNodes.value
+    .map(node => formatPoiName(node?.poiName, ''))
+    .filter(Boolean)
   if (!names.length) {
     return '当前路线会根据点位坐标和城区分布自动预估海报中的地图区域。'
   }
@@ -800,10 +777,10 @@ const buildSegmentGuideFromName = nodeIndex => {
   if (nodeIndex === 0) {
     return departureLabel.value
   }
-  return displayNodes.value[nodeIndex - 1]?.poiName || '上一站'
+  return formatPoiName(displayNodes.value[nodeIndex - 1]?.poiName, '上一站')
 }
 
-const buildSegmentGuideToName = node => node?.poiName || '当前站'
+const buildSegmentGuideToName = node => formatPoiName(node?.poiName, '当前站')
 
 const buildTimelineSegmentClass = nodeIndex => {
   if (!isNodeLinkedToSegment(nodeIndex)) {
@@ -936,6 +913,9 @@ watch(displayNodes, () => {
 
 onBeforeUnmount(() => {
   clearMapSwitchTimers()
+  if (typeof window !== 'undefined') {
+    window.removeEventListener(ITINERARY_UPDATED_EVENT, handleExternalItineraryUpdate)
+  }
 })
 
 const formatDuration = minutes => {
@@ -1012,8 +992,16 @@ const goLoginForSavedActions = () => {
 }
 
 const goToDetail = node => {
-  if (!ensureLogin('查看详情并替换站点')) return
+  if (!ensureLogin('查看景点详情')) return
+  if (node?.sourceType === 'user_custom' || !node?.poiId || Number(node.poiId) <= 0) {
+    ElMessage.info('这个自定义地点暂不支持详情页，你可以在编辑路线里继续调整它。')
+    return
+  }
   router.push(`/detail/${node.poiId}`)
+}
+
+const handleItineraryEdited = payload => {
+  persistItinerary(payload)
 }
 
 const ensureLogin = (actionText = '继续操作') => {
@@ -1494,10 +1482,18 @@ const handleReplan = async () => {
   font-size: 13px;
 }
 
+.alert-strip-danger .alert-chip-danger {
+  background: rgba(255, 236, 239, 0.94);
+  border-color: rgba(230, 86, 106, 0.32);
+  color: #c0394b;
+}
+
 .map-motion-stage {
   position: relative;
-  margin-bottom: 20px;
+  margin-bottom: 0;
   isolation: isolate;
+  display: flex;
+  flex: 1;
   transition: transform 0.34s ease, filter 0.34s ease;
 }
 
@@ -1543,6 +1539,8 @@ const handleReplan = async () => {
   position: relative;
   z-index: 1;
   margin-bottom: 0;
+  flex: 1;
+  width: 100%;
 }
 
 .timeline-wrap {
@@ -1659,7 +1657,6 @@ const handleReplan = async () => {
 }
 
 .travel-analysis-box,
-.stop-tip-box,
 .nearby-box {
   margin-top: 16px;
   padding: 16px 18px;
@@ -1947,11 +1944,44 @@ const handleReplan = async () => {
   display: grid;
   grid-template-columns: minmax(0, 1.12fr) minmax(360px, 0.88fr);
   gap: 22px;
-  align-items: start;
+  align-items: stretch;
+}
+
+.result-map-column {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  min-height: 100%;
+}
+
+.map-recommendation-card {
+  padding: 22px 24px;
+  border-radius: 24px;
+  border: 1px solid rgba(188, 214, 255, 0.84);
+  background:
+    radial-gradient(circle at top right, rgba(95, 158, 255, 0.14), transparent 24%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(246, 250, 255, 0.94));
+  box-shadow: var(--shadow-soft);
+}
+
+.map-recommendation-label {
+  margin: 0 0 12px;
+  color: #7a8da3;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.map-recommendation-copy {
+  margin: 0;
+  color: #1f2d3d;
+  line-height: 1.9;
 }
 
 .timeline-panel {
   padding: 24px;
+  height: 100%;
 }
 
 .timeline-panel-head {
@@ -2032,6 +2062,185 @@ const handleReplan = async () => {
 
   .map-preview {
     grid-column: span 1;
+  }
+}
+
+@media (max-width: 768px) {
+  .result-page {
+    padding: 18px 12px 32px;
+  }
+
+  .result-shell {
+    width: 100%;
+  }
+
+  .hero-card,
+  .guest-tip-card,
+  .option-panel,
+  .timeline-panel,
+  .map-recommendation-card {
+    border-radius: 20px;
+  }
+
+  .hero-card {
+    grid-template-columns: 1fr;
+    padding: 22px 18px;
+    gap: 18px;
+  }
+
+  .hero-main h1,
+  .timeline-panel-head h2,
+  .panel-header h2 {
+    font-size: 26px;
+    line-height: 1.18;
+  }
+
+  .hero-copy,
+  .panel-copy,
+  .timeline-panel-copy {
+    font-size: 14px;
+    line-height: 1.75;
+  }
+
+  .hero-side {
+    padding: 18px;
+    border-radius: 18px;
+  }
+
+  .hero-secondary-actions,
+  .hero-tertiary-actions,
+  .hero-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .hero-secondary-actions .el-button,
+  .hero-tertiary-actions .el-button,
+  .hero-main-cta {
+    width: 100%;
+  }
+
+  .guest-tip-card {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 18px;
+  }
+
+  .guest-tip-actions .el-button {
+    width: 100%;
+  }
+
+  .option-panel {
+    padding: 18px;
+  }
+
+  .panel-header {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .option-counter {
+    align-self: flex-start;
+  }
+
+  .option-grid,
+  .stats-grid,
+  .copy-grid,
+  .poster-summary,
+  .poster-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .option-card,
+  .stat-card,
+  .copy-card,
+  .stop-card {
+    padding: 18px;
+    border-radius: 18px;
+  }
+
+  .result-focus-grid {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  .result-map-column {
+    gap: 18px;
+  }
+
+  .timeline-panel {
+    padding: 18px;
+  }
+
+  .timeline-panel-head {
+    flex-direction: column;
+  }
+
+  .day-switcher {
+    justify-content: flex-start;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 4px;
+  }
+
+  .day-switcher-btn {
+    flex: 0 0 auto;
+  }
+
+  .timeline-item,
+  .timeline-item.linked {
+    grid-template-columns: 18px minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .stop-head {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .actions-row {
+    justify-content: stretch;
+  }
+
+  .actions-row .el-button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .result-page {
+    padding-inline: 10px;
+  }
+
+  .hero-card,
+  .option-panel,
+  .timeline-panel {
+    padding: 16px;
+  }
+
+  .hero-main h1,
+  .timeline-panel-head h2,
+  .panel-header h2 {
+    font-size: 24px;
+  }
+
+  .hero-pill-row,
+  .option-tags,
+  .stop-tags,
+  .alert-strip {
+    gap: 6px;
+  }
+
+  .hero-pill,
+  .alert-chip,
+  .poster-tag,
+  .map-pill {
+    font-size: 12px;
+    padding: 7px 10px;
+  }
+
+  .stat-card strong {
+    font-size: 24px;
   }
 }
 </style>

@@ -25,6 +25,23 @@ import java.util.stream.Collectors;
 @Service
 public class RouteAnalysisService {
 
+    private static final List<String> GROUP_COMPANION_KEYWORDS = List.of(
+            "group", "multi", "friends", "friend", "family", "families", "team", "classmate",
+            "couple", "partner", "kids", "parent", "child", "children",
+            "\u591a\u4eba", "\u7ed3\u4f34", "\u670b\u53cb", "\u597d\u53cb", "\u5bb6\u5ead", "\u5bb6\u4eba",
+            "\u4eb2\u5b50", "\u56e2\u961f", "\u56e2\u5efa", "\u540c\u5b66", "\u60c5\u4fa3", "\u4f34\u4fa3"
+    );
+    private static final List<String> SOLO_COMPANION_KEYWORDS = List.of(
+            "solo", "single", "alone", "\u72ec\u81ea", "\u5355\u4eba", "\u4e00\u4eba", "\u4e2a\u4eba"
+    );
+    private static final List<String> GROUP_FRIENDLY_POI_KEYWORDS = List.of(
+            "group", "friends", "friend", "family", "families", "team", "couple", "kids",
+            "parent", "child", "children", "social", "interactive",
+            "\u591a\u4eba", "\u7ed3\u4f34", "\u670b\u53cb", "\u597d\u53cb", "\u5bb6\u5ead", "\u5bb6\u4eba",
+            "\u4eb2\u5b50", "\u56e2\u961f", "\u56e2\u5efa", "\u540c\u5b66", "\u60c5\u4fa3", "\u4e92\u52a8",
+            "\u805a\u4f1a", "\u5546\u5708", "\u8857\u533a", "\u7f8e\u98df", "\u516c\u56ed", "\u535a\u7269\u9986"
+    );
+
     private final TravelTimeService travelTimeService;
     private final ItineraryRouteOptimizer routeOptimizer;
     private final SegmentRouteGuideService segmentRouteGuideService;
@@ -348,10 +365,52 @@ public class RouteAnalysisService {
     }
 
     private boolean matchesCompanion(GenerateReqDTO req, Poi poi) {
-        return req != null
-                && StringUtils.hasText(req.getCompanionType())
-                && StringUtils.hasText(poi.getSuitableFor())
-                && poi.getSuitableFor().contains(req.getCompanionType());
+        if (req == null || poi == null || !StringUtils.hasText(req.getCompanionType())) {
+            return false;
+        }
+        String companionType = normalizeMatchingText(req.getCompanionType());
+        String audienceText = normalizeMatchingText(String.join(" ",
+                nullToEmpty(poi.getSuitableFor()),
+                nullToEmpty(poi.getTags()),
+                nullToEmpty(poi.getCategory()),
+                nullToEmpty(poi.getDescription())));
+        if (!StringUtils.hasText(audienceText)) {
+            return false;
+        }
+        return audienceText.contains(companionType)
+                || (isMultiPersonTrip(req) && containsAnyNormalized(audienceText, GROUP_FRIENDLY_POI_KEYWORDS));
+    }
+
+    private boolean isMultiPersonTrip(GenerateReqDTO req) {
+        if (req == null || !StringUtils.hasText(req.getCompanionType())) {
+            return false;
+        }
+        String companionType = normalizeMatchingText(req.getCompanionType());
+        if (containsAnyNormalized(companionType, SOLO_COMPANION_KEYWORDS)) {
+            return false;
+        }
+        return containsAnyNormalized(companionType, GROUP_COMPANION_KEYWORDS);
+    }
+
+    private boolean containsAnyNormalized(String normalizedText, List<String> keywords) {
+        if (!StringUtils.hasText(normalizedText) || keywords == null || keywords.isEmpty()) {
+            return false;
+        }
+        for (String keyword : keywords) {
+            String normalizedKeyword = normalizeMatchingText(keyword);
+            if (StringUtils.hasText(normalizedKeyword) && normalizedText.contains(normalizedKeyword)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String normalizeMatchingText(String value) {
+        return StringUtils.hasText(value) ? value.trim().toLowerCase(Locale.ROOT) : "";
+    }
+
+    private String nullToEmpty(String value) {
+        return value == null ? "" : value;
     }
 
     private boolean highPriority(Poi poi) {

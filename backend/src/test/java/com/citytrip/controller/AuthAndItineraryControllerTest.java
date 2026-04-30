@@ -12,7 +12,9 @@ import com.citytrip.mapper.CommunityLikeMapper;
 import com.citytrip.mapper.PoiMapper;
 import com.citytrip.mapper.RouteNodeFactMapper;
 import com.citytrip.mapper.RoutePlanFactMapper;
+import com.citytrip.mapper.SavedItineraryEditVersionMapper;
 import com.citytrip.mapper.SavedItineraryMapper;
+import com.citytrip.mapper.UserCustomPoiMapper;
 import com.citytrip.mapper.UserBehaviorEventMapper;
 import com.citytrip.mapper.UserMapper;
 import com.citytrip.model.dto.CommunityCommentReqDTO;
@@ -41,6 +43,7 @@ import com.citytrip.service.AdminService;
 import com.citytrip.service.ItineraryService;
 import com.citytrip.service.UserService;
 import com.citytrip.service.application.itinerary.SmartFillUseCase;
+import com.citytrip.service.guard.AiRequestGuard;
 import com.citytrip.util.JwtUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -57,10 +60,12 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
@@ -107,10 +112,19 @@ class AuthAndItineraryControllerTest {
     private AdminService adminService;
 
     @MockBean
+    private AiRequestGuard aiRequestGuard;
+
+    @MockBean
     private PoiMapper poiMapper;
 
     @MockBean
     private SavedItineraryMapper savedItineraryMapper;
+
+    @MockBean
+    private SavedItineraryEditVersionMapper savedItineraryEditVersionMapper;
+
+    @MockBean
+    private UserCustomPoiMapper userCustomPoiMapper;
 
     @MockBean
     private CommunityCommentMapper communityCommentMapper;
@@ -136,6 +150,8 @@ class AuthAndItineraryControllerTest {
     void setUp() {
         bearerToken = "Bearer " + jwtUtil.generateToken(101L, 1);
         lenient().when(userMapper.selectById(101L)).thenReturn(buildUser(101L, "tester", "Test Nickname", 1, 1));
+        lenient().when(aiRequestGuard.call(anyString(), anyString(), any()))
+                .thenAnswer(invocation -> ((Supplier<?>) invocation.getArgument(2)).get());
     }
 
     @Test
@@ -267,6 +283,17 @@ class AuthAndItineraryControllerTest {
                 .andExpect(jsonPath("$.summary[0]").value("必去：IFS国际金融中心"));
 
         verify(smartFillUseCase).parse(any(SmartFillReqDTO.class));
+    }
+
+    @Test
+    void smartFillRejectsBlankTextBeforeCallingUseCase() throws Exception {
+        mockMvc.perform(post("/api/itineraries/smart-fill")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"text":"   "}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("smart-fill text must not be blank"));
     }
 
     @Test

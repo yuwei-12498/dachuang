@@ -6,7 +6,7 @@
           <p class="hero-kicker">COMMUNITY GOVERNANCE</p>
           <h2>社区帖子治理中心</h2>
           <p class="hero-copy">
-            统一处理全站置顶、删帖与内容巡检，帮助社区首页保持精品感与阅读秩序。
+            统一处理首页轮播精选、删帖与内容巡检，帮助社区首页保持精品感与阅读秩序。
           </p>
         </div>
         <div class="hero-stats">
@@ -15,7 +15,7 @@
             <strong>{{ tableData.length }}</strong>
           </div>
           <div class="stat-pill danger">
-            <span>已置顶</span>
+            <span>轮播精选</span>
             <strong>{{ pinnedCount }}</strong>
           </div>
           <div class="stat-pill muted">
@@ -31,7 +31,7 @@
         <div class="card-header">
           <div>
             <div class="card-title">帖子列表</div>
-            <p class="card-subtitle">支持按关键词、置顶状态和删除状态筛选，并在这里完成轻治理操作。</p>
+            <p class="card-subtitle">支持按关键词、轮播精选状态和删除状态筛选，并在这里完成轻治理操作。</p>
           </div>
           <div class="header-actions">
             <el-button :icon="RefreshRight" @click="fetchData">刷新</el-button>
@@ -53,10 +53,10 @@
           </template>
         </el-input>
 
-        <el-select v-model="pinnedFilter" placeholder="置顶状态" clearable @change="handleSearch">
-          <el-option label="全部置顶状态" value="" />
-          <el-option label="仅看已置顶" value="1" />
-          <el-option label="仅看未置顶" value="0" />
+        <el-select v-model="pinnedFilter" placeholder="轮播状态" clearable @change="handleSearch">
+          <el-option label="全部轮播状态" value="" />
+          <el-option label="仅看轮播精选" value="1" />
+          <el-option label="仅看未入选轮播" value="0" />
         </el-select>
 
         <el-select v-model="deletedFilter" placeholder="删除状态" clearable @change="handleSearch">
@@ -80,7 +80,7 @@
               <div class="post-main">
                 <div class="post-title-row">
                   <strong>{{ row.title || '未命名路线帖' }}</strong>
-                  <el-tag v-if="row.globalPinned" type="danger" size="small" effect="dark">全站置顶</el-tag>
+                  <el-tag v-if="row.globalPinned" type="danger" size="small" effect="dark">首页轮播</el-tag>
                   <el-tag v-if="row.deleted" type="info" size="small">已删除</el-tag>
                 </div>
                 <p class="post-note">{{ row.shareNote || '暂无分享语' }}</p>
@@ -124,8 +124,8 @@
           <template #default="{ row }">
             <div class="time-cell">
               <span>更新于 {{ formatDateTime(row.updatedAt) }}</span>
-              <small v-if="row.globalPinnedAt">置顶于 {{ formatDateTime(row.globalPinnedAt) }}</small>
-              <small v-else>未置顶</small>
+              <small v-if="row.globalPinnedAt">入选轮播于 {{ formatDateTime(row.globalPinnedAt) }}</small>
+              <small v-else>未入选轮播</small>
             </div>
           </template>
         </el-table-column>
@@ -147,7 +147,7 @@
                 :disabled="row.deleted"
                 @click="togglePin(row)"
               >
-                {{ row.globalPinned ? '取消置顶' : '全站置顶' }}
+                {{ row.globalPinned ? '移出轮播' : '加入轮播' }}
               </el-button>
               <el-button
                 link
@@ -249,12 +249,12 @@ const openPost = row => {
 
 const togglePin = async row => {
   const nextPinned = !row.globalPinned
-  const actionLabel = nextPinned ? '设为全站置顶' : '取消全站置顶'
+  const actionLabel = nextPinned ? '加入首页轮播精选' : '移出首页轮播精选'
 
   try {
     await ElMessageBox.confirm(
       `确定要将 “${row.title || '未命名路线帖'}” ${actionLabel}吗？`,
-      '帖子置顶管理',
+      '首页轮播管理',
       {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
@@ -263,11 +263,11 @@ const togglePin = async row => {
     )
 
     await reqAdminCommunityPin(row.id, nextPinned)
-    ElMessage.success(nextPinned ? '已设为全站置顶' : '已取消全站置顶')
+    ElMessage.success(nextPinned ? '已加入首页轮播精选' : '已移出首页轮播精选')
     await fetchData()
   } catch (error) {
     if (error !== 'cancel' && error !== 'close') {
-      ElMessage.error(error?.response?.data?.message || '帖子置顶状态更新失败')
+      ElMessage.error(error?.response?.data?.message || '轮播精选状态更新失败')
     }
   }
 }

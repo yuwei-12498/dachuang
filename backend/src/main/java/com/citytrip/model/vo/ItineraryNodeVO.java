@@ -8,6 +8,7 @@ import java.util.List;
 
 @Data
 public class ItineraryNodeVO {
+    private String nodeKey;
     private Integer dayNo;
     private Integer stepOrder;
     private Long poiId;

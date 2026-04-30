@@ -32,11 +32,6 @@ public class OpenAiLlmServiceImpl implements LlmService {
     }
 
     @Override
-    public String generatePoiWarmTips(GenerateReqDTO userReq, ItineraryNodeVO node) {
-        return realLlmGatewayService.generatePoiWarmTips(userReq, node);
-    }
-
-    @Override
     public String generateRouteWarmTip(GenerateReqDTO userReq, List<ItineraryNodeVO> nodes) {
         return realLlmGatewayService.generateRouteWarmTip(userReq, nodes);
     }

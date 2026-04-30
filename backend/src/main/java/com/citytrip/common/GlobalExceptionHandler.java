@@ -5,6 +5,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.BindException;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -35,6 +38,17 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.BAD_REQUEST, e.getMessage(), request);
     }
 
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ApiErrorResponse> handleMethodArgumentNotValid(MethodArgumentNotValidException e,
+                                                                         HttpServletRequest request) {
+        return build(HttpStatus.BAD_REQUEST, firstValidationMessage(e), request);
+    }
+
+    @ExceptionHandler(BindException.class)
+    public ResponseEntity<ApiErrorResponse> handleBindException(BindException e, HttpServletRequest request) {
+        return build(HttpStatus.BAD_REQUEST, firstValidationMessage(e), request);
+    }
+
     @ExceptionHandler(SystemBusyException.class)
     public ResponseEntity<ApiErrorResponse> handleSystemBusy(SystemBusyException e, HttpServletRequest request) {
         return build(HttpStatus.CONFLICT, e.getMessage(), request);
@@ -55,5 +69,17 @@ public class GlobalExceptionHandler {
         String path = request == null ? null : request.getRequestURI();
         ApiErrorResponse body = new ApiErrorResponse(status.value(), message, path, traceId);
         return ResponseEntity.status(status).body(body);
+    }
+
+    private String firstValidationMessage(BindException e) {
+        FieldError fieldError = e.getBindingResult().getFieldError();
+        if (fieldError == null) {
+            return "Request validation failed";
+        }
+        String message = fieldError.getDefaultMessage();
+        if (message == null || message.trim().isEmpty()) {
+            return fieldError.getField() + " is invalid";
+        }
+        return message;
     }
 }

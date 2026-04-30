@@ -3,6 +3,7 @@ package com.citytrip.service.impl;
 import com.citytrip.model.dto.ChatReqDTO;
 import com.citytrip.model.dto.GenerateReqDTO;
 import com.citytrip.model.entity.Poi;
+import com.citytrip.model.vo.ChatSkillPayloadVO;
 import com.citytrip.model.vo.ItineraryNodeVO;
 import com.citytrip.model.vo.ItineraryOptionVO;
 import com.citytrip.service.domain.ai.ChatGeoSkillService;
@@ -41,6 +42,7 @@ public class SafePromptBuilder {
     static final int MAX_NODE_COUNT = 8;
     static final int MAX_NODE_FIELD_CHARS = 64;
     static final int MAX_NODE_REASON_CHARS = 36;
+    static final int MAX_NODE_STATUS_CHARS = 96;
     static final int MAX_ROUTE_SUMMARY_CHARS = 120;
     static final int MAX_OPTION_TAG_COUNT = 4;
     static final int MAX_OPTION_TAG_CHARS = 48;
@@ -65,6 +67,30 @@ public class SafePromptBuilder {
 
     public String buildChatUserPrompt(ChatReqDTO req, List<Poi> chatPois) {
         return buildChatUserPrompt(req, chatPois, Collections.emptyList());
+    }
+
+    public String buildSkillGroundedUserPrompt(ChatReqDTO req, ChatSkillPayloadVO payload) {
+        SanitizedText question = sanitizeText(req == null ? null : req.getQuestion(), MAX_CHAT_QUESTION_CHARS);
+        SanitizedText city = sanitizeText(payload == null ? null : payload.getCity(), MAX_CHAT_POI_FIELD_CHARS);
+        SanitizedText intent = sanitizeText(payload == null ? null : payload.getIntent(), MAX_CHAT_POI_FIELD_CHARS);
+        return """
+                <user_question>
+                %s
+                </user_question>
+                <skill_payload>
+                intent=%s
+                city=%s
+                source=%s
+                results=%s
+                </skill_payload>
+                请只基于 skill_payload 里的实时结果，用简体中文给出 120 字以内的推荐总结；不要编造未提供的价格、营业时间或距离。
+                """.formatted(
+                question.value(),
+                intent.value(),
+                city.value(),
+                payload == null ? "unspecified" : safeValue(payload.getSource()),
+                buildSkillResultSummary(payload)
+        );
     }
 
     public String buildChatUserPrompt(ChatReqDTO req,
@@ -194,25 +220,6 @@ public class SafePromptBuilder {
                 """.formatted(buildRequestSummary(req));
     }
 
-    public String buildGeneratePoiWarmTipsPrompt(GenerateReqDTO req, ItineraryNodeVO node) {
-        return """
-                <task>
-                请为这个地点生成 3 到 5 条温馨提示候选。
-                要求：
-                1. 每条单独一行；
-                2. 每条尽量控制在 12 到 28 个字；
-                3. 结合地点特征、游玩动线与安全提醒；
-                4. 不要输出编号、解释或前后缀。
-                </task>
-                <travel_request>
-                %s
-                </travel_request>
-                <poi>
-                %s
-                </poi>
-                """.formatted(buildRequestSummary(req), buildSinglePoiSummary(node));
-    }
-
     public String buildGenerateRouteWarmTipPrompt(GenerateReqDTO req, List<ItineraryNodeVO> nodes) {
         return """
                 <task>
@@ -248,8 +255,10 @@ public class SafePromptBuilder {
     public String buildExplainOptionRecommendationPrompt(GenerateReqDTO req, ItineraryOptionVO option) {
         return """
                 <task>
-                请基于旅行需求、路线概览、亮点和取舍，生成一段 80 字以内的路线推荐理由。
-                要求：自然口吻，优先突出最核心的 2 到 3 个优势，不要复述“根据你的需求”，不要编造未提供的信息。
+                你是路线解释型 AI，不是指标摘要器。请生成一段 90 字以内的结果页推荐说明。
+                必须点名路线中的 2-3 个具体 POI，解释路线顺序为什么成立，并结合通勤、停留、时间窗或取舍说明为什么推荐。
+                如果节点里有 source_type=external，必须提醒这是地图候选，出发前需要确认营业状态。
+                禁止只写综合得分、总花费、耗时更少、更加均衡等指标总结；不要复述“根据你的需求”；不要编造未提供的信息。
                 </task>
                 <travel_request>
                 %s
@@ -371,8 +380,8 @@ public class SafePromptBuilder {
                 Analyze the transport segment and return JSON only.
                 Required schema:
                 {
-                  "transportMode": "姝ヨ/楠戣/鍦伴搧+姝ヨ/鍏氦+姝ヨ/鎵撹溅",
-                  "narrative": "涓€鍙ヤ腑鏂囷紝瑙ｉ噴涓轰粈涔堣繖娈甸€傚悎杩欑鍑鸿鏂瑰紡"
+                  "transportMode": "步行/骑行/地铁+步行/公交+步行/打车",
+                  "narrative": "一句中文，解释为什么这段适合这种出行方式"
                 }
                 Rules:
                 - Use the factual route context first; do not invent transfers or stations.
@@ -420,7 +429,6 @@ public class SafePromptBuilder {
                   "nodes": [
                     {
                       "index": 0,
-                      "warmTips": ["提示1", "提示2", "提示3"],
                       "transportMode": "步行/骑行/地铁+步行/公交+步行/打车",
                       "narrative": "到达这个点位前这一段怎么走、为什么这样走更顺"
                     }
@@ -428,8 +436,6 @@ public class SafePromptBuilder {
                 }
                 Rules:
                 - index is zero-based and must match itinerary_nodes order.
-                - Generate 3-5 distinct warmTips for every node.
-                - Every warm tip must be concise Simplified Chinese and actionable.
                 - transportMode must respect factual_mode first; only normalize wording when factual_mode is missing or too generic.
                 - narrative describes the segment leading into this node. index=0 means current location -> first node.
                 - Do not invent subway lines, bus numbers, transfer stations, or distances that are not supported by facts.
@@ -494,12 +500,18 @@ public class SafePromptBuilder {
         for (int i = 0; i < limit; i++) {
             ItineraryNodeVO node = nodes.get(i);
             lines.add((i + 1) + ". poi_name=" + sanitizeText(node == null ? null : node.getPoiName(), MAX_NODE_FIELD_CHARS).value()
+                    + " | day=" + (node == null || node.getDayNo() == null ? "unspecified" : node.getDayNo())
+                    + " | step=" + (node == null || node.getStepOrder() == null ? "unspecified" : node.getStepOrder())
                     + " | category=" + sanitizeText(node == null ? null : node.getCategory(), MAX_NODE_FIELD_CHARS).value()
                     + " | district=" + sanitizeText(node == null ? null : node.getDistrict(), MAX_NODE_FIELD_CHARS).value()
+                    + " | source_type=" + sanitizeText(node == null ? null : node.getSourceType(), MAX_NODE_FIELD_CHARS).value()
                     + " | visit_time=" + sanitizeText(node == null ? null : node.getStartTime(), MAX_TIME_CHARS).value()
                     + "-" + sanitizeText(node == null ? null : node.getEndTime(), MAX_TIME_CHARS).value()
                     + " | travel_minutes=" + (node == null || node.getTravelTime() == null ? "unspecified" : node.getTravelTime())
+                    + " | transport_mode=" + sanitizeText(node == null ? null : node.getTravelTransportMode(), MAX_NODE_FIELD_CHARS).value()
+                    + " | distance_km=" + (node == null || node.getTravelDistanceKm() == null ? "unspecified" : node.getTravelDistanceKm().setScale(1, RoundingMode.HALF_UP).toPlainString())
                     + " | stay_minutes=" + (node == null || node.getStayDuration() == null ? "unspecified" : node.getStayDuration())
+                    + " | status_note=" + sanitizeText(node == null ? null : node.getStatusNote(), MAX_NODE_STATUS_CHARS).value()
                     + " | reason=" + sanitizeText(node == null ? null : node.getSysReason(), MAX_NODE_REASON_CHARS).value());
         }
         if (nodes.size() > limit) {
@@ -737,6 +749,31 @@ public class SafePromptBuilder {
         return String.join("\n", lines);
     }
 
+    private String buildSkillResultSummary(ChatSkillPayloadVO payload) {
+        if (payload == null || payload.getResults() == null || payload.getResults().isEmpty()) {
+            return "records=none";
+        }
+        List<String> lines = new ArrayList<>();
+        int limit = Math.min(payload.getResults().size(), MAX_CHAT_POI_COUNT);
+        for (int i = 0; i < limit; i++) {
+            ChatSkillPayloadVO.ResultItem item = payload.getResults().get(i);
+            lines.add((i + 1) + ". name=" + sanitizeText(item == null ? null : item.getName(), MAX_CHAT_POI_FIELD_CHARS).value()
+                    + " | category=" + sanitizeText(item == null ? null : item.getCategory(), MAX_CHAT_POI_FIELD_CHARS).value()
+                    + " | address=" + sanitizeText(item == null ? null : item.getAddress(), MAX_CHAT_POI_FIELD_CHARS).value()
+                    + " | city=" + sanitizeText(item == null ? null : item.getCityName(), MAX_CHAT_POI_FIELD_CHARS).value()
+                    + " | distance_m=" + formatFiniteDouble(item == null ? null : item.getDistanceMeters(), 0)
+                    + " | source=" + sanitizeText(item == null ? null : item.getSource(), MAX_CHAT_POI_FIELD_CHARS).value());
+        }
+        if (payload.getResults().size() > limit) {
+            lines.add("(omitted " + (payload.getResults().size() - limit) + " more results)");
+        }
+        return String.join("\n", lines);
+    }
+
+    private String safeValue(String value) {
+        return sanitizeText(value, MAX_CHAT_POI_FIELD_CHARS).value();
+    }
+
     private String buildGeoFactSummary(List<ChatGeoSkillService.GeoFact> geoFacts) {
         if (geoFacts == null || geoFacts.isEmpty()) {
             return "records=none";
@@ -758,6 +795,13 @@ public class SafePromptBuilder {
         return String.join("\n", lines);
     }
 
+    private String formatFiniteDouble(Double value, int scale) {
+        if (value == null || value.isNaN() || value.isInfinite()) {
+            return "unspecified";
+        }
+        return BigDecimal.valueOf(value).setScale(scale, RoundingMode.HALF_UP).stripTrailingZeros().toPlainString();
+    }
+
     private String formatCoordinate(Double value) {
         if (value == null || value.isNaN() || value.isInfinite()) {
             return "unspecified";
@@ -771,3 +815,4 @@ public class SafePromptBuilder {
     private record SanitizedText(String value, boolean truncated) {
     }
 }
+

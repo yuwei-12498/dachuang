@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "npm run test:unit && npm run test:node",
+    "test:unit": "vitest run",
+    "test:node": "node --test build/__tests__/backendPortConfig.test.js build/__tests__/resolveDevProxyTarget.test.js"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.1.0",

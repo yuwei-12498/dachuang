@@ -168,7 +168,7 @@ public class AdminServiceImpl implements AdminService {
         long normalizedSize = normalizeSize(size);
         String normalizedKeyword = trimToNull(keyword);
 
-        List<SavedItinerary> entities = savedItineraryRepository.listAll();
+        List<SavedItinerary> entities = savedItineraryRepository.listPublicVisible();
         List<Long> itineraryIds = entities.stream().map(SavedItinerary::getId).filter(Objects::nonNull).toList();
         Map<Long, User> userMap = loadUsersByIds(entities.stream().map(SavedItinerary::getUserId).filter(Objects::nonNull).collect(Collectors.toSet()));
         Map<Long, Long> commentCountMap = loadCommentCountMap(itineraryIds);

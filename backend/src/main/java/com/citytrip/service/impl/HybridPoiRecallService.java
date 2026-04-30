@@ -44,6 +44,23 @@ public class HybridPoiRecallService {
     private static final String CACHE_KEY_PREFIX = "hybrid:poi-recall:v1:";
     private static final String DEFAULT_RECALL_STRATEGY = "hybrid-usercf-content-v1";
     private static final String CONTENT_FALLBACK_STRATEGY = "content-feature-fallback-v1";
+    private static final double REPEAT_PENALTY_MAX = 0.42D;
+    private static final List<String> GROUP_COMPANION_KEYWORDS = List.of(
+            "group", "multi", "friends", "friend", "family", "families", "team", "classmate",
+            "couple", "partner", "kids", "parent", "child", "children",
+            "\u591a\u4eba", "\u7ed3\u4f34", "\u670b\u53cb", "\u597d\u53cb", "\u5bb6\u5ead", "\u5bb6\u4eba",
+            "\u4eb2\u5b50", "\u56e2\u961f", "\u56e2\u5efa", "\u540c\u5b66", "\u60c5\u4fa3", "\u4f34\u4fa3"
+    );
+    private static final List<String> SOLO_COMPANION_KEYWORDS = List.of(
+            "solo", "single", "alone", "\u72ec\u81ea", "\u5355\u4eba", "\u4e00\u4eba", "\u4e2a\u4eba"
+    );
+    private static final List<String> GROUP_FRIENDLY_POI_KEYWORDS = List.of(
+            "group", "friends", "friend", "family", "families", "team", "couple", "kids",
+            "parent", "child", "children", "social", "interactive",
+            "\u591a\u4eba", "\u7ed3\u4f34", "\u670b\u53cb", "\u597d\u53cb", "\u5bb6\u5ead", "\u5bb6\u4eba",
+            "\u4eb2\u5b50", "\u56e2\u961f", "\u56e2\u5efa", "\u540c\u5b66", "\u60c5\u4fa3", "\u4e92\u52a8",
+            "\u805a\u4f1a", "\u5546\u5708", "\u8857\u533a", "\u7f8e\u98df", "\u516c\u56ed", "\u535a\u7269\u9986"
+    );
 
     private final UserBehaviorEventMapper userBehaviorEventMapper;
     private final PoiMapper poiMapper;
@@ -89,7 +106,7 @@ public class HybridPoiRecallService {
             return contentFallback(filteredCandidates, normalizedRecallLimit, CONTENT_FALLBACK_STRATEGY + "-cold-start");
         }
 
-        String cacheKey = buildCacheKey(userId, req, filteredCandidates, normalizedRecallLimit);
+        String cacheKey = buildCacheKey(userId, req, filteredCandidates, normalizedRecallLimit, userVector);
         LinkedHashMap<Long, Double> cachedScoreMap = readCachedScoreMap(cacheKey);
         if (!cachedScoreMap.isEmpty()) {
             List<Poi> cachedCandidates = restoreCachedCandidates(filteredCandidates, cachedScoreMap, normalizedRecallLimit);
@@ -104,7 +121,7 @@ public class HybridPoiRecallService {
                 .limit(MAX_SEED_POI_COUNT)
                 .toList();
         if (seedPoiIds.isEmpty()) {
-            return contentFallback(filteredCandidates, normalizedRecallLimit, CONTENT_FALLBACK_STRATEGY + "-seed-empty");
+            return contentFallback(filteredCandidates, normalizedRecallLimit, CONTENT_FALLBACK_STRATEGY + "-seed-empty", userVector);
         }
 
         List<Long> similarUserIds;
@@ -117,10 +134,10 @@ public class HybridPoiRecallService {
             );
         } catch (DataAccessException ex) {
             log.warn("用户协同召回降级为内容召回（邻居用户查询失败），userId={}, reason={}", userId, ex.getMessage());
-            return contentFallback(filteredCandidates, normalizedRecallLimit, CONTENT_FALLBACK_STRATEGY + "-analytics-unavailable");
+            return contentFallback(filteredCandidates, normalizedRecallLimit, CONTENT_FALLBACK_STRATEGY + "-analytics-unavailable", userVector);
         }
         if (similarUserIds == null || similarUserIds.isEmpty()) {
-            return contentFallback(filteredCandidates, normalizedRecallLimit, CONTENT_FALLBACK_STRATEGY + "-no-neighbor");
+            return contentFallback(filteredCandidates, normalizedRecallLimit, CONTENT_FALLBACK_STRATEGY + "-no-neighbor", userVector);
         }
 
         Set<Long> relevantPoiIds = new LinkedHashSet<>();
@@ -135,22 +152,22 @@ public class HybridPoiRecallService {
             );
         } catch (DataAccessException ex) {
             log.warn("用户协同召回降级为内容召回（邻居偏好查询失败），userId={}, reason={}", userId, ex.getMessage());
-            return contentFallback(filteredCandidates, normalizedRecallLimit, CONTENT_FALLBACK_STRATEGY + "-analytics-unavailable");
+            return contentFallback(filteredCandidates, normalizedRecallLimit, CONTENT_FALLBACK_STRATEGY + "-analytics-unavailable", userVector);
         }
         if (neighborRows == null || neighborRows.isEmpty()) {
-            return contentFallback(filteredCandidates, normalizedRecallLimit, CONTENT_FALLBACK_STRATEGY + "-neighbor-empty");
+            return contentFallback(filteredCandidates, normalizedRecallLimit, CONTENT_FALLBACK_STRATEGY + "-neighbor-empty", userVector);
         }
 
         Map<Long, Map<Long, Double>> neighborVectors = toUserVectors(neighborRows);
         Map<Long, Double> similarityMap = buildSimilarityMap(userVector, neighborVectors);
         if (similarityMap.isEmpty()) {
-            return contentFallback(filteredCandidates, normalizedRecallLimit, CONTENT_FALLBACK_STRATEGY + "-zero-similarity");
+            return contentFallback(filteredCandidates, normalizedRecallLimit, CONTENT_FALLBACK_STRATEGY + "-zero-similarity", userVector);
         }
 
         UserContentProfile profile = buildUserContentProfile(seedPoiIds, userVector);
         PersonalizedScores personalizedScores = blendScores(filteredCandidates, userVector, neighborVectors, similarityMap, profile, req);
         if (personalizedScores.orderedPoiIds().isEmpty()) {
-            return contentFallback(filteredCandidates, normalizedRecallLimit, CONTENT_FALLBACK_STRATEGY + "-blend-empty");
+            return contentFallback(filteredCandidates, normalizedRecallLimit, CONTENT_FALLBACK_STRATEGY + "-blend-empty", userVector);
         }
 
         List<Poi> personalizedCandidates = materializePersonalizedCandidates(
@@ -160,7 +177,7 @@ public class HybridPoiRecallService {
                 normalizedRecallLimit
         );
         if (personalizedCandidates.isEmpty()) {
-            return contentFallback(filteredCandidates, normalizedRecallLimit, CONTENT_FALLBACK_STRATEGY + "-materialize-empty");
+            return contentFallback(filteredCandidates, normalizedRecallLimit, CONTENT_FALLBACK_STRATEGY + "-materialize-empty", userVector);
         }
 
         cacheScoreMap(cacheKey, personalizedScores.topScoreMap(normalizedRecallLimit));
@@ -175,9 +192,30 @@ public class HybridPoiRecallService {
     }
 
     private RecallResult contentFallback(List<Poi> filteredCandidates, int recallLimit, String strategy) {
+        return contentFallback(filteredCandidates, recallLimit, strategy, Collections.emptyMap());
+    }
+
+    private RecallResult contentFallback(List<Poi> filteredCandidates,
+                                         int recallLimit,
+                                         String strategy,
+                                         Map<Long, Double> userVector) {
+        double maxSeenWeight = userVector == null || userVector.isEmpty()
+                ? 1D
+                : userVector.values().stream().mapToDouble(Double::doubleValue).max().orElse(1D);
         List<Poi> fallback = filteredCandidates.stream()
-                .sorted(Comparator.comparingDouble(this::resolveContentScore).reversed()
-                        .thenComparing(Poi::getId, Comparator.nullsLast(Long::compareTo)))
+                .sorted((left, right) -> {
+                    double rightScore = resolveContentScore(right)
+                            - resolveRepeatPenalty(right == null ? null : right.getId(), userVector, maxSeenWeight) * 4.0D;
+                    double leftScore = resolveContentScore(left)
+                            - resolveRepeatPenalty(left == null ? null : left.getId(), userVector, maxSeenWeight) * 4.0D;
+                    int byScore = Double.compare(rightScore, leftScore);
+                    if (byScore != 0) {
+                        return byScore;
+                    }
+                    Long rightId = right == null ? null : right.getId();
+                    Long leftId = left == null ? null : left.getId();
+                    return Comparator.nullsLast(Long::compareTo).compare(leftId, rightId);
+                })
                 .limit(recallLimit)
                 .collect(Collectors.toCollection(ArrayList::new));
         return new RecallResult(filteredCandidates, fallback, strategy, 0, 0, false);
@@ -353,9 +391,7 @@ public class HybridPoiRecallService {
             double normalizedCollaborative = maxCollaborativeScore <= 0D ? 0D : collaborativeScore / maxCollaborativeScore;
             double profileScore = scoreByProfile(poi, profile, req);
             double supportScore = maxSupport <= 0 ? 0D : supportCountMap.getOrDefault(poi.getId(), 0) * 1D / maxSupport;
-            double repeatPenalty = userVector.containsKey(poi.getId())
-                    ? Math.min(0.18D, userVector.getOrDefault(poi.getId(), 0D) / Math.max(1D, maxSeenWeight) * 0.18D)
-                    : 0D;
+            double repeatPenalty = resolveRepeatPenalty(poi.getId(), userVector, maxSeenWeight);
 
             double rankingScore = normalizedContent * 0.55D
                     + normalizedCollaborative * 0.25D
@@ -412,7 +448,55 @@ public class HybridPoiRecallService {
                 && Objects.equals(normalizeKey(req.getWalkingLevel()), normalizeKey(poi.getWalkingLevel()))) {
             score += 0.05D;
         }
+        if (matchesCompanionPreference(req, poi)) {
+            score += 0.06D;
+        }
         return Math.min(score, 1D);
+    }
+
+    private boolean matchesCompanionPreference(GenerateReqDTO req, Poi poi) {
+        if (req == null || poi == null || !StringUtils.hasText(req.getCompanionType())) {
+            return false;
+        }
+        String companionType = normalizeKey(req.getCompanionType());
+        String audienceText = normalizeKey(String.join(" ",
+                nullToEmpty(poi.getSuitableFor()),
+                nullToEmpty(poi.getTags()),
+                nullToEmpty(poi.getCategory()),
+                nullToEmpty(poi.getDescription())));
+        if (!StringUtils.hasText(audienceText)) {
+            return false;
+        }
+        return audienceText.contains(companionType)
+                || (isMultiPersonTrip(req) && containsAnyNormalized(audienceText, GROUP_FRIENDLY_POI_KEYWORDS));
+    }
+
+    private boolean isMultiPersonTrip(GenerateReqDTO req) {
+        if (req == null || !StringUtils.hasText(req.getCompanionType())) {
+            return false;
+        }
+        String companionType = normalizeKey(req.getCompanionType());
+        if (containsAnyNormalized(companionType, SOLO_COMPANION_KEYWORDS)) {
+            return false;
+        }
+        return containsAnyNormalized(companionType, GROUP_COMPANION_KEYWORDS);
+    }
+
+    private boolean containsAnyNormalized(String normalizedText, Collection<String> keywords) {
+        if (!StringUtils.hasText(normalizedText) || keywords == null || keywords.isEmpty()) {
+            return false;
+        }
+        for (String keyword : keywords) {
+            String normalizedKeyword = normalizeKey(keyword);
+            if (StringUtils.hasText(normalizedKeyword) && normalizedText.contains(normalizedKeyword)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String nullToEmpty(String value) {
+        return value == null ? "" : value;
     }
 
     private List<Poi> materializePersonalizedCandidates(List<Poi> filteredCandidates,
@@ -517,7 +601,8 @@ public class HybridPoiRecallService {
     private String buildCacheKey(Long userId,
                                  GenerateReqDTO req,
                                  List<Poi> filteredCandidates,
-                                 int recallLimit) {
+                                 int recallLimit,
+                                 Map<Long, Double> userVector) {
         StringBuilder builder = new StringBuilder(CACHE_KEY_PREFIX)
                 .append(userId == null ? 0L : userId)
                 .append(':')
@@ -543,7 +628,36 @@ public class HybridPoiRecallService {
                 .limit(8)
                 .map(String::valueOf)
                 .collect(Collectors.joining("-")));
+        if (userVector != null && !userVector.isEmpty()) {
+            String userSignature = userVector.entrySet().stream()
+                    .sorted(Map.Entry.<Long, Double>comparingByValue().reversed())
+                    .limit(6)
+                    .map(entry -> entry.getKey() + "-" + Math.round(entry.getValue() * 100D))
+                    .collect(Collectors.joining("_"));
+            builder.append(':').append(userSignature);
+        }
         return builder.toString();
+    }
+
+    private double resolveRepeatPenalty(Long poiId, Map<Long, Double> userVector, double maxSeenWeight) {
+        if (poiId == null || userVector == null || userVector.isEmpty() || !userVector.containsKey(poiId)) {
+            return 0D;
+        }
+        double rawWeight = userVector.getOrDefault(poiId, 0D);
+        if (rawWeight <= 0D) {
+            return 0D;
+        }
+        double normalized = Math.min(1D, rawWeight / Math.max(1D, maxSeenWeight));
+        if (normalized >= 0.85D) {
+            return REPEAT_PENALTY_MAX;
+        }
+        if (normalized >= 0.60D) {
+            return 0.32D;
+        }
+        if (normalized >= 0.30D) {
+            return 0.22D;
+        }
+        return 0.12D + normalized * 0.10D;
     }
 
     private boolean isRedisAvailable() {

@@ -44,10 +44,6 @@ public class RealLlmGatewayService {
         return callText(safePromptBuilder.buildGenerateTipsPrompt(userReq));
     }
 
-    public String generatePoiWarmTips(GenerateReqDTO userReq, ItineraryNodeVO node) {
-        return callText(safePromptBuilder.buildGeneratePoiWarmTipsPrompt(userReq, node));
-    }
-
     public String generateRouteWarmTip(GenerateReqDTO userReq, List<ItineraryNodeVO> nodes) {
         return callText(safePromptBuilder.buildGenerateRouteWarmTipPrompt(userReq, nodes));
     }
@@ -180,11 +176,11 @@ public class RealLlmGatewayService {
 
     SegmentTransportAnalysisVO parseSegmentTransportAnalysisResponse(String raw) {
         if (!StringUtils.hasText(raw)) {
-            throw new IllegalStateException("鍑鸿娈典氦閫氬垎鏋愬け璐ワ細妯″瀷杩斿洖涓虹┖");
+            throw new IllegalStateException("出行段交通分析失败：模型返回为空");
         }
         String json = extractJsonObject(raw);
         if (!StringUtils.hasText(json)) {
-            throw new IllegalStateException("鍑鸿娈典氦閫氬垎鏋愬け璐ワ細鏈彁鍙栧埌 JSON 缁撴瀯");
+            throw new IllegalStateException("出行段交通分析失败：未提取到 JSON 结构");
         }
         try {
             JsonNode root = objectMapper.readTree(json);
@@ -199,7 +195,7 @@ public class RealLlmGatewayService {
             }
             return analysis;
         } catch (Exception ex) {
-            throw new IllegalStateException("鍑鸿娈典氦閫氬垎鏋愬け璐ワ細妯″瀷杈撳嚭涓嶆槸鍙В鏋?JSON", ex);
+            throw new IllegalStateException("出行段交通分析失败：模型输出不是可解析 JSON", ex);
         }
     }
 
@@ -237,17 +233,6 @@ public class RealLlmGatewayService {
                     String narrative = node.path("narrative").asText(null);
                     if (StringUtils.hasText(narrative)) {
                         item.setNarrative(narrative.replaceAll("[\\r\\n]+", " ").trim());
-                    }
-                    JsonNode warmTips = node.path("warmTips");
-                    if (warmTips.isArray()) {
-                        List<String> tips = new ArrayList<>();
-                        for (JsonNode tip : warmTips) {
-                            String text = tip == null ? null : tip.asText(null);
-                            if (StringUtils.hasText(text)) {
-                                tips.add(text.replaceAll("[\\r\\n]+", " ").trim());
-                            }
-                        }
-                        item.setWarmTips(tips);
                     }
                     decoratedNodes.add(item);
                 }

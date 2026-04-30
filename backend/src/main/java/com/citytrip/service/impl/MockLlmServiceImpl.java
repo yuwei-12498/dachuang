@@ -72,11 +72,6 @@ public class MockLlmServiceImpl implements LlmService {
     }
 
     @Override
-    public String generatePoiWarmTips(GenerateReqDTO userReq, ItineraryNodeVO node) {
-        return String.join("\n", buildPoiTipPool(userReq, node));
-    }
-
-    @Override
     public String generateRouteWarmTip(GenerateReqDTO userReq, List<ItineraryNodeVO> nodes) {
         int stopCount = nodes == null ? 0 : nodes.size();
         if (stopCount == 0) {
@@ -267,79 +262,12 @@ public class MockLlmServiceImpl implements LlmService {
 
             RouteNodeDecorationVO item = new RouteNodeDecorationVO();
             item.setIndex(index);
-            item.setWarmTips(buildPoiTipPool(userReq, node));
             item.setTransportMode(segment.getTransportMode());
             item.setNarrative(segment.getNarrative());
             items.add(item);
         }
         decoration.setNodes(items);
         return decoration;
-    }
-
-    private List<String> buildPoiTipPool(GenerateReqDTO userReq, ItineraryNodeVO node) {
-        Set<String> tips = new LinkedHashSet<>();
-        String merged = (node == null ? "" : String.join(" ",
-                defaultString(node.getPoiName()),
-                defaultString(node.getCategory()),
-                defaultString(node.getDistrict())
-        )).toLowerCase();
-
-        if (containsAny(merged, "青城山", "mount", "mountain", "山", "徒步", "trail", "hiking")) {
-            tips.add("上山前先补水，体力更稳。");
-            tips.add("台阶较多，穿防滑鞋更安心。");
-            tips.add("返程别赶路，给膝盖留余量。");
-            tips.add("山里温差偏大，备件薄外套更稳妥。");
-            tips.add("拍照别站边缘，转身时多留一步。");
-        } else if (containsAny(merged, "ifs", "太古里", "春熙路", "商圈", "国金中心", "skp")) {
-            tips.add("商圈入口多，先认准主入口。");
-            tips.add("高峰人流密，约好集合点。");
-            tips.add("先看楼层导航，少走回头路。");
-            tips.add("热门时段电梯慢，预留一点机动时间。");
-            tips.add("街区岔路多，拐弯前先看导航箭头。");
-        } else if (containsAny(merged, "博物馆", "美术馆", "展览", "纪念馆")) {
-            tips.add("热门馆排队快，早点到会更舒服。");
-            tips.add("进馆前先看预约信息，少走回头路。");
-            tips.add("展厅安静区域多，拍照先留意提示牌。");
-            tips.add("重点展区容易停久，别把后面时间挤太满。");
-        } else if (containsAny(merged, "古镇", "老街", "宽窄巷子", "锦里", "步行街")) {
-            tips.add("街巷岔口多，先定碰头点更省心。");
-            tips.add("高峰时人流密，贵重物品尽量贴身放。");
-            tips.add("石板路偶尔打滑，转弯时放慢一点。");
-            tips.add("热门小吃排队快，想吃就先路过先买。");
-        } else if (containsAny(merged, "寺", "祠", "宫", "观")) {
-            tips.add("参观前先看礼仪提示，走动会更从容。");
-            tips.add("台阶区域较多，上下时别急着赶路。");
-            tips.add("高峰时段游客集中，想拍空景建议早一点。");
-        }
-
-        if (Boolean.TRUE.equals(userReq == null ? null : userReq.getIsRainy())) {
-            tips.add("雨天路面偏滑，鞋底抓地力更重要。");
-        }
-        if (Boolean.TRUE.equals(userReq == null ? null : userReq.getIsNight())) {
-            tips.add("返程别拖太晚，出门前先看好回程方式。");
-        }
-        if ("亲子".equals(userReq == null ? null : userReq.getCompanionType())) {
-            tips.add("带小朋友时别把节奏拉太满，中途多休息。");
-        }
-        if (tips.isEmpty()) {
-            tips.add("先看导航和入口位置，到场会更省时间。");
-            tips.add("热门时段人会多一点，预留些机动时间。");
-            tips.add("边走边拍时注意脚下，节奏放稳更舒服。");
-            tips.add("如果要临时换点位，先确认下一站路线。");
-        }
-        return tips.stream().limit(5).toList();
-    }
-
-    private boolean containsAny(String text, String... keywords) {
-        if (!StringUtils.hasText(text) || keywords == null) {
-            return false;
-        }
-        for (String keyword : keywords) {
-            if (StringUtils.hasText(keyword) && text.contains(keyword.toLowerCase())) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private String defaultString(String value) {
@@ -437,7 +365,7 @@ public class MockLlmServiceImpl implements LlmService {
         if (fromNode != null && StringUtils.hasText(fromNode.getTravelTransportMode())) {
             return fromNode.getTravelTransportMode().trim();
         }
-        return "??+??";
+        return "地铁+步行";
     }
 
     private String buildSegmentNarrative(GenerateReqDTO userReq,
@@ -445,9 +373,9 @@ public class MockLlmServiceImpl implements LlmService {
                                          ItineraryNodeVO toNode,
                                          String transportMode) {
         String origin = fromNode == null
-                ? defaultString(userReq == null ? null : userReq.getDeparturePlaceName(), "????")
-                : defaultString(fromNode.getPoiName(), "???");
-        String destination = toNode == null ? "???" : defaultString(toNode.getPoiName(), "???");
+                ? defaultString(userReq == null ? null : userReq.getDeparturePlaceName(), "当前位置")
+                : defaultString(fromNode.getPoiName(), "上一站");
+        String destination = toNode == null ? "下一站" : defaultString(toNode.getPoiName(), "当前站");
         Integer minutes = toNode == null
                 ? null
                 : (fromNode == null ? toNode.getDepartureTravelTime() : toNode.getTravelTime());
@@ -456,13 +384,14 @@ public class MockLlmServiceImpl implements LlmService {
                 : (fromNode == null ? toNode.getDepartureDistanceKm() : toNode.getTravelDistanceKm());
 
         if (minutes != null && minutes > 0 && distanceKm != null && distanceKm.compareTo(BigDecimal.ZERO) > 0) {
-            return origin + "?" + destination + "???" + minutes + "????" + distanceKm.setScale(1, RoundingMode.HALF_UP).toPlainString()
-                    + "????" + transportMode + "????";
+            return origin + "到" + destination + "这段约" + minutes + "分钟，约"
+                    + distanceKm.setScale(1, RoundingMode.HALF_UP).toPlainString()
+                    + "公里，用" + transportMode + "更稳妥。";
         }
         if (minutes != null && minutes > 0) {
-            return origin + "?" + destination + "???" + minutes + "????" + transportMode + "?????";
+            return origin + "到" + destination + "这段约" + minutes + "分钟，用" + transportMode + "衔接更顺。";
         }
-        return origin + "?" + destination + "?????" + transportMode + "????????";
+        return origin + "到" + destination + "这段建议优先用" + transportMode + "，整体节奏更稳。";
     }
 
     private String defaultString(String value, String fallback) {

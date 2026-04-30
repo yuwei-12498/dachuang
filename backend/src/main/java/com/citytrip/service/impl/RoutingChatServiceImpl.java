@@ -130,8 +130,8 @@ public class RoutingChatServiceImpl implements ChatService {
         vo.setBaseUrl(chatOptions.getBaseUrl());
         vo.setToolReady(llmProperties.canTryRealTool());
         vo.setGeoReady(isGeoReady());
-        vo.setEmbeddingReady(isSemanticReady());
-        vo.setRerankReady(isSemanticReady());
+        vo.setEmbeddingReady(isEmbeddingReady());
+        vo.setRerankReady(isRerankReady());
         vo.setWarnings(llmProperties.getRealModelConfigWarnings());
 
         if (llmProperties.isMockOnly()) {
@@ -167,8 +167,16 @@ public class RoutingChatServiceImpl implements ChatService {
                 && StringUtils.hasText(geoSearchProperties.getBaseUrl());
     }
 
+    private boolean isEmbeddingReady() {
+        return communitySemanticSearchService != null && communitySemanticSearchService.isEmbeddingReady();
+    }
+
+    private boolean isRerankReady() {
+        return communitySemanticSearchService != null && communitySemanticSearchService.isRerankReady();
+    }
+
     private boolean isSemanticReady() {
-        return communitySemanticSearchService != null;
+        return communitySemanticSearchService != null && communitySemanticSearchService.isSemanticModelReady();
     }
 
     private String buildReadyMessage(String fallbackMessage) {

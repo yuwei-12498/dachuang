@@ -3,29 +3,64 @@
     <div class="panel-header">
       <div class="ai-avatar">AI</div>
       <div class="ai-title-wrap">
-        <h3 class="panel-title">行程问答助手</h3>
-        <span class="panel-subtitle">{{ authState.user ? '告诉我你的偏好，我来帮你理顺玩法与路线' : '登录后可获得更贴合你的路线建议' }}</span>
+        <h3 class="panel-title">行程助手</h3>
+        <span class="panel-subtitle">
+          {{ authState.user ? '试试问我附近酒店、景点推荐或路线调整' : '登录后即可启用智能问答与路线建议' }}
+        </span>
       </div>
     </div>
 
     <div class="panel-body" ref="chatBodyRef">
       <div class="msg-list">
         <template v-for="(msg, index) in chatState.messages" :key="index">
-          <div class="msg-item" :class="msg.role === 'user' ? 'msg-user' : 'msg-ai'">
-            <div class="bubble">{{ msg.content }}</div>
+          <div class="msg-block" :class="msg.role === 'user' ? 'msg-user-block' : 'msg-ai-block'">
+            <div class="msg-item" :class="msg.role === 'user' ? 'msg-user' : 'msg-ai'">
+              <div class="bubble">{{ msg.content }}</div>
+            </div>
+            <div v-if="msg.role === 'assistant' && msg.meta?.actions?.length" class="message-actions">
+              <el-button
+                v-for="(action, actionIndex) in msg.meta.actions"
+                :key="`${index}-action-${action.key || actionIndex}`"
+                size="small"
+                round
+                class="action-btn"
+                :type="resolveActionButtonType(action.style)"
+                :plain="action.style !== 'primary'"
+                :loading="pendingActionKey === buildActionKey(action, index)"
+                @click="handleMessageAction(msg, action, index)"
+              >
+                {{ action.label }}
+              </el-button>
+            </div>
           </div>
         </template>
+
         <div v-if="chatState.loading" class="msg-item msg-ai">
-          <div class="bubble loading-dots">思考中<span>.</span><span>.</span><span>.</span></div>
+          <div class="bubble loading-dots">正在思考<span>.</span><span>.</span><span>.</span></div>
         </div>
       </div>
     </div>
 
-    <div class="panel-quick-tips" v-if="chatState.currentTips.length > 0">
-      <p class="tips-title">你可以继续追问：</p>
+    <div v-if="visibleSkillResults.length > 0" class="skill-results">
+      <p class="tips-title">为你找到</p>
+      <div
+        v-for="(item, idx) in visibleSkillResults"
+        :key="`${item.name || 'skill-result'}-${idx}`"
+        class="skill-result-card"
+      >
+        <div class="skill-result-card__name">{{ item.name || '未命名地点' }}</div>
+        <div class="skill-result-card__meta">
+          {{ item.category || '未知分类' }}
+          <span v-if="item.address"> · {{ item.address }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="visibleTips.length > 0" class="panel-quick-tips">
+      <p class="tips-title">快捷提问</p>
       <div class="tips-container">
         <el-tag
-          v-for="(tip, idx) in chatState.currentTips"
+          v-for="(tip, idx) in visibleTips"
           :key="idx"
           class="tip-tag"
           size="small"
@@ -37,49 +72,35 @@
       </div>
     </div>
 
-    <div class="panel-quick-tips" v-if="chatState.currentEvidence.length > 0">
-      <p class="tips-title">本次回答依据：</p>
-      <div class="tips-container">
-        <el-tag
-          v-for="(item, idx) in chatState.currentEvidence"
-          :key="`evidence-${idx}`"
-          class="tip-tag"
-          size="small"
-          effect="plain"
-        >
-          {{ item }}
-        </el-tag>
-      </div>
-    </div>
-
-    <div class="panel-footer" v-if="authState.user">
+    <div v-if="authState.user" class="panel-footer">
       <el-input
         v-model="inputVal"
-        placeholder="例如：春熙路附近有什么值得去的？"
-        @keyup.enter="handleSend"
+        placeholder="输入你想了解的地点、酒店或路线"
         class="chat-input"
         clearable
+        @keyup.enter="handleSend"
       >
         <template #append>
-          <el-button @click="handleSend" type="primary" :disabled="!inputVal.trim() || chatState.loading">发送</el-button>
+          <el-button type="primary" :disabled="!inputVal.trim() || chatState.loading" @click="handleSend">发送</el-button>
         </template>
       </el-input>
     </div>
 
     <div v-else class="panel-footer login-footer">
-      <p class="login-copy">登录后可向 AI 询问点位建议、距离路线与出行提醒。</p>
-      <el-button type="primary" round class="login-btn" @click="goLogin">登录后再问</el-button>
+      <p class="login-copy">登录后可使用 AI 行程问答、附近推荐和路线建议。</p>
+      <el-button type="primary" round class="login-btn" @click="goLogin">去登录</el-button>
     </div>
   </div>
 </template>
 
 <script setup>
-import { nextTick, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthState } from '@/store/auth'
-import { askChatQuestion, useChatState } from '@/store/chat'
+import { askChatQuestion, appendAssistantMessage, resetChatState, useChatState } from '@/store/chat'
 import { buildSharedChatContext } from '@/utils/chatContext'
+import { handleChatWorkflowAction } from '@/utils/chatWorkflowActions'
 
 const props = defineProps({
   currentForm: {
@@ -94,6 +115,13 @@ const authState = useAuthState()
 const chatState = useChatState()
 const chatBodyRef = ref(null)
 const inputVal = ref('')
+const pendingActionKey = ref('')
+
+const visibleTips = computed(() => chatState.currentTips.slice(0, 2))
+const visibleSkillResults = computed(() => {
+  const results = chatState.currentSkillPayload?.results
+  return Array.isArray(results) ? results.slice(0, 3) : []
+})
 
 const goLogin = () => {
   router.push({
@@ -108,19 +136,33 @@ const ensureLogin = () => {
   if (authState.user) {
     return true
   }
-  ElMessage.warning('登录后即可向 AI 咨询路线灵感、景点建议和避坑提醒。')
+  ElMessage.warning('请先登录后再使用 AI 行程助手')
   goLogin()
   return false
 }
 
 const buildContext = () => buildSharedChatContext({
   pageType: 'home',
-  currentForm: props.currentForm
+  currentForm: props.currentForm,
+  includeItinerary: false,
+  includeStoredForm: false
 })
 
-const sendQuestion = (q) => {
+const buildActionKey = (action, index) => `${index}:${action?.key || action?.type || action?.label || 'action'}`
+
+const resolveActionButtonType = style => {
+  if (style === 'primary') {
+    return 'primary'
+  }
+  if (style === 'danger') {
+    return 'danger'
+  }
+  return 'default'
+}
+
+const sendQuestion = question => {
   if (!ensureLogin()) return
-  inputVal.value = q
+  inputVal.value = question
   handleSend()
 }
 
@@ -135,11 +177,33 @@ const handleSend = async () => {
   try {
     await askChatQuestion(question, buildContext())
   } catch (err) {
-    if (err && err.code === 401) {
-      ElMessage.warning('登录状态已失效，请重新登录后继续提问。')
+    if (err?.code === 401) {
+      ElMessage.warning('登录状态已失效，请重新登录')
       goLogin()
     }
   } finally {
+    scrollToBottom()
+  }
+}
+
+const handleMessageAction = async (message, action, index) => {
+  if (!ensureLogin()) return
+
+  const actionKey = buildActionKey(action, index)
+  pendingActionKey.value = actionKey
+  try {
+    const handled = await handleChatWorkflowAction({
+      action,
+      message,
+      buildContext
+    })
+    if (!handled) {
+      appendAssistantMessage('这个操作暂时还不支持，你可以换个说法继续告诉我。')
+    }
+  } catch (error) {
+    ElMessage.error(error?.response?.data?.message || error?.message || '操作失败，请稍后重试')
+  } finally {
+    pendingActionKey.value = ''
     scrollToBottom()
   }
 }
@@ -152,7 +216,7 @@ const scrollToBottom = () => {
   })
 }
 
-const handleWheelScroll = (event) => {
+const handleWheelScroll = event => {
   const container = chatBodyRef.value
   if (!container) return
 
@@ -173,6 +237,12 @@ watch(() => chatState.streamTick, () => {
 
 watch(() => chatState.loading, () => {
   scrollToBottom()
+})
+
+watch(() => authState.user, () => {
+  resetChatState()
+}, {
+  immediate: true
 })
 </script>
 
@@ -245,9 +315,23 @@ watch(() => chatState.loading, () => {
   gap: 12px;
 }
 
+.msg-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .msg-item {
   display: flex;
   max-width: 85%;
+}
+
+.msg-user-block {
+  align-items: flex-end;
+}
+
+.msg-ai-block {
+  align-items: flex-start;
 }
 
 .msg-user {
@@ -265,7 +349,7 @@ watch(() => chatState.loading, () => {
   border-radius: 12px;
   font-size: 13px;
   line-height: 1.55;
-  word-break: break-all;
+  word-break: break-word;
 }
 
 .msg-user .bubble {
@@ -282,14 +366,41 @@ watch(() => chatState.loading, () => {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
 }
 
+.message-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.action-btn {
+  min-height: 30px;
+}
+
+.skill-results,
 .panel-quick-tips {
   padding: 8px 14px;
   background: #fafbfc;
   border-top: 1px solid #ebeef5;
 }
 
+.skill-result-card + .skill-result-card {
+  margin-top: 8px;
+}
+
+.skill-result-card__name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1f2d3d;
+}
+
+.skill-result-card__meta {
+  margin-top: 2px;
+  font-size: 12px;
+  color: #7c8da5;
+}
+
 .tips-title {
-  margin: 0 0 6px 0;
+  margin: 0 0 6px;
   font-size: 11px;
   color: #909399;
 }
@@ -357,7 +468,9 @@ watch(() => chatState.loading, () => {
 }
 
 @keyframes typing {
-  0%, 80%, 100% {
+  0%,
+  80%,
+  100% {
     transform: scale(0);
     opacity: 0;
   }

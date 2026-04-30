@@ -1,174 +1,303 @@
 <template>
-  <section class="examples-section" id="examples">
+  <section v-if="featuredPosts.length" class="examples-section" id="examples">
     <div class="examples-container">
       <div class="section-header">
-        <h2 class="section-title">灵感来源于真实的足迹</h2>
-        <p class="section-subtitle">看看系统为不同偏好生成的样板路线，也许其中就有你的心仪之选</p>
+        <div>
+          <p class="section-kicker">COMMUNITY PICKS</p>
+          <h2 class="section-title">社区优秀路线精选</h2>
+          <p class="section-subtitle">
+            这里展示管理员精选的 3-5 条优质路线贴，先逛灵感，再决定你的下一段城市行程。
+          </p>
+        </div>
+        <div class="section-badge">自动轮播 · 支持手动切换</div>
       </div>
 
-      <el-row :gutter="30" class="examples-row">
-        <!-- 样例 1 -->
-        <el-col :xs="24" :md="12">
-          <div class="example-card">
-            <div class="card-cover cover-1">
-              <div class="cover-tags">
-                <el-tag effect="dark" type="success" size="small">两日深度游</el-tag>
-                <el-tag effect="dark" type="warning" size="small">网红打卡</el-tag>
-              </div>
-            </div>
-            <div class="card-content">
-              <h3 class="ex-title">寻味锦官城：周末特种兵觅食记</h3>
-              <p class="ex-desc">周六直奔建设路扫街，避开下午两点人流高峰夜游九眼桥；周日早起打卡大熊猫基地，紧接春熙路扫货。</p>
-              <div class="ex-meta">
-                <span>预算：￥400/人</span>
-                <span class="dot">·</span>
-                <span>包含 9 个点位</span>
-              </div>
-            </div>
-          </div>
-        </el-col>
+      <el-carousel
+        :interval="5000"
+        trigger="click"
+        arrow="always"
+        autoplay
+        indicator-position="outside"
+        height="420px"
+        class="featured-carousel"
+      >
+        <el-carousel-item v-for="item in featuredPosts" :key="item.id">
+          <article class="featured-card" @click="openCommunityDetail(item.id)">
+            <img
+              :src="item.coverImageUrl || fallbackCover"
+              :alt="item.title || '社区精选路线'"
+              class="featured-cover"
+            >
 
-        <!-- 样例 2 -->
-        <el-col :xs="24" :md="12">
-          <div class="example-card">
-            <div class="card-cover cover-2">
-              <div class="cover-tags">
-                <el-tag effect="dark" color="#a18cd1" size="small" style="border: none">半天闲逛</el-tag>
-                <el-tag effect="dark" color="#409EFF" size="small" style="border: none">低步行强度</el-tag>
+            <div class="featured-overlay">
+              <div class="featured-top-row">
+                <span class="featured-badge">{{ item.featuredLabel || '管理员精选' }}</span>
+                <span class="featured-author">{{ item.authorLabel || '匿名旅行者' }}</span>
+              </div>
+
+              <div class="featured-main">
+                <h3>{{ item.title || '未命名路线帖' }}</h3>
+                <p>{{ item.shareNote || item.routeSummary || '点击查看这条路线帖的完整安排。' }}</p>
+              </div>
+
+              <div class="featured-tags">
+                <el-tag
+                  v-for="theme in (item.themes || []).slice(0, 4)"
+                  :key="`${item.id}-${theme}`"
+                  size="small"
+                  effect="dark"
+                >
+                  {{ theme }}
+                </el-tag>
+              </div>
+
+              <div class="featured-meta">
+                <span>{{ formatDuration(item.totalDuration) }}</span>
+                <span>预算 {{ formatCurrency(item.totalCost) }}</span>
+                <span>评论 {{ item.commentCount || 0 }}</span>
+                <span>点赞 {{ item.likeCount || 0 }}</span>
               </div>
             </div>
-            <div class="card-content">
-              <h3 class="ex-title">带娃听雨：悠闲的室内早教之旅</h3>
-              <p class="ex-desc">因应雨天偏好，系统将原本室外采风自动切为成都自然博物馆半日巡游，搭配就近的亲子无障碍餐厅午饭，轻松省心。</p>
-              <div class="ex-meta">
-                <span>预算：￥120/人</span>
-                <span class="dot">·</span>
-                <span>包含 3 个点位</span>
-              </div>
-            </div>
-          </div>
-        </el-col>
-      </el-row>
+          </article>
+        </el-carousel-item>
+      </el-carousel>
     </div>
   </section>
 </template>
 
 <script setup>
-// 无需外部导入
+import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { reqListCommunityItineraries } from '@/api/itinerary'
+import { buildFeaturedPosts } from '@/utils/communityFeatured'
+
+const router = useRouter()
+const pinnedRecords = ref([])
+const feedRecords = ref([])
+const fallbackCover = 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80'
+
+const featuredPosts = computed(() => {
+  return buildFeaturedPosts({
+    pinnedRecords: pinnedRecords.value,
+    records: feedRecords.value
+  })
+    .slice(0, 5)
+})
+
+const loadFeaturedPosts = async () => {
+  try {
+    const res = await reqListCommunityItineraries({
+      page: 1,
+      size: 20,
+      sort: 'latest'
+    })
+    pinnedRecords.value = Array.isArray(res?.pinnedRecords) ? res.pinnedRecords : []
+    feedRecords.value = Array.isArray(res?.records) ? res.records : []
+  } catch (error) {
+    pinnedRecords.value = []
+    feedRecords.value = []
+  }
+}
+
+const openCommunityDetail = id => {
+  if (!id) return
+  router.push(`/community/${id}`)
+}
+
+const formatDuration = minutes => {
+  const value = Number(minutes)
+  if (!Number.isFinite(value) || value < 0) return '--'
+  const hour = Math.floor(value / 60)
+  const minute = value % 60
+  if (!hour) return `${minute} 分钟`
+  if (!minute) return `${hour} 小时`
+  return `${hour} 小时 ${minute} 分钟`
+}
+
+const formatCurrency = value => {
+  if (value === null || value === undefined || value === '') return '--'
+  return `¥${value}`
+}
+
+onMounted(() => {
+  loadFeaturedPosts()
+})
 </script>
 
 <style scoped>
 .examples-section {
-  padding: 100px 24px;
-  background-color: #f7f8fa;
+  padding: 96px 24px;
+  background:
+    radial-gradient(circle at top left, rgba(124, 182, 255, 0.12), transparent 24%),
+    linear-gradient(180deg, #f7f9fc 0%, #f3f7fd 100%);
 }
 
 .examples-container {
-  max-width: 1000px; /* 故意收窄以提升质感 */
+  max-width: 1120px;
   margin: 0 auto;
 }
 
 .section-header {
-  text-align: center;
-  margin-bottom: 60px;
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: end;
+  margin-bottom: 26px;
+}
+
+.section-kicker {
+  margin: 0 0 8px;
+  color: var(--brand-600);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
 }
 
 .section-title {
-  font-size: 32px;
-  font-weight: 800;
+  margin: 0;
   color: #1f2d3d;
-  margin: 0 0 16px 0;
+  font-size: 34px;
+  font-weight: 800;
 }
 
 .section-subtitle {
-  font-size: 16px;
-  color: #606266;
-  margin: 0;
+  margin: 12px 0 0;
+  max-width: 640px;
+  color: #607185;
+  font-size: 15px;
+  line-height: 1.8;
 }
 
-.examples-row {
+.section-badge {
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(188, 214, 255, 0.82);
+  background: rgba(255, 255, 255, 0.88);
+  color: #5e738c;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.featured-carousel {
+  border-radius: 28px;
+  overflow: hidden;
+}
+
+.featured-card {
+  position: relative;
+  height: 420px;
+  border-radius: 28px;
+  overflow: hidden;
+  cursor: pointer;
+  background: #dce9fa;
+  border: 1px solid rgba(188, 214, 255, 0.84);
+  box-shadow: 0 22px 54px rgba(31, 45, 61, 0.12);
+}
+
+.featured-cover {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.35s ease;
+}
+
+.featured-card:hover .featured-cover {
+  transform: scale(1.04);
+}
+
+.featured-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 28px;
+  background:
+    linear-gradient(180deg, rgba(13, 24, 40, 0.16) 0%, rgba(13, 24, 40, 0.72) 100%);
+  color: #fff;
+}
+
+.featured-top-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.featured-badge,
+.featured-author {
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.featured-main {
+  margin-top: auto;
+}
+
+.featured-main h3 {
+  margin: 0;
+  font-size: 30px;
+  line-height: 1.16;
+}
+
+.featured-main p {
+  margin: 14px 0 0;
+  max-width: 720px;
+  line-height: 1.8;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.featured-tags {
   display: flex;
   flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
 }
 
-.example-card {
-  background: #ffffff;
-  border-radius: 16px;
-  overflow: hidden;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-  height: 100%;
-}
-
-.example-card:hover {
-  transform: translateY(-8px);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
-}
-
-.card-cover {
-  height: 200px;
-  position: relative;
-  background-size: cover;
-  background-position: center;
-}
-
-/* 采用柔和的高级纯色块替代无图时的空洞感 */
-.cover-1 {
-  background: linear-gradient(120deg, #fdfbfb 0%, #ebedee 100%);
-  border-bottom: 1px solid #f0f2f5;
-}
-
-.cover-2 {
-  background: linear-gradient(120deg, #e0c3fc 0%, #8ec5fc 100%);
-}
-
-.cover-tags {
-  position: absolute;
-  top: 16px;
-  left: 16px;
+.featured-meta {
   display: flex;
-  gap: 8px;
-}
-
-.card-content {
-  padding: 24px;
-}
-
-.ex-title {
-  font-size: 18px;
-  font-weight: 700;
-  color: #303133;
-  margin: 0 0 12px 0;
-}
-
-.ex-desc {
-  font-size: 14px;
-  color: #606266;
-  line-height: 1.6;
-  margin: 0 0 20px 0;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.ex-meta {
-  display: flex;
-  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 20px;
   font-size: 13px;
-  color: #909399;
-  font-weight: 500;
+  color: rgba(255, 255, 255, 0.86);
 }
 
-.dot {
-  margin: 0 8px;
-  font-weight: bold;
+:deep(.featured-carousel .el-carousel__button) {
+  width: 28px;
+  border-radius: 999px;
 }
 
-@media (max-width: 768px) {
-  .example-card {
-    margin-bottom: 30px;
+:deep(.featured-carousel .el-carousel__arrow) {
+  width: 44px;
+  height: 44px;
+  background: rgba(15, 28, 46, 0.5);
+}
+
+@media (max-width: 900px) {
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .featured-card,
+  :deep(.featured-carousel .el-carousel__container) {
+    height: 460px !important;
+  }
+
+  .featured-main h3 {
+    font-size: 24px;
   }
 }
 </style>

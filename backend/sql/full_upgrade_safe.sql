@@ -124,6 +124,6 @@ DROP PROCEDURE IF EXISTS AddIndexIfMissing;
 DROP PROCEDURE IF EXISTS AddColumn;
 
 source F:/dachuang/backend/sql/upgrade_analytics_fact_tables_20260417.sql;
+source F:/dachuang/backend/sql/upgrade_itinerary_edit_tables_20260429.sql;
 source F:/dachuang/backend/sql/upgrade_poi_city_dimension_20260424.sql;
-source F:/dachuang/backend/sql/seed_poi_web_20260408.sql;
-source F:/dachuang/backend/sql/refresh_poi_web_20260408.sql;
+source F:/dachuang/backend/sql/seed_poi_chengdu_enriched_20260424_final.sql;

@@ -1,0 +1,79 @@
+﻿# Copy this file to ../.env or application-local.yml and replace placeholders.
+# Do not commit real passwords or API keys.
+
+server:
+  port: ${SERVER_PORT:8082}
+
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:mysql://127.0.0.1:3306/${APP_DB_NAME:city_trip_db}?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&createDatabaseIfNotExist=true}
+    username: ${DB_USERNAME:${APP_DB_USERNAME:root}}
+    password: ${DB_PASSWORD:${MYSQL_PWD:${APP_DB_PASSWORD:}}}
+  flyway:
+    enabled: ${APP_FLYWAY_ENABLED:true}
+    locations: classpath:db/migration
+    baseline-on-migrate: ${APP_FLYWAY_BASELINE_ON_MIGRATE:true}
+    baseline-version: ${APP_FLYWAY_BASELINE_VERSION:0}
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      database: ${REDIS_DATABASE:0}
+      timeout: ${REDIS_TIMEOUT:3s}
+
+app:
+  cors:
+    allowed-origin-patterns: ${APP_CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:3000,http://127.0.0.1:3000}
+  redis:
+    enabled: ${APP_REDIS_ENABLED:false}
+  db:
+    # Flyway is the primary schema-management path. Enable this only as a diagnostic check.
+    verify-on-startup: ${APP_DB_VERIFY_ON_STARTUP:false}
+  auth:
+    bootstrap-admin:
+      # Disabled by default to avoid silently creating a weak administrator account.
+      # To create the first admin, set enabled=true and provide a strong unique password.
+      enabled: ${APP_BOOTSTRAP_ADMIN_ENABLED:false}
+      username: ${APP_BOOTSTRAP_ADMIN_USERNAME:admin}
+      password: ${APP_BOOTSTRAP_ADMIN_PASSWORD:}
+      nickname: ${APP_BOOTSTRAP_ADMIN_NICKNAME:系统管理员}
+      sync-password: ${APP_BOOTSTRAP_ADMIN_SYNC_PASSWORD:false}
+  jwt:
+    secret: ${APP_JWT_SECRET:replace-with-at-least-32-random-characters}
+    expiration-hours: ${APP_JWT_EXPIRATION_HOURS:24}
+  planning:
+    ai-timeout-ms: ${APP_PLANNING_AI_TIMEOUT_MS:25000}
+  ai-guard:
+    enabled: ${APP_AI_GUARD_ENABLED:true}
+    chat:
+      max-concurrent: ${APP_AI_GUARD_CHAT_MAX_CONCURRENT:6}
+      cooldown-ms: ${APP_AI_GUARD_CHAT_COOLDOWN_MS:250}
+    stream:
+      max-concurrent: ${APP_AI_GUARD_STREAM_MAX_CONCURRENT:4}
+      cooldown-ms: ${APP_AI_GUARD_STREAM_COOLDOWN_MS:500}
+    smart-fill:
+      max-concurrent: ${APP_AI_GUARD_SMART_FILL_MAX_CONCURRENT:4}
+      cooldown-ms: ${APP_AI_GUARD_SMART_FILL_COOLDOWN_MS:800}
+    generate:
+      max-concurrent: ${APP_AI_GUARD_GENERATE_MAX_CONCURRENT:3}
+      cooldown-ms: ${APP_AI_GUARD_GENERATE_COOLDOWN_MS:1200}
+  geo:
+    enabled: ${APP_GEO_ENABLED:false}
+    base-url: ${APP_GEO_BASE_URL:}
+    api-key: ${APP_GEO_API_KEY:}
+    connect-timeout-ms: ${APP_GEO_CONNECT_TIMEOUT_MS:800}
+    read-timeout-ms: ${APP_GEO_READ_TIMEOUT_MS:1200}
+
+llm:
+  provider: ${LLM_PROVIDER:mock}
+  fallback-to-mock: ${LLM_FALLBACK_TO_MOCK:true}
+  timeout-seconds: ${LLM_TIMEOUT_SECONDS:30}
+  connect-timeout-seconds: ${LLM_CONNECT_TIMEOUT_SECONDS:3}
+  read-timeout-seconds: ${LLM_READ_TIMEOUT_SECONDS:${LLM_TIMEOUT_SECONDS:30}}
+  openai:
+    enabled: ${LLM_OPENAI_ENABLED:false}
+    api-key: ${OPENAI_API_KEY:}
+    base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+    model: ${OPENAI_MODEL:gpt-5.4}
+    temperature: ${OPENAI_TEMPERATURE:0.7}
+    max-output-tokens: ${OPENAI_MAX_OUTPUT_TOKENS:600}

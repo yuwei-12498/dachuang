@@ -3,11 +3,15 @@ package com.citytrip.controller;
 import com.citytrip.annotation.LoginRequired;
 import com.citytrip.common.SystemBusyException;
 import com.citytrip.model.dto.ChatReqDTO;
+import com.citytrip.model.vo.ChatSkillPayloadVO;
 import com.citytrip.model.vo.ChatStatusVO;
 import com.citytrip.model.vo.ChatVO;
 import com.citytrip.service.ChatService;
+import com.citytrip.service.guard.AiRequestGuard;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.core.task.TaskRejectedException;
@@ -33,25 +37,29 @@ public class ChatController {
 
     private final ChatService chatService;
     private final TaskExecutor chatStreamExecutor;
+    private final AiRequestGuard aiRequestGuard;
 
     public ChatController(ChatService chatService,
-                          @Qualifier("chatStreamExecutor") TaskExecutor chatStreamExecutor) {
+                          @Qualifier("chatStreamExecutor") TaskExecutor chatStreamExecutor,
+                          AiRequestGuard aiRequestGuard) {
         this.chatService = chatService;
         this.chatStreamExecutor = chatStreamExecutor;
+        this.aiRequestGuard = aiRequestGuard;
     }
 
     @LoginRequired
     @PostMapping
-    public ChatVO askQuestion(@RequestBody ChatReqDTO req) {
+    public ChatVO askQuestion(@Valid @RequestBody ChatReqDTO req, HttpServletRequest request) {
         log.info("Received chat request. questionLength={}, hasContext={}", questionLength(req), hasContext(req));
-        return chatService.answerQuestion(req);
+        return aiRequestGuard.call("chat", guardSubject(request), () -> chatService.answerQuestion(req));
     }
 
     @LoginRequired
     @PostMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter streamQuestion(@RequestBody ChatReqDTO req) {
+    public SseEmitter streamQuestion(@Valid @RequestBody ChatReqDTO req, HttpServletRequest request) {
         log.info("Received streaming chat request. questionLength={}, hasContext={}", questionLength(req), hasContext(req));
         SseEmitter emitter = new SseEmitter(STREAM_TIMEOUT_MILLIS);
+        AiRequestGuard.GuardPermit guardPermit = aiRequestGuard.acquire("stream", guardSubject(request));
         AtomicBoolean connectionOpen = new AtomicBoolean(true);
         emitter.onCompletion(() -> {
             connectionOpen.set(false);
@@ -68,10 +76,11 @@ public class ChatController {
         });
 
         try {
-            chatStreamExecutor.execute(() -> handleStreamingRequest(req, emitter, connectionOpen));
+            chatStreamExecutor.execute(() -> handleStreamingRequest(req, emitter, connectionOpen, guardPermit));
         } catch (TaskRejectedException ex) {
+            guardPermit.close();
             log.warn("Streaming chat request rejected because the executor is saturated.");
-            throw new SystemBusyException("当前聊天请求较多，请稍后重试");
+            throw new SystemBusyException("\u5f53\u524d\u804a\u5929\u8bf7\u6c42\u8f83\u591a\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5");
         }
         return emitter;
     }
@@ -82,7 +91,10 @@ public class ChatController {
         return chatService.getStatus();
     }
 
-    private void handleStreamingRequest(ChatReqDTO req, SseEmitter emitter, AtomicBoolean connectionOpen) {
+    private void handleStreamingRequest(ChatReqDTO req,
+                                        SseEmitter emitter,
+                                        AtomicBoolean connectionOpen,
+                                        AiRequestGuard.GuardPermit guardPermit) {
         try {
             AtomicBoolean emittedAnyToken = new AtomicBoolean(false);
             ChatVO result = chatService.streamAnswer(req, token -> {
@@ -99,7 +111,8 @@ public class ChatController {
             }
             sendEvent(emitter, metaEvent(
                     result == null ? List.of() : result.getRelatedTips(),
-                    result == null ? List.of() : result.getEvidence()
+                    result == null ? List.of() : result.getEvidence(),
+                    result == null ? null : result.getSkillPayload()
             ), connectionOpen);
             sendEvent(emitter, doneEvent(), connectionOpen);
             emitter.complete();
@@ -112,6 +125,8 @@ public class ChatController {
             log.warn("Streaming chat request failed. reason={}", ex.getMessage(), ex);
             sendEvent(emitter, errorEvent(ex.getMessage()), connectionOpen);
             emitter.complete();
+        } finally {
+            guardPermit.close();
         }
     }
 
@@ -136,11 +151,12 @@ public class ChatController {
         return payload;
     }
 
-    private Map<String, Object> metaEvent(List<String> relatedTips, List<String> evidence) {
+    private Map<String, Object> metaEvent(List<String> relatedTips, List<String> evidence, ChatSkillPayloadVO skillPayload) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("type", "meta");
         payload.put("relatedTips", relatedTips == null ? List.of() : relatedTips);
         payload.put("evidence", evidence == null ? List.of() : evidence);
+        payload.put("skillPayload", skillPayload);
         return payload;
     }
 
@@ -167,4 +183,14 @@ public class ChatController {
     private boolean hasContext(ChatReqDTO req) {
         return req != null && req.getContext() != null;
     }
+
+    private String guardSubject(HttpServletRequest request) {
+        Long userId = request == null ? null : (Long) request.getAttribute(com.citytrip.common.AuthConstants.LOGIN_USER_ID);
+        if (userId != null) {
+            return "user:" + userId;
+        }
+        String remoteAddr = request == null ? null : request.getRemoteAddr();
+        return remoteAddr == null || remoteAddr.trim().isEmpty() ? "anonymous" : "anon:" + remoteAddr.trim();
+    }
 }
+

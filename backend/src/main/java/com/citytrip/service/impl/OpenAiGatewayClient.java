@@ -76,6 +76,13 @@ public class OpenAiGatewayClient {
                 return execute(options, apiKey, request, tokenConsumer);
             }
             throw ex;
+        } catch (IllegalStateException ex) {
+            if (shouldRetryWithoutStreaming(request, ex, options)) {
+                log.info("Gateway stream returned no visible content, retrying non-stream. model={}, endpoint={}",
+                        request.getModel(), normalizeBaseUrl(options.getBaseUrl()) + "/chat/completions");
+                return retryWithoutStreaming(options, apiKey, request, tokenConsumer);
+            }
+            throw ex;
         }
     }
 
@@ -93,6 +100,31 @@ public class OpenAiGatewayClient {
                 || lower.contains("max_completion_tokens")
                 || lower.contains("unsupported parameter")
                 || lower.contains("unknown field");
+    }
+
+    private boolean shouldRetryWithoutStreaming(OpenAiChatRequest request,
+                                                IllegalStateException ex,
+                                                LlmProperties.ResolvedOpenAiOptions options) {
+        if (!Boolean.TRUE.equals(request.getStream()) || ex == null) {
+            return false;
+        }
+        String message = ex.getMessage();
+        if (!hasText(message) || !message.contains("OpenAI message content is empty")) {
+            return false;
+        }
+        return looksLikeVivoBaseUrl(options.getBaseUrl()) || LlmProperties.isVivoAllowedModel(request.getModel());
+    }
+
+    private String retryWithoutStreaming(LlmProperties.ResolvedOpenAiOptions options,
+                                         String apiKey,
+                                         OpenAiChatRequest request,
+                                         Consumer<String> tokenConsumer) {
+        request.setStream(false);
+        String content = execute(options, apiKey, request, null);
+        if (hasText(content) && tokenConsumer != null) {
+            tokenConsumer.accept(content.trim());
+        }
+        return content;
     }
 
     private String execute(LlmProperties.ResolvedOpenAiOptions options,

@@ -47,9 +47,35 @@ public class ItineraryRouteOptimizer {
     private static final double TRAVEL_PENALTY_WEIGHT = 1.0D;
     private static final double CROWD_PENALTY_WEIGHT = 4.0D;
     private static final double CANDIDATE_CROWD_SCORE_WEIGHT = 1.5D;
+    private static final double COMPANION_MATCH_SCORE = 2.5D;
+    private static final double GROUP_TRAVEL_FIT_SCORE = 3.0D;
+    private static final double GROUP_TRAVEL_MISMATCH_PENALTY = 1.5D;
+    private static final double RAIN_FRIENDLY_SCORE = 1.5D;
+    private static final double WALKING_FIT_SCORE = 1.0D;
     private static final double FIRST_LEG_TIME_PENALTY_WEIGHT = 0.9D;
     private static final double FIRST_LEG_DISTANCE_PENALTY_WEIGHT = 4.8D;
     private static final double FIRST_LEG_TRANSFER_PENALTY_WEIGHT = 7.0D;
+    private static final List<String> SOLO_COMPANION_KEYWORDS = List.of(
+            "solo", "single", "alone", "\u72ec\u81ea", "\u5355\u4eba", "\u4e00\u4eba", "\u4e2a\u4eba"
+    );
+    private static final List<String> GROUP_COMPANION_KEYWORDS = List.of(
+            "group", "multi", "friends", "friend", "family", "families", "team", "classmate",
+            "couple", "partner", "kids", "parent", "child", "children",
+            "\u591a\u4eba", "\u7ed3\u4f34", "\u670b\u53cb", "\u597d\u53cb", "\u5bb6\u5ead", "\u5bb6\u4eba",
+            "\u4eb2\u5b50", "\u56e2\u961f", "\u56e2\u5efa", "\u540c\u5b66", "\u60c5\u4fa3", "\u4f34\u4fa3"
+    );
+    private static final List<String> GROUP_FRIENDLY_POI_KEYWORDS = List.of(
+            "group", "friends", "friend", "family", "families", "team", "couple", "kids",
+            "parent", "child", "children", "social", "interactive",
+            "\u591a\u4eba", "\u7ed3\u4f34", "\u670b\u53cb", "\u597d\u53cb", "\u5bb6\u5ead", "\u5bb6\u4eba",
+            "\u4eb2\u5b50", "\u56e2\u961f", "\u56e2\u5efa", "\u540c\u5b66", "\u60c5\u4fa3", "\u4e92\u52a8",
+            "\u805a\u4f1a", "\u5546\u5708", "\u8857\u533a", "\u7f8e\u98df", "\u516c\u56ed", "\u535a\u7269\u9986"
+    );
+    private static final List<String> SOLO_FOCUSED_POI_KEYWORDS = List.of(
+            "solo", "single", "alone", "quiet", "meditation", "study",
+            "\u72ec\u81ea", "\u5355\u4eba", "\u4e00\u4eba", "\u4e2a\u4eba", "\u5b89\u9759", "\u9759\u4fee",
+            "\u51a5\u60f3", "\u81ea\u4e60"
+    );
 
     private final PoiService poiService;
     private final TravelTimeService travelTimeService;
@@ -624,13 +650,87 @@ public class ItineraryRouteOptimizer {
         if (!StringUtils.hasText(value)) {
             return 2;
         }
-        if (value.contains("低") || value.equalsIgnoreCase("low")) {
+        String normalized = normalizeMatchingText(value);
+        if (normalized.contains("\u4f4e") || normalized.contains("low") || normalized.contains("light")) {
             return 1;
         }
-        if (value.contains("高") || value.equalsIgnoreCase("high")) {
+        if (normalized.contains("\u9ad8") || normalized.contains("high") || normalized.contains("heavy")) {
             return 3;
         }
         return 2;
+    }
+
+    private boolean matchesCompanionPreference(GenerateReqDTO req, Poi poi) {
+        if (req == null || poi == null || !StringUtils.hasText(req.getCompanionType())) {
+            return false;
+        }
+        String companionType = normalizeMatchingText(req.getCompanionType());
+        String audienceText = buildPoiAudienceText(poi);
+        if (!StringUtils.hasText(audienceText)) {
+            return false;
+        }
+        return audienceText.contains(companionType)
+                || (isMultiPersonTrip(req) && isGroupFriendlyPoi(poi));
+    }
+
+    private boolean isMultiPersonTrip(GenerateReqDTO req) {
+        if (req == null || !StringUtils.hasText(req.getCompanionType())) {
+            return false;
+        }
+        String companionType = normalizeMatchingText(req.getCompanionType());
+        if (containsAnyNormalized(companionType, SOLO_COMPANION_KEYWORDS)) {
+            return false;
+        }
+        return containsAnyNormalized(companionType, GROUP_COMPANION_KEYWORDS);
+    }
+
+    private boolean isGroupFriendlyPoi(Poi poi) {
+        if (poi == null) {
+            return false;
+        }
+        String audienceText = buildPoiAudienceText(poi);
+        return containsAnyNormalized(audienceText, GROUP_FRIENDLY_POI_KEYWORDS);
+    }
+
+    private boolean isSoloFocusedPoi(Poi poi) {
+        if (poi == null) {
+            return false;
+        }
+        String audienceText = buildPoiAudienceText(poi);
+        return containsAnyNormalized(audienceText, SOLO_FOCUSED_POI_KEYWORDS)
+                && !containsAnyNormalized(audienceText, GROUP_FRIENDLY_POI_KEYWORDS);
+    }
+
+    private String buildPoiAudienceText(Poi poi) {
+        if (poi == null) {
+            return "";
+        }
+        return normalizeMatchingText(String.join(" ",
+                nullToEmpty(poi.getSuitableFor()),
+                nullToEmpty(poi.getTags()),
+                nullToEmpty(poi.getCategory()),
+                nullToEmpty(poi.getDescription())));
+    }
+
+    private boolean containsAnyNormalized(String normalizedText, Collection<String> keywords) {
+        if (!StringUtils.hasText(normalizedText) || keywords == null || keywords.isEmpty()) {
+            return false;
+        }
+        for (String keyword : keywords) {
+            String normalizedKeyword = normalizeMatchingText(keyword);
+            if (StringUtils.hasText(normalizedKeyword) && normalizedText.contains(normalizedKeyword)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String normalizeMatchingText(String value) {
+        return StringUtils.hasText(value) ? value.trim().toLowerCase(Locale.ROOT) : "";
+    }
+
+    private String nullToEmpty(String value) {
+        return value == null ? "" : value;
     }
 
     private double scorePoi(GenerateReqDTO req, Poi poi) {
@@ -643,8 +743,15 @@ public class ItineraryRouteOptimizer {
         }
         if (StringUtils.hasText(normalized.getCompanionType())
                 && StringUtils.hasText(poi.getSuitableFor())
-                && poi.getSuitableFor().contains(normalized.getCompanionType())) {
-            score += 2.5;
+                && matchesCompanionPreference(normalized, poi)) {
+            score += COMPANION_MATCH_SCORE;
+        }
+        if (isMultiPersonTrip(normalized)) {
+            if (isGroupFriendlyPoi(poi)) {
+                score += GROUP_TRAVEL_FIT_SCORE;
+            } else if (isSoloFocusedPoi(poi)) {
+                score -= GROUP_TRAVEL_MISMATCH_PENALTY;
+            }
         }
         if (matchesMustVisitPoi(normalized, poi)) {
             score += 120.0;
@@ -654,10 +761,10 @@ public class ItineraryRouteOptimizer {
         }
         if (Boolean.TRUE.equals(normalized.getIsRainy())
                 && (Integer.valueOf(1).equals(poi.getIndoor()) || Integer.valueOf(1).equals(poi.getRainFriendly()))) {
-            score += 1.5;
+            score += RAIN_FRIENDLY_SCORE;
         }
         if (walkingRank(normalized.getWalkingLevel()) >= walkingRank(poi.getWalkingLevel())) {
-            score += 1.0;
+            score += WALKING_FIT_SCORE;
         }
         if (StringUtils.hasText(normalized.getBudgetLevel()) && poi.getAvgCost() != null) {
             double cost = poi.getAvgCost().doubleValue();

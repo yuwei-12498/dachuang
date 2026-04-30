@@ -178,6 +178,75 @@ class ItineraryRouteOptimizerDpTest {
     }
 
     @Test
+    void prioritizesLowWalkingRainFriendlyGroupPoiForMultiPersonRainyTrip() {
+        PoiService poiService = mock(PoiService.class);
+        when(poiService.enrichOperatingStatus(anyList(), any(LocalDate.class))).thenAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            List<Poi> pois = invocation.getArgument(0);
+            for (Poi poi : pois) {
+                poi.setAvailableOnTripDate(true);
+                poi.setStatusStale(false);
+                poi.setOperatingStatus("OPEN");
+            }
+            return pois;
+        });
+
+        Poi groupFriendly = createPoi(701L, "Community Art Center", "museum", "Qingyang",
+                "09:00", "18:00", 60, 20, 4.00D, 0.10D, "culture,indoor,group");
+        groupFriendly.setIndoor(0);
+        groupFriendly.setRainFriendly(1);
+        groupFriendly.setWalkingLevel("low");
+        groupFriendly.setSuitableFor("friends,family,team");
+
+        Poi soloFriendly = createPoi(702L, "Quiet Reading Room", "museum", "Qingyang",
+                "09:00", "18:00", 60, 20, 4.20D, 0.10D, "culture,indoor,quiet");
+        soloFriendly.setIndoor(1);
+        soloFriendly.setRainFriendly(1);
+        soloFriendly.setWalkingLevel("low");
+        soloFriendly.setSuitableFor("solo,quiet");
+
+        Poi highWalking = createPoi(703L, "Mountain Trail", "trail", "Dujiangyan",
+                "09:00", "18:00", 60, 20, 5.50D, 0.10D, "culture,outdoor,group");
+        highWalking.setIndoor(0);
+        highWalking.setRainFriendly(1);
+        highWalking.setWalkingLevel("high");
+        highWalking.setSuitableFor("friends,team");
+
+        Poi notRainFriendly = createPoi(704L, "Open Plaza", "plaza", "Jinjiang",
+                "09:00", "18:00", 60, 20, 5.50D, 0.10D, "culture,outdoor,group");
+        notRainFriendly.setIndoor(0);
+        notRainFriendly.setRainFriendly(0);
+        notRainFriendly.setWalkingLevel("low");
+        notRainFriendly.setSuitableFor("friends,team");
+
+        List<Poi> pois = List.of(groupFriendly, soloFriendly, highWalking, notRainFriendly);
+        ItineraryRouteOptimizer optimizer = new ItineraryRouteOptimizer(
+                poiService,
+                new MatrixTravelTimeService(buildIndexByPoiId(pois), new int[][]{
+                        {0, 5, 5, 5},
+                        {5, 0, 5, 5},
+                        {5, 5, 0, 5},
+                        {5, 5, 5, 0}
+                })
+        );
+
+        GenerateReqDTO request = new GenerateReqDTO();
+        request.setTripDays(1.0D);
+        request.setTripDate("2026-04-26");
+        request.setThemes(List.of("culture"));
+        request.setIsRainy(true);
+        request.setWalkingLevel("low");
+        request.setCompanionType("多人");
+        request.setStartTime("09:00");
+        request.setEndTime("18:00");
+
+        List<Poi> prepared = optimizer.prepareCandidates(pois, request, false);
+
+        assertThat(prepared).extracting(Poi::getName)
+                .containsExactly("Community Art Center", "Quiet Reading Room");
+    }
+
+    @Test
     void prioritizesRouteContainingMustVisitPoi() {
         PoiService poiService = mock(PoiService.class);
         when(poiService.enrichOperatingStatus(anyList(), any(LocalDate.class))).thenAnswer(invocation -> {

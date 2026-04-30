@@ -1,4 +1,0 @@
-Tables_in_city_trip_db
-poi
-saved_itinerary
-trip_user

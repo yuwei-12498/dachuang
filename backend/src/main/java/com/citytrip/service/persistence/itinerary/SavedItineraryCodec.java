@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Objects;
 
 @Component
@@ -23,7 +24,7 @@ public class SavedItineraryCodec {
 
     public ItineraryVO deserialize(SavedItinerary entity) {
         try {
-            ItineraryVO itinerary = readItinerary(entity);
+            ItineraryVO itinerary = normalizeNodeKeys(readItinerary(entity));
             GenerateReqDTO req = readRequest(entity);
             itinerary.setId(entity.getId());
             itinerary.setCustomTitle(entity.getCustomTitle());
@@ -43,12 +44,23 @@ public class SavedItineraryCodec {
         return objectMapper.readValue(entity.getRequestJson(), GenerateReqDTO.class);
     }
 
+    public GenerateReqDTO readRequestJson(String json) throws JsonProcessingException {
+        return objectMapper.readValue(json, GenerateReqDTO.class);
+    }
+
     public ItineraryVO readItinerary(SavedItinerary entity) throws JsonProcessingException {
-        return objectMapper.readValue(entity.getItineraryJson(), ItineraryVO.class);
+        return normalizeNodeKeys(objectMapper.readValue(entity.getItineraryJson(), ItineraryVO.class));
+    }
+
+    public ItineraryVO readItineraryJson(String json) throws JsonProcessingException {
+        return normalizeNodeKeys(objectMapper.readValue(json, ItineraryVO.class));
     }
 
     public String writeJson(Object value) {
         try {
+            if (value instanceof ItineraryVO itinerary) {
+                return objectMapper.writeValueAsString(normalizeNodeKeys(itinerary));
+            }
             return objectMapper.writeValueAsString(value);
         } catch (JsonProcessingException ex) {
             throw new RuntimeException("序列化行程失败", ex);
@@ -70,6 +82,7 @@ public class SavedItineraryCodec {
         if (itinerary == null) {
             return null;
         }
+        normalizeNodeKeys(itinerary);
         if (itinerary.getOptions() == null || itinerary.getOptions().isEmpty()) {
             itinerary.setSelectedOptionKey(null);
             return itinerary;
@@ -86,13 +99,14 @@ public class SavedItineraryCodec {
         itinerary.setTotalCost(selected.getTotalCost());
         itinerary.setRecommendReason(selected.getRecommendReason());
         itinerary.setAlerts(selected.getAlerts());
-        return itinerary;
+        return normalizeNodeKeys(itinerary);
     }
 
     public ItineraryVO applyEntityMetadata(ItineraryVO itinerary, SavedItinerary entity) {
         if (itinerary == null || entity == null) {
             return itinerary;
         }
+        normalizeNodeKeys(itinerary);
         itinerary.setId(entity.getId());
         itinerary.setCustomTitle(entity.getCustomTitle());
         itinerary.setShareNote(entity.getShareNote());
@@ -101,5 +115,40 @@ public class SavedItineraryCodec {
         itinerary.setIsPublic(entity.getIsPublic() != null && entity.getIsPublic() == 1);
         itinerary.setLastSavedAt(entity.getUpdateTime() == null ? LocalDateTime.now() : entity.getUpdateTime());
         return itinerary;
+    }
+
+    private ItineraryVO normalizeNodeKeys(ItineraryVO itinerary) {
+        if (itinerary == null) {
+            return null;
+        }
+        normalizeNodeKeys(itinerary.getNodes());
+        if (itinerary.getOptions() != null) {
+            for (ItineraryOptionVO option : itinerary.getOptions()) {
+                if (option != null) {
+                    normalizeNodeKeys(option.getNodes());
+                }
+            }
+        }
+        return itinerary;
+    }
+
+    private void normalizeNodeKeys(List<ItineraryNodeVO> nodes) {
+        if (nodes == null) {
+            return;
+        }
+        for (int i = 0; i < nodes.size(); i++) {
+            ItineraryNodeVO node = nodes.get(i);
+            if (node == null || hasText(node.getNodeKey())) {
+                continue;
+            }
+            int dayNo = node.getDayNo() == null ? 0 : node.getDayNo();
+            int stepOrder = node.getStepOrder() == null ? (i + 1) : node.getStepOrder();
+            String poiPart = node.getPoiId() == null ? "x" : String.valueOf(node.getPoiId());
+            node.setNodeKey("node-" + dayNo + "-" + stepOrder + "-" + poiPart);
+        }
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
     }
 }

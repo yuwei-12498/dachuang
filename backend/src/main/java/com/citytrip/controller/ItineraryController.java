@@ -22,7 +22,9 @@ import com.citytrip.model.vo.ItineraryVO;
 import com.citytrip.model.vo.SmartFillVO;
 import com.citytrip.service.ItineraryService;
 import com.citytrip.service.application.itinerary.SmartFillUseCase;
+import com.citytrip.service.guard.AiRequestGuard;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -48,10 +50,14 @@ public class ItineraryController {
 
     private final ItineraryService itineraryService;
     private final SmartFillUseCase smartFillUseCase;
+    private final AiRequestGuard aiRequestGuard;
 
-    public ItineraryController(ItineraryService itineraryService, SmartFillUseCase smartFillUseCase) {
+    public ItineraryController(ItineraryService itineraryService,
+                               SmartFillUseCase smartFillUseCase,
+                               AiRequestGuard aiRequestGuard) {
         this.itineraryService = itineraryService;
         this.smartFillUseCase = smartFillUseCase;
+        this.aiRequestGuard = aiRequestGuard;
     }
 
     @TrackBehavior(
@@ -61,8 +67,9 @@ public class ItineraryController {
             weight = 1.0D
     )
     @PostMapping
-    public ResponseEntity<ItineraryVO> createItinerary(@RequestBody GenerateReqDTO req, HttpServletRequest request) {
-        ItineraryVO vo = itineraryService.generateUserItinerary(currentUserId(request), req);
+    public ResponseEntity<ItineraryVO> createItinerary(@Valid @RequestBody GenerateReqDTO req, HttpServletRequest request) {
+        ItineraryVO vo = aiRequestGuard.call("generate", guardSubject(request),
+                () -> itineraryService.generateUserItinerary(currentUserId(request), req));
         return ResponseEntity.status(HttpStatus.CREATED).body(vo);
     }
 
@@ -74,7 +81,7 @@ public class ItineraryController {
             weight = 1.0D
     )
     @PostMapping("/generate")
-    public ResponseEntity<ItineraryVO> generateItinerary(@RequestBody GenerateReqDTO req,
+    public ResponseEntity<ItineraryVO> generateItinerary(@Valid @RequestBody GenerateReqDTO req,
                                                          HttpServletRequest request) {
         Long userId = currentUserId(request);
         log.info("planner generate request received, userId={}, cityName={}, tripDays={}, budgetLevel={}, totalBudget={}, themes={}, tripDate={}, startTime={}, endTime={}",
@@ -88,7 +95,8 @@ public class ItineraryController {
                 req == null ? null : req.getStartTime(),
                 req == null ? null : req.getEndTime());
 
-        ItineraryVO vo = itineraryService.generateUserItinerary(userId, req);
+        ItineraryVO vo = aiRequestGuard.call("generate", guardSubject(request),
+                () -> itineraryService.generateUserItinerary(userId, req));
 
         log.info("planner generate request completed, userId={}, itineraryId={}, nodeCount={}, optionCount={}, totalDuration={}, totalCost={}",
                 userId,
@@ -102,8 +110,8 @@ public class ItineraryController {
     }
 
     @PostMapping("/smart-fill")
-    public SmartFillVO smartFill(@RequestBody SmartFillReqDTO req) {
-        return smartFillUseCase.parse(req);
+    public SmartFillVO smartFill(@Valid @RequestBody SmartFillReqDTO req, HttpServletRequest request) {
+        return aiRequestGuard.call("smart-fill", guardSubject(request), () -> smartFillUseCase.parse(req));
     }
 
     @LoginRequired
@@ -152,7 +160,7 @@ public class ItineraryController {
     )
     @PostMapping("/community/{id}/comments")
     public ResponseEntity<CommunityCommentVO> addCommunityComment(@PathVariable("id") Long id,
-                                                                  @RequestBody CommunityCommentReqDTO req,
+                                                                  @Valid @RequestBody CommunityCommentReqDTO req,
                                                                   HttpServletRequest request) {
         CommunityCommentVO comment = itineraryService.addCommunityComment(currentUserId(request), id, req);
         return ResponseEntity.status(HttpStatus.CREATED).body(comment);
@@ -195,7 +203,7 @@ public class ItineraryController {
 
     @LoginRequired
     @PostMapping("/save")
-    public ResponseEntity<ItineraryVO> saveCommunityItinerary(@RequestBody SaveItineraryReqDTO req,
+    public ResponseEntity<ItineraryVO> saveCommunityItinerary(@Valid @RequestBody SaveItineraryReqDTO req,
                                                               HttpServletRequest request) {
         ItineraryVO vo = itineraryService.saveCommunityItinerary(currentUserId(request), req);
         return ResponseEntity.status(HttpStatus.CREATED).body(vo);
@@ -216,7 +224,7 @@ public class ItineraryController {
     )
     @PatchMapping("/{id}/replan")
     public ReplanRespDTO replanItinerary(@PathVariable("id") Long id,
-                                         @RequestBody ReplanReqDTO req,
+                                         @Valid @RequestBody ReplanReqDTO req,
                                          HttpServletRequest request) {
         return itineraryService.replan(currentUserId(request), id, req);
     }
@@ -232,7 +240,7 @@ public class ItineraryController {
     @PatchMapping("/{id}/nodes/{poiId}/replacement")
     public ItineraryVO replacePoi(@PathVariable("id") Long id,
                                   @PathVariable("poiId") Long poiId,
-                                  @RequestBody ReplaceReqDTO req,
+                                  @Valid @RequestBody ReplaceReqDTO req,
                                   HttpServletRequest request) {
         return itineraryService.replaceNode(currentUserId(request), id, poiId, req);
     }
@@ -247,7 +255,7 @@ public class ItineraryController {
     )
     @PostMapping("/{id}/selection")
     public ItineraryVO selectOption(@PathVariable("id") Long id,
-                                    @RequestBody OptionSelectReqDTO req,
+                                    @Valid @RequestBody OptionSelectReqDTO req,
                                     HttpServletRequest request) {
         return itineraryService.selectOption(currentUserId(request), id, req);
     }
@@ -262,7 +270,7 @@ public class ItineraryController {
     )
     @PutMapping("/{id}/favorite")
     public ItineraryVO favoriteItinerary(@PathVariable("id") Long id,
-                                         @RequestBody(required = false) FavoriteReqDTO req,
+                                         @Valid @RequestBody(required = false) FavoriteReqDTO req,
                                          HttpServletRequest request) {
         return itineraryService.favoriteItinerary(currentUserId(request), id, req);
     }
@@ -289,12 +297,21 @@ public class ItineraryController {
     )
     @PatchMapping("/{id}/public")
     public ItineraryVO updatePublicStatus(@PathVariable("id") Long id,
-                                          @RequestBody(required = false) PublicStatusReqDTO req,
+                                          @Valid @RequestBody(required = false) PublicStatusReqDTO req,
                                           HttpServletRequest request) {
         return itineraryService.updatePublicStatus(currentUserId(request), id, req);
     }
 
     private Long currentUserId(HttpServletRequest request) {
         return request == null ? null : (Long) request.getAttribute(AuthConstants.LOGIN_USER_ID);
+    }
+
+    private String guardSubject(HttpServletRequest request) {
+        Long userId = currentUserId(request);
+        if (userId != null) {
+            return "user:" + userId;
+        }
+        String remoteAddr = request == null ? null : request.getRemoteAddr();
+        return remoteAddr == null || remoteAddr.trim().isEmpty() ? "anonymous" : "anon:" + remoteAddr.trim();
     }
 }

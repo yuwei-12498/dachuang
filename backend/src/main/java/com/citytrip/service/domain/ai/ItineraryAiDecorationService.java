@@ -28,15 +28,13 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
+import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
@@ -94,15 +92,15 @@ public class ItineraryAiDecorationService {
         AiBudget budget = new AiBudget(resolveEffectiveAiBudgetMs());
         Map<String, DepartureLegEstimateVO> departureLegCache = new HashMap<>();
         try {
+            decorateOptionRecommendations(req, itinerary, budget);
             decorateDepartureLeg(req, itinerary.getNodes(), departureLegCache, budget);
             ItineraryRouteDecorationVO routeDecoration = resolveRouteExperienceDecoration(req, itinerary.getNodes(), budget);
             if (hasUsefulRouteDecoration(routeDecoration)) {
                 applyRouteExperienceDecoration(itinerary, req, routeDecoration);
             } else {
                 Map<String, String> nodeReasonCache = new HashMap<>();
-                Map<String, NodeWarmTipBundle> nodeWarmTipCache = new HashMap<>();
                 Map<String, SegmentTransportAnalysisVO> segmentTransportCache = new HashMap<>();
-                decorateNodes(req, itinerary.getNodes(), nodeReasonCache, nodeWarmTipCache, segmentTransportCache, budget);
+                decorateNodes(req, itinerary.getNodes(), nodeReasonCache, segmentTransportCache, budget);
                 if (!StringUtils.hasText(itinerary.getTips())) {
                     applyWarmTips(itinerary, req, budget);
                 }
@@ -136,6 +134,77 @@ public class ItineraryAiDecorationService {
         itinerary.setTips(normalizeSingleTip(keepChineseOrFallback(routeWarmTip, fallback), fallback));
     }
 
+    private void decorateOptionRecommendations(GenerateReqDTO req, ItineraryVO itinerary, AiBudget budget) {
+        if (itinerary == null || itinerary.getOptions() == null || itinerary.getOptions().isEmpty()) {
+            return;
+        }
+
+        List<ItineraryOptionVO> orderedOptions = orderOptionsForRecommendation(itinerary.getOptions(), itinerary.getSelectedOptionKey());
+        for (ItineraryOptionVO option : orderedOptions) {
+            if (option == null) {
+                continue;
+            }
+            String fallback = option.getRecommendReason();
+            String generated = resolveTextWithFallback(
+                    () -> llmService.explainOptionRecommendation(req, option),
+                    "explainOptionRecommendation",
+                    budget
+            );
+            String resolved = normalizeRecommendationReason(keepChineseOrFallback(generated, fallback), fallback);
+            if (StringUtils.hasText(resolved)) {
+                option.setRecommendReason(resolved);
+            }
+        }
+
+        ItineraryOptionVO selected = findSelectedOption(itinerary.getOptions(), itinerary.getSelectedOptionKey());
+        if (selected != null && StringUtils.hasText(selected.getRecommendReason())) {
+            itinerary.setRecommendReason(selected.getRecommendReason().trim());
+        }
+    }
+
+    private List<ItineraryOptionVO> orderOptionsForRecommendation(List<ItineraryOptionVO> options, String selectedOptionKey) {
+        if (options == null || options.isEmpty()) {
+            return List.of();
+        }
+        List<ItineraryOptionVO> ordered = new ArrayList<>();
+        ItineraryOptionVO selected = findSelectedOption(options, selectedOptionKey);
+        if (selected != null) {
+            ordered.add(selected);
+        }
+        for (ItineraryOptionVO option : options) {
+            if (option != null && ordered.stream().noneMatch(existing -> existing == option)) {
+                ordered.add(option);
+            }
+        }
+        return ordered;
+    }
+
+    private ItineraryOptionVO findSelectedOption(List<ItineraryOptionVO> options, String selectedOptionKey) {
+        if (options == null || options.isEmpty()) {
+            return null;
+        }
+        if (StringUtils.hasText(selectedOptionKey)) {
+            for (ItineraryOptionVO option : options) {
+                if (option != null && Objects.equals(option.getOptionKey(), selectedOptionKey)) {
+                    return option;
+                }
+            }
+        }
+        return options.stream().filter(Objects::nonNull).findFirst().orElse(null);
+    }
+
+    private String normalizeRecommendationReason(String candidate, String fallback) {
+        String value = StringUtils.hasText(candidate) ? candidate.trim() : fallback;
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        value = value.replaceAll("[\\r\\n]+", " ").trim();
+        if (value.length() > 160) {
+            value = value.substring(0, 160);
+        }
+        return value;
+    }
+
     private ItineraryRouteDecorationVO resolveRouteExperienceDecoration(GenerateReqDTO req,
                                                                         List<ItineraryNodeVO> nodes,
                                                                         AiBudget budget) {
@@ -162,8 +231,7 @@ public class ItineraryAiDecorationService {
         }
         return decoration.getNodes().stream().anyMatch(item ->
                 item != null
-                        && ((item.getWarmTips() != null && !item.getWarmTips().isEmpty())
-                        || StringUtils.hasText(item.getTransportMode())
+                        && (StringUtils.hasText(item.getTransportMode())
                         || StringUtils.hasText(item.getNarrative())));
     }
 
@@ -193,12 +261,6 @@ public class ItineraryAiDecorationService {
                 continue;
             }
 
-            List<String> normalizedTips = normalizeWarmTips(item.getWarmTips());
-            if (!normalizedTips.isEmpty()) {
-                String selected = normalizedTips.get(ThreadLocalRandom.current().nextInt(normalizedTips.size()));
-                applyWarmTipBundle(node, new NodeWarmTipBundle(normalizedTips, selected));
-            }
-
             ItineraryNodeVO fromNode = index == 0 ? null : itinerary.getNodes().get(index - 1);
             String factualMode = resolveExistingSegmentTransportMode(fromNode, node);
             String normalizedMode = normalizeTransportMode(item.getTransportMode(), factualMode, fromNode, node);
@@ -210,27 +272,9 @@ public class ItineraryAiDecorationService {
         }
     }
 
-    private List<String> normalizeWarmTips(List<String> warmTips) {
-        if (warmTips == null || warmTips.isEmpty()) {
-            return List.of();
-        }
-        Set<String> deduplicated = new LinkedHashSet<>();
-        for (String tip : warmTips) {
-            String normalized = normalizeSingleTip(keepChineseOrFallback(tip, null), null);
-            if (StringUtils.hasText(normalized)) {
-                deduplicated.add(normalized);
-            }
-            if (deduplicated.size() >= 5) {
-                break;
-            }
-        }
-        return new ArrayList<>(deduplicated);
-    }
-
     private void decorateNodes(GenerateReqDTO req,
                                List<ItineraryNodeVO> nodes,
                                Map<String, String> nodeReasonCache,
-                               Map<String, NodeWarmTipBundle> nodeWarmTipCache,
                                Map<String, SegmentTransportAnalysisVO> segmentTransportCache,
                                AiBudget budget) {
         if (nodes == null || nodes.isEmpty()) {
@@ -254,9 +298,6 @@ public class ItineraryAiDecorationService {
             if (StringUtils.hasText(nodeReason)) {
                 node.setSysReason(nodeReason);
             }
-
-            NodeWarmTipBundle warmTipBundle = nodeWarmTipCache.computeIfAbsent(nodeKey, key -> resolveWarmTipBundleForNode(req, node, budget));
-            applyWarmTipBundle(node, warmTipBundle);
 
             ItineraryNodeVO fromNode = prevNode;
             String segmentKey = buildSegmentKey(req, fromNode, node);
@@ -422,45 +463,6 @@ public class ItineraryAiDecorationService {
         return hasAnyDepartureEstimate(estimate) ? estimate : null;
     }
 
-    private NodeWarmTipBundle resolveWarmTipBundleForNode(GenerateReqDTO req, ItineraryNodeVO node, AiBudget budget) {
-        String generated = resolveTextWithFallback(
-                () -> llmService.generatePoiWarmTips(req, node),
-                "generatePoiWarmTips",
-                budget
-        );
-        generated = keepChineseOrFallback(generated, null);
-
-        List<String> candidates = parseTipCandidates(generated);
-        if (candidates.size() < 3) {
-            buildFallbackPoiWarmTips(req, node).stream()
-                    .filter(StringUtils::hasText)
-                    .filter(tip -> !candidates.contains(tip))
-                    .limit(5 - candidates.size())
-                    .forEach(candidates::add);
-        }
-        String selected = candidates.isEmpty()
-                ? null
-                : candidates.get(ThreadLocalRandom.current().nextInt(candidates.size()));
-        return new NodeWarmTipBundle(candidates, selected);
-    }
-
-    private void applyWarmTipBundle(ItineraryNodeVO node, NodeWarmTipBundle bundle) {
-        if (node == null || bundle == null) {
-            return;
-        }
-        if (!bundle.candidates().isEmpty()) {
-            node.setWarmTipCandidates(new ArrayList<>(bundle.candidates()));
-        }
-        String selected = normalizeSingleTip(bundle.selectedTip(), node.getStatusNote());
-        if (!StringUtils.hasText(selected) && !bundle.candidates().isEmpty()) {
-            selected = normalizeSingleTip(bundle.candidates().get(0), node.getStatusNote());
-        }
-        if (StringUtils.hasText(selected)) {
-            node.setSelectedWarmTip(selected);
-            node.setStatusNote(selected);
-        }
-    }
-
     private SegmentTransportAnalysisVO resolveSegmentTransportAnalysis(GenerateReqDTO req,
                                                                       ItineraryNodeVO fromNode,
                                                                       ItineraryNodeVO toNode,
@@ -534,19 +536,19 @@ public class ItineraryAiDecorationService {
         }
         String normalized = raw.toLowerCase(Locale.ROOT);
         if (normalized.contains("subway") || normalized.contains("metro")) {
-            return "??+??";
+            return "地铁+步行";
         }
         if (normalized.contains("bus") || normalized.contains("transit")) {
-            return "??+??";
+            return "公交+步行";
         }
         if (normalized.contains("taxi") || normalized.contains("cab") || normalized.contains("drive") || normalized.contains("ride")) {
-            return "??";
+            return "打车";
         }
         if (normalized.contains("bike") || normalized.contains("cycle")) {
-            return "??";
+            return "骑行";
         }
         if (normalized.contains("walk")) {
-            return "??";
+            return "步行";
         }
         if (isEnglishDominant(raw) && StringUtils.hasText(fallback)) {
             return fallback.trim();
@@ -589,7 +591,7 @@ public class ItineraryAiDecorationService {
         if (minutes != null && minutes > 0 && distanceKm > 0D) {
             return origin + "到" + destination + "这段约" + minutes + "分钟，约"
                     + BigDecimal.valueOf(distanceKm).setScale(1, RoundingMode.HALF_UP).toPlainString()
-                    + "公里，用" + mode + "更稳妅。";
+                    + "公里，用" + mode + "更稳妥。";
         }
         if (minutes != null && minutes > 0) {
             return origin + "到" + destination + "这段约" + minutes + "分钟，用" + mode + "衔接更顺。";
@@ -684,12 +686,6 @@ public class ItineraryAiDecorationService {
         return Math.max(120L, effective);
     }
 
-    private record NodeWarmTipBundle(List<String> candidates, String selectedTip) {
-        private NodeWarmTipBundle {
-            candidates = candidates == null ? List.of() : List.copyOf(candidates);
-        }
-    }
-
     private static final class AiBudget {
         private final long deadlineNanos;
 
@@ -704,96 +700,6 @@ public class ItineraryAiDecorationService {
             }
             return Math.max(1L, TimeUnit.NANOSECONDS.toMillis(remainingNanos));
         }
-    }
-
-    private List<String> parseTipCandidates(String rawTips) {
-        if (!StringUtils.hasText(rawTips)) {
-            return new ArrayList<>();
-        }
-
-        String normalized = rawTips.replace("\r", "\n").trim();
-        String[] chunks = normalized.contains("\n")
-                ? normalized.split("\n+")
-                : normalized.split("[；;]");
-
-        Set<String> deduplicated = new LinkedHashSet<>();
-        for (String chunk : chunks) {
-            if (!StringUtils.hasText(chunk)) {
-                continue;
-            }
-            String cleaned = chunk.trim()
-                    .replaceFirst("^[-•·●]\\s*", "")
-                    .replaceFirst("^\\d+[.、]\\s*", "");
-            if (!StringUtils.hasText(cleaned)) {
-                continue;
-            }
-            if (isEnglishDominant(cleaned)) {
-                continue;
-            }
-            if (cleaned.length() > 32) {
-                cleaned = cleaned.substring(0, 32);
-            }
-            deduplicated.add(cleaned);
-            if (deduplicated.size() >= 5) {
-                break;
-            }
-        }
-        return new ArrayList<>(deduplicated);
-    }
-
-    private List<String> buildFallbackPoiWarmTips(GenerateReqDTO req, ItineraryNodeVO node) {
-        Set<String> tips = new LinkedHashSet<>();
-        String merged = ((node == null ? "" : defaultString(node.getPoiName())) + " "
-                + (node == null ? "" : defaultString(node.getCategory())) + " "
-                + (node == null ? "" : defaultString(node.getDistrict()))).toLowerCase();
-
-        if (containsAny(merged, "青城山", "mount", "mountain", "山", "徒步", "trail", "hiking")) {
-            tips.add("上山前先补水，体力更稳。");
-            tips.add("台阶较多，穿防滑鞋更安心。");
-            tips.add("返程别赶路，给膝盖留余量。");
-            tips.add("山里温差偏大，备件薄外套更稳妥。");
-            tips.add("拍照别站边缘，转身时多留一步。");
-        } else if (containsAny(merged, "ifs", "太古里", "春熙路", "商圈", "国金中心", "skp")) {
-            tips.add("商圈入口多，先认准主入口。");
-            tips.add("高峰人流密，约好集合点。");
-            tips.add("先看楼层导航，少走回头路。");
-            tips.add("热门时段电梯慢，预留一点机动时间。");
-            tips.add("街区岔路多，拐弯前先看导航箭头。");
-        } else if (containsAny(merged, "博物馆", "美术馆", "展览", "纪念馆")) {
-            tips.add("热门馆排队快，早点到会更舒服。");
-            tips.add("进馆前先看预约信息，少走回头路。");
-            tips.add("展厅安静区域多，拍照先留意提示牌。");
-            tips.add("重点展区容易停久，别把后面时间挤太满。");
-        } else if (containsAny(merged, "古镇", "老街", "宽窄巷子", "锦里", "步行街")) {
-            tips.add("街巷岔口多，先定碰头点更省心。");
-            tips.add("高峰时人流密，贵重物品尽量贴身放。");
-            tips.add("石板路偶尔打滑，转弯时放慢一点。");
-            tips.add("热门小吃排队快，想吃就先买。");
-        } else if (containsAny(merged, "寺", "祠", "宫", "观")) {
-            tips.add("参观前先看礼仪提示，走动会更从容。");
-            tips.add("台阶区域较多，上下时别急着赶路。");
-            tips.add("高峰时段游客集中，想拍空景建议早一点。");
-        }
-
-        if (Boolean.TRUE.equals(req == null ? null : req.getIsRainy())) {
-            tips.add("雨天路面偏滑，鞋底抓地力更重要。");
-        }
-        if (Boolean.TRUE.equals(req == null ? null : req.getIsNight())) {
-            tips.add("返程别拖太晚，出门前先看好回程方式。");
-        }
-        if ("亲子".equals(req == null ? null : req.getCompanionType())) {
-            tips.add("带小朋友时别把节奏拉太满，中途多休息。");
-        }
-        if ("长者".equals(req == null ? null : req.getCompanionType())
-                || "老人".equals(req == null ? null : req.getCompanionType())) {
-            tips.add("有长者同行时，优先留好坐下休息的时间。");
-        }
-        if (tips.isEmpty()) {
-            tips.add("先看导航和入口位置，到场会更省时间。");
-            tips.add("热门时段人会多一点，预留些机动时间。");
-            tips.add("边走边拍时注意脚下，节奏放稳更舒服。");
-        }
-        return tips.stream().limit(5).toList();
     }
 
     private String buildFallbackRouteWarmTip(GenerateReqDTO req, List<ItineraryNodeVO> nodes) {
@@ -939,17 +845,6 @@ public class ItineraryAiDecorationService {
         return "打车";
     }
 
-    private boolean containsAny(String text, String... keywords) {
-        if (!StringUtils.hasText(text) || keywords == null) {
-            return false;
-        }
-        for (String keyword : keywords) {
-            if (StringUtils.hasText(keyword) && text.contains(keyword.toLowerCase())) {
-                return true;
-            }
-        }
-        return false;
-    }
 
     private String defaultString(String value) {
         return value == null ? "" : value;

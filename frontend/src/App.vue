@@ -119,4 +119,33 @@ html.lenis body {
   opacity: 0;
   transform: translateY(8px);
 }
+
+@media (max-width: 768px) {
+  :root {
+    --radius-panel: 22px;
+    --radius-card: 18px;
+  }
+
+  html,
+  body,
+  #app {
+    width: 100%;
+    overflow-x: hidden;
+  }
+
+  .app-main {
+    min-width: 0;
+  }
+
+  .el-dialog {
+    width: calc(100vw - 24px) !important;
+    max-width: calc(100vw - 24px);
+    border-radius: 20px;
+  }
+
+  .el-message-box {
+    width: calc(100vw - 32px) !important;
+    max-width: calc(100vw - 32px);
+  }
+}
 </style>
