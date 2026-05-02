@@ -7,6 +7,11 @@ services:
       args:
         VCS_REF: "${VCS_REF:-local}"
         BUILD_DATE: "${BUILD_DATE:-unknown}"
+        VITE_AMAP_JS_API_KEY: "${VITE_AMAP_JS_API_KEY:-}"
+        VITE_AMAP_SECURITY_JS_CODE: "${VITE_AMAP_SECURITY_JS_CODE:-}"
+        VITE_AMAP_MAP_STYLE: "${VITE_AMAP_MAP_STYLE:-}"
+        VITE_AMAP_JS_API_URL: "${VITE_AMAP_JS_API_URL:-}"
+        VITE_AMAP_JS_API_VERSION: "${VITE_AMAP_JS_API_VERSION:-}"
     container_name: citytrip-allinone
     restart: unless-stopped
     ports:
