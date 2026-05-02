@@ -268,6 +268,7 @@ import { ElMessage } from 'element-plus'
 import { reqGenerateItinerary, reqSmartFill } from '@/api/itinerary'
 import { useAuthState } from '@/store/auth'
 import { getDefaultTripDate, saveItinerarySnapshot } from '@/store/itinerary'
+import { persistDepartureLocation, resolveCurrentLocation } from '@/utils/location'
 
 const AsyncHomeAiPanel = defineAsyncComponent(() => import('@/components/HomeAiPanel.vue'))
 
@@ -533,6 +534,7 @@ const onSubmit = async () => {
     if (!payload.departurePlaceName) {
       payload.departurePlaceName = 'CURRENT_LOCATION'
     }
+    persistDepartureLocation(currentLocation, payload.departurePlaceName)
 
     const responseData = await reqGenerateItinerary(payload)
     saveItinerarySnapshot(responseData)
@@ -635,30 +637,6 @@ const fillFormFromText = async () => {
   }
 }
 
-const resolveCurrentLocation = () => {
-  if (typeof window === 'undefined' || !navigator?.geolocation) {
-    return Promise.resolve(null)
-  }
-  const requestPosition = options => new Promise((resolve) => {
-    navigator.geolocation.getCurrentPosition(
-      position => {
-        resolve({
-          latitude: Number(position.coords.latitude),
-          longitude: Number(position.coords.longitude)
-        })
-      },
-      () => resolve(null),
-      options
-    )
-  })
-  return requestPosition({ enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 })
-    .then(result => {
-      if (result) {
-        return result
-      }
-      return requestPosition({ enableHighAccuracy: false, timeout: 5000, maximumAge: 180000 })
-    })
-}
 </script>
 
 <style scoped>

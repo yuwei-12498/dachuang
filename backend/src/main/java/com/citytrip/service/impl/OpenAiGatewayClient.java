@@ -112,7 +112,10 @@ public class OpenAiGatewayClient {
         if (!hasText(message) || !message.contains("OpenAI message content is empty")) {
             return false;
         }
-        return looksLikeVivoBaseUrl(options.getBaseUrl()) || LlmProperties.isVivoAllowedModel(request.getModel());
+        return looksLikeVivoBaseUrl(options.getBaseUrl())
+                || LlmProperties.isVivoAllowedModel(request.getModel())
+                || looksLikeMimoTarget(options.getBaseUrl())
+                || looksLikeMimoTarget(request.getModel());
     }
 
     private String retryWithoutStreaming(LlmProperties.ResolvedOpenAiOptions options,
