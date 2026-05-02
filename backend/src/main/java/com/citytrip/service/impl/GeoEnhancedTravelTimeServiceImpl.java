@@ -5,14 +5,12 @@ import com.citytrip.service.TravelTimeService;
 import com.citytrip.service.geo.GeoPoint;
 import com.citytrip.service.geo.GeoRouteEstimate;
 import com.citytrip.service.geo.GeoSearchService;
-import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.util.Objects;
 
-@Primary
 @Service
 public class GeoEnhancedTravelTimeServiceImpl implements TravelTimeService {
 

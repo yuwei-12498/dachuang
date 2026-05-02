@@ -47,6 +47,8 @@ public class GenerateReqDTO {
     @JsonFormat(with = JsonFormat.Feature.ACCEPT_SINGLE_VALUE_AS_ARRAY)
     @Size(max = 20, message = "mustVisitPoiNames must contain at most 20 items")
     private List<String> mustVisitPoiNames;
+    @Size(max = 1000, message = "naturalLanguageRequirement must be at most 1000 characters")
+    private String naturalLanguageRequirement;
     @Size(max = 120, message = "departurePlaceName must be at most 120 characters")
     private String departurePlaceName;
     @DecimalMin(value = "-90", message = "departureLatitude must be >= -90")

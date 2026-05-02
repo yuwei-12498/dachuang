@@ -101,6 +101,42 @@ class DatabaseStartupDiagnosticsTest {
     }
 
     @Test
+    void autoUpgradesRoutePlanFactSchemaWhenFeatureColumnsAreMissing() throws Exception {
+        DataSource dataSource = mock(DataSource.class);
+        Connection connection = mock(Connection.class);
+        DatabaseMetaData metaData = mock(DatabaseMetaData.class);
+        Statement statement = mock(Statement.class);
+        AtomicBoolean upgraded = new AtomicBoolean(false);
+        when(dataSource.getConnection()).thenReturn(connection);
+        when(connection.isValid(3)).thenReturn(true);
+        when(connection.getMetaData()).thenReturn(metaData);
+        when(connection.createStatement()).thenReturn(statement);
+        when(metaData.getTables(any(), any(), anyString(), any()))
+                .thenAnswer(invocation -> tableLookup(true));
+        when(metaData.getColumns(any(), any(), anyString(), anyString()))
+                .thenAnswer(invocation -> {
+                    String tableName = invocation.getArgument(2, String.class);
+                    String columnName = invocation.getArgument(3, String.class);
+                    if (!"route_plan_fact".equals(tableName)) {
+                        return columnLookup(true);
+                    }
+                    boolean exists = upgraded.get() || !"options_feature_json".equals(columnName);
+                    return columnLookup(exists);
+                });
+        when(statement.execute(anyString()))
+                .thenAnswer(invocation -> {
+                    upgraded.set(true);
+                    return true;
+                });
+
+        DatabaseStartupDiagnostics diagnostics = new DatabaseStartupDiagnostics(dataSource, defaultProperties());
+
+        assertThatCode(diagnostics::verifyConnection).doesNotThrowAnyException();
+        verify(statement, atLeastOnce()).execute(contains("ADD COLUMN `options_feature_json`"));
+        verify(connection).close();
+    }
+
+    @Test
     void throwsActionableMessageWhenCompatibilityUpgradeCannotBeApplied() throws Exception {
         DataSource dataSource = mock(DataSource.class);
         Connection connection = mock(Connection.class);

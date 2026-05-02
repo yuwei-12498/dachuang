@@ -213,9 +213,14 @@ public class DatabaseStartupDiagnostics {
         poi.put("city_code", "VARCHAR(16) NULL COMMENT 'planning city code'");
         poi.put("city_name", "VARCHAR(64) NULL COMMENT 'planning city name'");
 
+        Map<String, String> routePlanFact = new LinkedHashMap<>();
+        routePlanFact.put("selected_route_feature_json", "LONGTEXT NULL COMMENT 'selected route LTR feature vector JSON'");
+        routePlanFact.put("options_feature_json", "LONGTEXT NULL COMMENT 'candidate options LTR feature vector JSON'");
+
         Map<String, Map<String, String>> tables = new LinkedHashMap<>();
         tables.put("saved_itinerary", Collections.unmodifiableMap(savedItinerary));
         tables.put("poi", Collections.unmodifiableMap(poi));
+        tables.put("route_plan_fact", Collections.unmodifiableMap(routePlanFact));
         return Collections.unmodifiableMap(tables);
     }
 
@@ -311,6 +316,8 @@ public class DatabaseStartupDiagnostics {
                   `business_risk_score` INT NULL COMMENT '营业状态风险分',
                   `theme_match_count` INT NULL COMMENT '主题命中数量',
                   `route_utility` DECIMAL(12,4) NULL COMMENT '路线综合效用值',
+                  `selected_route_feature_json` LONGTEXT NULL COMMENT 'selected route LTR feature vector JSON',
+                  `options_feature_json` LONGTEXT NULL COMMENT 'candidate options LTR feature vector JSON',
                   `trip_date` DATE NULL COMMENT '出行日期',
                   `trip_start_time` TIME NULL COMMENT '计划开始时间',
                   `trip_end_time` TIME NULL COMMENT '计划结束时间',

@@ -46,6 +46,7 @@ public class SafePromptBuilder {
     static final int MAX_ROUTE_SUMMARY_CHARS = 120;
     static final int MAX_OPTION_TAG_COUNT = 4;
     static final int MAX_OPTION_TAG_CHARS = 48;
+    static final int MAX_CRITIC_OPTION_COUNT = 5;
     static final int MAX_SMART_FILL_TEXT_CHARS = 480;
     static final int MAX_SMART_FILL_POI_HINT_COUNT = 60;
     static final int MAX_SMART_FILL_POI_HINT_CHARS = 32;
@@ -238,6 +239,28 @@ public class SafePromptBuilder {
                 """.formatted(buildRequestSummary(req), buildNodeSummary(nodes));
     }
 
+    public String buildChatFollowUpTipsPrompt(String question, String cityName) {
+        SanitizedText sanitizedQuestion = sanitizeText(question, MAX_CHAT_QUESTION_CHARS);
+        SanitizedText sanitizedCityName = sanitizeText(cityName, MAX_CHAT_POI_FIELD_CHARS);
+        return """
+                <task>
+                Generate exactly 3 concise follow-up user questions for the current chat.
+                Requirements:
+                1) one tip per line;
+                2) each line should be short and actionable;
+                3) output in Simplified Chinese question form;
+                4) do not output numbering, bullets, or explanations.
+                </task>
+                <chat_context>
+                city_name=%s
+                user_question=%s
+                </chat_context>
+                """.formatted(
+                sanitizedCityName.value(),
+                sanitizedQuestion.value()
+        );
+    }
+
     public String buildExplainPoiChoicePrompt(GenerateReqDTO req, ItineraryNodeVO node) {
         return """
                 <task>
@@ -273,6 +296,40 @@ public class SafePromptBuilder {
                 buildRequestSummary(req),
                 buildOptionProfile(option),
                 buildNodeSummary(option == null ? Collections.emptyList() : option.getNodes())
+        );
+    }
+
+    public String buildRouteCriticPrompt(GenerateReqDTO req, List<ItineraryOptionVO> options) {
+        SanitizedText naturalRequirement = sanitizeText(
+                req == null ? null : req.getNaturalLanguageRequirement(),
+                MAX_SMART_FILL_TEXT_CHARS
+        );
+        return """
+                <task>
+                你是路线 Critic，不负责生成新路线，只能在后端 Generator 已给出的候选路线中选择 1 条最终展示路线。
+                请结合用户自然语言需求、结构化约束、真实路网耗时/花费/步行距离/特征向量，对候选路线做常识判别和交叉打分。
+                必须只从候选 option_key 中选择 selectedOptionKey；不得新增 POI、不得改变顺序、不得编造营业时间或价格。
+                输出严格 JSON，不要 Markdown，不要解释 JSON 之外的文字：
+                {
+                  "selectedOptionKey": "候选 option_key",
+                  "reason": "80 字以内中文，说明为什么最终选它",
+                  "optionScores": {"option_key": 0-100},
+                  "rejectedReasons": {"被淘汰 option_key": "60 字以内中文，说明主要淘汰原因"}
+                }
+                </task>
+                <natural_language_requirement>
+                %s
+                </natural_language_requirement>
+                <travel_request>
+                %s
+                </travel_request>
+                <candidate_routes>
+                %s
+                </candidate_routes>
+                """.formatted(
+                naturalRequirement.value(),
+                buildRequestSummary(req),
+                buildCriticCandidateSummary(options)
         );
     }
 
@@ -538,6 +595,56 @@ public class SafePromptBuilder {
                 option.getTotalDuration() == null ? "unspecified" : option.getTotalDuration(),
                 option.getTotalCost() == null ? "unspecified" : option.getTotalCost().toPlainString()
         );
+    }
+
+    private String buildCriticCandidateSummary(List<ItineraryOptionVO> options) {
+        if (options == null || options.isEmpty()) {
+            return "[]";
+        }
+        List<String> blocks = new ArrayList<>();
+        int limit = Math.min(options.size(), MAX_CRITIC_OPTION_COUNT);
+        for (int i = 0; i < limit; i++) {
+            ItineraryOptionVO option = options.get(i);
+            if (option == null) {
+                continue;
+            }
+            blocks.add("""
+                    option_key=%s
+                    title=%s
+                    signature=%s
+                    route_utility=%s
+                    total_duration=%s
+                    total_cost=%s
+                    total_travel_time=%s
+                    business_risk_score=%s
+                    theme_match_count=%s
+                    summary=%s
+                    highlights=%s
+                    tradeoffs=%s
+                    feature_vector=%s
+                    nodes:
+                    %s
+                    """.formatted(
+                    sanitizeText(option.getOptionKey(), MAX_PREFERENCE_CHARS).value(),
+                    sanitizeText(option.getTitle(), MAX_ROUTE_SUMMARY_CHARS).value(),
+                    sanitizeText(option.getSignature(), MAX_ROUTE_SUMMARY_CHARS).value(),
+                    option.getRouteUtility() == null ? "unspecified" : option.getRouteUtility(),
+                    option.getTotalDuration() == null ? "unspecified" : option.getTotalDuration(),
+                    option.getTotalCost() == null ? "unspecified" : option.getTotalCost().toPlainString(),
+                    option.getTotalTravelTime() == null ? "unspecified" : option.getTotalTravelTime(),
+                    option.getBusinessRiskScore() == null ? "unspecified" : option.getBusinessRiskScore(),
+                    option.getThemeMatchCount() == null ? "unspecified" : option.getThemeMatchCount(),
+                    sanitizeText(option.getSummary(), MAX_ROUTE_SUMMARY_CHARS).value(),
+                    sanitizeList(option.getHighlights(), MAX_OPTION_TAG_COUNT, MAX_OPTION_TAG_CHARS),
+                    sanitizeList(option.getTradeoffs(), MAX_OPTION_TAG_COUNT, MAX_OPTION_TAG_CHARS),
+                    option.getFeatureVector() == null ? "unspecified" : option.getFeatureVector().toString(),
+                    buildNodeSummary(option.getNodes() == null ? Collections.emptyList() : option.getNodes())
+            ));
+        }
+        if (options.size() > limit) {
+            blocks.add("(omitted " + (options.size() - limit) + " more options)");
+        }
+        return String.join("\n---\n", blocks);
     }
 
     private String buildSinglePoiSummary(ItineraryNodeVO node) {

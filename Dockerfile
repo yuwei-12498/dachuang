@@ -1,11 +1,24 @@
 FROM node:20-bookworm-slim AS frontend-build
 WORKDIR /workspace/frontend
 
+ARG VITE_AMAP_JS_API_KEY=""
+ARG VITE_AMAP_SECURITY_JS_CODE=""
+ARG VITE_AMAP_MAP_STYLE=""
+ARG VITE_AMAP_JS_API_URL=""
+ARG VITE_AMAP_JS_API_VERSION=""
+
+ENV VITE_AMAP_JS_API_KEY="${VITE_AMAP_JS_API_KEY}" \
+    VITE_AMAP_SECURITY_JS_CODE="${VITE_AMAP_SECURITY_JS_CODE}" \
+    VITE_AMAP_MAP_STYLE="${VITE_AMAP_MAP_STYLE}" \
+    VITE_AMAP_JS_API_URL="${VITE_AMAP_JS_API_URL}" \
+    VITE_AMAP_JS_API_VERSION="${VITE_AMAP_JS_API_VERSION}"
+
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 
 COPY frontend/index.html ./index.html
 COPY frontend/vite.config.js ./vite.config.js
+COPY frontend/build ./build
 COPY frontend/public ./public
 COPY frontend/src ./src
 RUN npm run build
@@ -16,7 +29,9 @@ WORKDIR /workspace/backend
 
 COPY backend/pom.xml ./pom.xml
 COPY backend/src ./src
-RUN mvn -q -DskipTests package
+RUN rm -f src/main/resources/application.yml \
+    && cp src/main/resources/application.example.yml src/main/resources/application.yml \
+    && mvn -q -DskipTests package
 
 
 FROM ubuntu:22.04
@@ -67,7 +82,15 @@ COPY deploy/onebox/nginx.conf /etc/nginx/nginx.conf
 COPY deploy/onebox/start-all.sh /opt/citytrip/bin/start-all.sh
 COPY deploy/onebox/mysql-init/ /opt/citytrip/mysql-init/
 
-RUN chmod +x /opt/citytrip/bin/start-all.sh
+RUN sed -i 's/\r$//' /opt/citytrip/bin/start-all.sh \
+    && chmod +x /opt/citytrip/bin/start-all.sh
+
+ARG VCS_REF=unknown
+ARG BUILD_DATE=unknown
+
+LABEL org.opencontainers.image.title="citytrip-allinone" \
+      org.opencontainers.image.revision="${VCS_REF}" \
+      org.opencontainers.image.created="${BUILD_DATE}"
 
 VOLUME ["/opt/citytrip/data"]
 

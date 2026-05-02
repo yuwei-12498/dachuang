@@ -27,7 +27,7 @@ public class MockChatServiceImpl implements ChatService {
         vo.setEmbeddingReady(false);
         vo.setRerankReady(false);
         vo.setWarnings(List.of());
-        vo.setMessage("当前聊天服务正在使用本地 Mock 响应。");
+        vo.setMessage("当前聊天服务正在使用本地规则兜底响应。");
         return vo;
     }
 
@@ -37,7 +37,7 @@ public class MockChatServiceImpl implements ChatService {
         ChatReqDTO.ChatContext ctx = req.getContext();
 
         ChatVO vo = new ChatVO();
-        String answer = "当前处于离线 Mock 模式，我会基于成都旅游知识库为你提供规则化建议。";
+        String answer = "当前处于本地规则兜底模式，我会基于成都旅游知识库为你提供基础建议。";
         List<String> tips = Arrays.asList("成都有哪些适合拍照的点位？", "武侯祠有什么历史背景？");
 
         if (q.contains("拍照") || q.contains("出片") || q.contains("机位")) {
@@ -59,7 +59,7 @@ public class MockChatServiceImpl implements ChatService {
             answer = "夜游可以考虑九眼桥、锦里或建设路夜市，注意返程交通与人流高峰。";
             tips = Arrays.asList("九眼桥适合几点去？", "建设路夜市有什么必吃推荐？");
         } else {
-            answer = "已收到你的问题：“" + q + "”。虽然我当前运行在 Mock 模式，但依然可以基于你的偏好给出基础的成都行程建议。";
+            answer = "已收到你的问题：“" + q + "”。当前我会基于本地规则和你的偏好给出基础的成都行程建议。";
         }
 
         if (ctx != null) {

@@ -9,6 +9,7 @@ import com.citytrip.model.vo.ItineraryRouteDecorationVO;
 import com.citytrip.model.vo.ItineraryVO;
 import com.citytrip.model.vo.RouteNodeDecorationVO;
 import com.citytrip.model.vo.RoutePathPointVO;
+import com.citytrip.model.vo.RouteCriticDecisionVO;
 import com.citytrip.model.vo.SegmentRouteGuideVO;
 import com.citytrip.model.vo.SegmentRouteStepVO;
 import com.citytrip.model.vo.SegmentTransportAnalysisVO;
@@ -21,12 +22,14 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -83,6 +86,41 @@ class ItineraryAiDecorationServiceTest {
     }
 
     @Test
+    void decorateWithLlmUsesNarrativeFallbackWhenAiOptionExplanationTimesOut() {
+        LlmService llmService = mock(LlmService.class);
+        ItineraryAiDecorationService service = buildService(llmService, mock(ItineraryComparisonAssembler.class), 120L);
+
+        ItineraryOptionVO option = new ItineraryOptionVO();
+        option.setOptionKey("balanced");
+        option.setRecommendReason("规则推荐：这条路线综合得分最高。");
+        option.setNodes(List.of(
+                buildNode("望江楼公园"),
+                buildNode("文殊院"),
+                buildNode("宽窄巷子")
+        ));
+
+        ItineraryVO itinerary = new ItineraryVO();
+        itinerary.setSelectedOptionKey("balanced");
+        itinerary.setRecommendReason(option.getRecommendReason());
+        itinerary.setOptions(List.of(option));
+
+        when(llmService.explainOptionRecommendation(any(), any())).thenAnswer(invocation -> {
+            sleep(2_000L);
+            return "slow option reason";
+        });
+        when(llmService.generateRouteWarmTip(any(), anyList())).thenReturn("快速提示：按主线慢慢走。");
+
+        ItineraryVO result = assertTimeoutPreemptively(
+                Duration.ofMillis(1_000),
+                () -> service.decorateWithLlm(itinerary, new GenerateReqDTO())
+        );
+
+        assertThat(result.getOptions()).hasSize(1);
+        assertThat(result.getOptions().get(0).getRecommendReason()).contains("望江楼公园");
+        assertThat(result.getOptions().get(0).getRecommendReason()).doesNotContain("综合得分最高");
+    }
+
+    @Test
     void decorateWithLlmUsesAiOptionRecommendationForSelectedOptionAndItinerary() {
         LlmService llmService = mock(LlmService.class);
         ItineraryAiDecorationService service = buildService(llmService, mock(ItineraryComparisonAssembler.class), 500L);
@@ -109,6 +147,104 @@ class ItineraryAiDecorationServiceTest {
         assertThat(result.getRecommendReason())
                 .isEqualTo("AI 结合你的偏好、预算和通行距离判断，这条路线在主题匹配与执行稳定性之间更均衡。");
         verify(llmService).explainOptionRecommendation(any(), any());
+    }
+
+    @Test
+    void decorateWithLlmLetsCriticSelectAcrossCandidateOptionsAndExplainRejections() {
+        LlmService llmService = mock(LlmService.class);
+        ItineraryComparisonAssembler comparisonAssembler = mock(ItineraryComparisonAssembler.class);
+        ItineraryAiDecorationService service = buildService(llmService, comparisonAssembler, 1_000L);
+
+        GenerateReqDTO req = new GenerateReqDTO();
+        req.setNaturalLanguageRequirement("我想少走路，预算可以稍微高一点，晚上别太赶。");
+
+        ItineraryOptionVO balanced = new ItineraryOptionVO();
+        balanced.setOptionKey("balanced");
+        balanced.setRecommendReason("规则默认均衡方案");
+        balanced.setNodes(List.of(buildNode("宽窄巷子")));
+        balanced.setTotalCost(BigDecimal.valueOf(80));
+        balanced.setTotalDuration(180);
+
+        ItineraryOptionVO efficient = new ItineraryOptionVO();
+        efficient.setOptionKey("efficient");
+        efficient.setRecommendReason("规则高效方案");
+        efficient.setNodes(List.of(buildNode("成都博物馆")));
+        efficient.setTotalCost(BigDecimal.valueOf(120));
+        efficient.setTotalDuration(150);
+
+        ItineraryVO itinerary = new ItineraryVO();
+        itinerary.setSelectedOptionKey("balanced");
+        itinerary.setOptions(List.of(balanced, efficient));
+        itinerary.setNodes(balanced.getNodes());
+        itinerary.setRecommendReason("规则默认均衡方案");
+        itinerary.setTotalCost(balanced.getTotalCost());
+        itinerary.setTotalDuration(balanced.getTotalDuration());
+
+        RouteCriticDecisionVO decision = new RouteCriticDecisionVO();
+        decision.setSelectedOptionKey("efficient");
+        decision.setReason("AI Critic 认为高效方案步行更少、晚间风险更低，更符合这次自然语言偏好。");
+        decision.setRejectedReasons(Map.of("balanced", "均衡方案绕行更多，晚间节奏偏紧。"));
+        decision.setOptionScores(Map.of("balanced", 72.0D, "efficient", 91.0D));
+
+        when(llmService.criticSelectItineraryOption(any(), anyList())).thenReturn(decision);
+        when(llmService.generateRouteWarmTip(any(), anyList())).thenReturn("按高效路线走，晚间留足返程时间。");
+        when(comparisonAssembler.buildComparisonTips(any(), anyList(), any()))
+                .thenReturn("AI 已对 2 套候选路线做常识评估。");
+
+        ItineraryVO result = service.decorateWithLlm(itinerary, req);
+
+        assertThat(result.getSelectedOptionKey()).isEqualTo("efficient");
+        assertThat(result.getNodes()).extracting(ItineraryNodeVO::getPoiName).containsExactly("成都博物馆");
+        assertThat(result.getTotalCost()).isEqualByComparingTo("120");
+        assertThat(result.getRecommendReason()).isEqualTo(decision.getReason());
+        assertThat(result.getCriticReason()).isEqualTo(decision.getReason());
+        assertThat(result.getRejectedOptionReasons()).containsEntry("balanced", "均衡方案绕行更多，晚间节奏偏紧。");
+        assertThat(result.getOptions().get(0).getNotRecommendReason()).contains("绕行更多");
+        verify(llmService).criticSelectItineraryOption(any(), anyList());
+        verify(llmService, never()).explainOptionRecommendation(any(), any());
+    }
+
+    @Test
+    void criticScoresAreAppliedAndSelectedOptionIsNeverMarkedRejected() {
+        LlmService llmService = mock(LlmService.class);
+        ItineraryComparisonAssembler comparisonAssembler = mock(ItineraryComparisonAssembler.class);
+        ItineraryAiDecorationService service = buildService(llmService, comparisonAssembler, 1_000L);
+
+        ItineraryOptionVO balanced = new ItineraryOptionVO();
+        balanced.setOptionKey("balanced");
+        balanced.setRecommendReason("规则默认均衡方案");
+        balanced.setNodes(List.of(buildNode("宽窄巷子")));
+
+        ItineraryOptionVO efficient = new ItineraryOptionVO();
+        efficient.setOptionKey("efficient");
+        efficient.setRecommendReason("规则高效方案");
+        efficient.setNodes(List.of(buildNode("成都博物馆")));
+
+        ItineraryVO itinerary = new ItineraryVO();
+        itinerary.setSelectedOptionKey("balanced");
+        itinerary.setOptions(List.of(balanced, efficient));
+        itinerary.setNodes(balanced.getNodes());
+
+        RouteCriticDecisionVO decision = new RouteCriticDecisionVO();
+        decision.setSelectedOptionKey("efficient");
+        decision.setReason("高效方案更符合少走路偏好。");
+        decision.setRejectedReasons(Map.of(
+                "balanced", "均衡方案绕行略多。",
+                "efficient", "模型误把已选方案写进淘汰原因。"
+        ));
+        decision.setOptionScores(Map.of("balanced", 70.0D, "efficient", 94.0D));
+
+        when(llmService.criticSelectItineraryOption(any(), anyList())).thenReturn(decision);
+        when(comparisonAssembler.buildComparisonTips(any(), anyList(), any()))
+                .thenReturn("AI 已对候选路线做常识评估。");
+
+        ItineraryVO result = service.decorateWithLlm(itinerary, new GenerateReqDTO());
+
+        assertThat(result.getOptions().get(0).getCriticScore()).isEqualTo(70.0D);
+        assertThat(result.getOptions().get(1).getCriticScore()).isEqualTo(94.0D);
+        assertThat(result.getOptions().get(1).getNotRecommendReason()).isNull();
+        assertThat(result.getRejectedOptionReasons()).doesNotContainKey("efficient");
+        assertThat(result.getRejectedOptionReasons()).containsEntry("balanced", "均衡方案绕行略多。");
     }
 
     @Test

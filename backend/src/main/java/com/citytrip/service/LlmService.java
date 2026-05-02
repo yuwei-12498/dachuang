@@ -5,6 +5,7 @@ import com.citytrip.model.vo.DepartureLegEstimateVO;
 import com.citytrip.model.vo.ItineraryRouteDecorationVO;
 import com.citytrip.model.vo.ItineraryNodeVO;
 import com.citytrip.model.vo.ItineraryOptionVO;
+import com.citytrip.model.vo.RouteCriticDecisionVO;
 import com.citytrip.model.vo.SegmentTransportAnalysisVO;
 import com.citytrip.model.vo.SmartFillVO;
 
@@ -31,6 +32,10 @@ public interface LlmService {
      * 生成某条候选路线的推荐理由
      */
     String explainOptionRecommendation(GenerateReqDTO userReq, ItineraryOptionVO option);
+
+    default RouteCriticDecisionVO criticSelectItineraryOption(GenerateReqDTO userReq, List<ItineraryOptionVO> options) {
+        return null;
+    }
 
     /**
      * 解释某一个具体点位为什么入选

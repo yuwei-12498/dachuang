@@ -8,10 +8,10 @@
       <div class="header-badge">{{ headerBadge }}</div>
     </div>
 
-    <div class="map-stage" :class="[`map-stage--${motionStage}`, { 'is-empty': !hasRenderableMap }]">
-      <div v-if="hasRenderableMap" ref="mapRef" class="map-canvas"></div>
+    <div class="map-stage" :class="[`map-stage--${motionStage}`, { 'is-empty': !canRenderMapCanvas }]">
+      <div v-if="canRenderMapCanvas" ref="mapRef" class="map-canvas"></div>
       <div v-else class="map-empty">
-        <el-empty description="当前路线缺少足够的坐标信息，暂时无法绘制地图。" />
+        <el-empty :description="mapEmptyDescription" />
       </div>
     </div>
 
@@ -75,9 +75,7 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
-import { buildLeafletFitTarget } from './mapFitLayers'
+import { ensureAmapJsApiLoaded, getAmapMapStyle, isAmapJsConfigured } from '../../config/amapJsApi'
 import {
   buildCurvedConnectionPath,
   getNodeName,
@@ -152,6 +150,14 @@ const validNodes = computed(() => {
   return (props.nodes || []).filter(node => toLatLng(node))
 })
 const hasRenderableMap = computed(() => validNodes.value.length > 0)
+const mapProviderError = ref('')
+const canRenderMapCanvas = computed(() => hasRenderableMap.value && !mapProviderError.value)
+const mapEmptyDescription = computed(() => {
+  if (!hasRenderableMap.value) {
+    return '当前路线缺少足够的坐标信息，暂时无法绘制地图。'
+  }
+  return mapProviderError.value || '高德地图暂时不可用，请检查本地 JS API 配置。'
+})
 const uniqueDistricts = computed(() => [...new Set(validNodes.value.map(node => node?.district).filter(Boolean))])
 const uniqueCategories = computed(() => [...new Set(validNodes.value.map(node => node?.category).filter(Boolean))])
 const startNode = computed(() => validNodes.value[0] || null)
@@ -386,12 +392,9 @@ const mapInsightItems = computed(() => {
   ]
 })
 
-let map = null
-let routeHaloLayer = null
-let polylineLayer = null
-let markersLayer = null
-let routeSegmentLayers = []
-let routeFlowLayer = null
+let amapMap = null
+let amapRouteOverlays = []
+let amapInfoWindow = null
 let pendingAnimatedRender = false
 let mapResizeObserver = null
 
@@ -403,52 +406,19 @@ const invokeNextFrame = callback => {
   setTimeout(callback, 16)
 }
 
-const resolveBoundsPadding = () => {
-  const stageWidth = mapRef.value?.clientWidth || 0
-  if (stageWidth && stageWidth < 960) {
-    return {
-      paddingTopLeft: [56, 56],
-      paddingBottomRight: [56, 72],
-      maxZoom: 15
-    }
-  }
-  return {
-    paddingTopLeft: [336, 72],
-    paddingBottomRight: [304, 96],
-    maxZoom: 15
-  }
-}
-
-const fitMapToBounds = (targetBounds, useFlyTo = false) => {
-  if (!map || !targetBounds?.isValid?.()) {
-    return
-  }
-  const options = resolveBoundsPadding()
-  if (useFlyTo) {
-    map.flyToBounds(targetBounds, {
-      ...options,
-      duration: 0.95,
-      easeLinearity: 0.18
+const refreshMapViewport = () => {
+  if (amapMap) {
+    invokeNextFrame(() => {
+      if (!amapMap) {
+        return
+      }
+      amapMap.resize?.()
+      if (amapRouteOverlays.length) {
+        amapMap.setFitView(amapRouteOverlays, false, [72, 72, 96, 96], 15)
+      }
     })
     return
   }
-  map.fitBounds(targetBounds, options)
-}
-
-const refreshMapViewport = () => {
-  if (!map) {
-    return
-  }
-  invokeNextFrame(() => {
-    if (!map) {
-      return
-    }
-    map.invalidateSize(false)
-    const fitTarget = buildLeafletFitTarget(L, [routeHaloLayer, polylineLayer, routeFlowLayer, ...routeSegmentLayers, markersLayer])
-    if (fitTarget) {
-      fitMapToBounds(fitTarget.getBounds(), false)
-    }
-  })
 }
 
 const ensureMapResizeObserver = () => {
@@ -552,62 +522,77 @@ const buildSegmentStyle = segment => {
   }
 }
 
-const createMarkerIcon = (label, node, index) => {
-  // html: `<span><i>${label}</i></span>`
+const clearAmapRouteLayers = () => {
+  if (amapInfoWindow) {
+    amapInfoWindow.close?.()
+  }
+  if (amapRouteOverlays.length) {
+    amapRouteOverlays.forEach(overlay => overlay?.setMap?.(null))
+    amapRouteOverlays = []
+  }
+}
+
+const destroyAmapMap = () => {
+  clearAmapRouteLayers()
+  if (amapMap) {
+    amapMap.destroy?.()
+    amapMap = null
+  }
+  amapInfoWindow = null
+}
+
+const toAmapLngLat = point => {
+  const latLng = Array.isArray(point) ? point : toLatLng(point)
+  if (!latLng) {
+    return null
+  }
+  return [latLng[1], latLng[0]]
+}
+
+const buildAmapPoiMarkerContent = (label, node, index) => {
   const visualRole = getNodeVisualRole(node, index)
   const markerClasses = ['marker-face', `${visualRole}-marker`, node?.sourceType === 'external' ? 'external-marker' : 'local-marker']
   const badge = index === 0 ? 'START' : index === validNodes.value.length - 1 ? 'END' : node?.sourceType === 'external' ? 'EXT' : 'POI'
-  return L.divIcon({
-    className: 'itinerary-map-marker',
-    html: `<span class="${markerClasses.join(' ')}" data-visual-role="${visualRole}"><i>${label}</i><em>${badge}</em></span>`,
-    iconSize: [52, 52],
-    iconAnchor: [26, 26]
-  })
+  return `<div class="itinerary-map-marker"><span class="${markerClasses.join(' ')}" data-visual-role="${visualRole}"><i>${label}</i><em>${badge}</em></span></div>`
 }
 
-const createDepartureMarkerIcon = () => {
-  return L.divIcon({
-    className: 'itinerary-map-marker',
-    html: '<span class="marker-face current-location-marker departure-marker local-marker" data-visual-role="current-location"><i>我</i><em>YOU</em></span>',
-    iconSize: [56, 56],
-    iconAnchor: [28, 28]
-  })
+const buildAmapDepartureMarkerContent = () => {
+  return '<div class="itinerary-map-marker"><span class="marker-face current-location-marker departure-marker local-marker" data-visual-role="current-location"><i>&#25105;</i><em>YOU</em></span></div>'
 }
 
-const attachSegmentLayerEvents = (layer, segment) => {
-  layer.on('mouseover', () => {
+const attachAmapSegmentEvents = (overlay, segment) => {
+  overlay.on?.('mouseover', () => {
     emit('segment-hover', segment.index)
   })
-  layer.on('mouseout', () => {
+  overlay.on?.('mouseout', () => {
     emit('segment-leave', segment.index)
   })
-  layer.on('click', () => {
+  overlay.on?.('click', () => {
     emit('segment-pin', segment.index)
   })
 }
 
-const clearRouteLayers = () => {
-  if (routeHaloLayer) {
-    routeHaloLayer.remove()
-    routeHaloLayer = null
+const openAmapInfoWindow = (AMap, content, position) => {
+  if (!amapMap || !position) {
+    return
   }
-  if (polylineLayer) {
-    polylineLayer.remove()
-    polylineLayer = null
+  if (!amapInfoWindow) {
+    amapInfoWindow = new AMap.InfoWindow({
+      isCustom: false,
+      offset: new AMap.Pixel(0, -30)
+    })
   }
-  if (markersLayer) {
-    markersLayer.remove()
-    markersLayer = null
-  }
-  if (routeFlowLayer) {
-    routeFlowLayer.remove()
-    routeFlowLayer = null
-  }
-  if (routeSegmentLayers.length) {
-    routeSegmentLayers.forEach(layer => layer.remove())
-    routeSegmentLayers = []
-  }
+  amapInfoWindow.setContent(content)
+  amapInfoWindow.open(amapMap, position)
 }
+
+const addAmapOverlay = overlay => {
+  if (overlay) {
+    amapRouteOverlays.push(overlay)
+  }
+  return overlay
+}
+
 
 const collectRouteTracePoints = () => {
   const merged = []
@@ -642,126 +627,147 @@ const buildNodePopupHtml = (node, index) => {
 }
 
 const renderMap = async ({ useFlyTo = false, animateFlow = false } = {}) => {
+  if (!isAmapJsConfigured()) {
+    mapProviderError.value = '请先配置高德地图 JS API Key 和安全密钥。'
+    destroyAmapMap()
+    return
+  }
+  mapProviderError.value = ''
+  await renderAmapMap({ useFlyTo, animateFlow })
+}
+
+const renderAmapMap = async ({ useFlyTo = false, animateFlow = false } = {}) => {
   await nextTick()
 
   if (!mapRef.value || !hasRenderableMap.value) {
     return
   }
 
-  if (!map) {
-    map = L.map(mapRef.value, {
-      zoomControl: false,
-      scrollWheelZoom: false
+  let AMap
+  try {
+    AMap = await ensureAmapJsApiLoaded()
+  } catch (error) {
+    console.warn('[citytrip] AMap JS API unavailable.', error)
+    mapProviderError.value = '高德地图暂时加载失败，请检查 JS API Key、安全密钥和网络。'
+    destroyAmapMap()
+    return
+  }
+
+
+  if (!amapMap) {
+    amapMap = new AMap.Map(mapRef.value, {
+      zoom: 13,
+      resizeEnable: true,
+      viewMode: '2D',
+      mapStyle: getAmapMapStyle()
     })
-
-    L.control.zoom({
-      position: 'bottomright'
-    }).addTo(map)
-
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map)
+  } else {
+    amapMap.setMapStyle?.(getAmapMapStyle())
   }
 
   ensureMapResizeObserver()
+  clearAmapRouteLayers()
 
-  clearRouteLayers()
-
-  const tracePoints = collectRouteTracePoints()
+  const tracePoints = collectRouteTracePoints().map(toAmapLngLat).filter(Boolean)
   if (tracePoints.length >= 2) {
-    routeHaloLayer = L.polyline(tracePoints, {
-      color: 'rgba(95, 158, 255, 0.18)',
-      weight: 14,
-      opacity: 1,
-      lineCap: 'round',
-      lineJoin: 'round'
-    }).addTo(map)
-
-    polylineLayer = L.polyline(tracePoints, {
-      color: 'rgba(73, 109, 170, 0.24)',
-      weight: 4,
-      opacity: 0.88,
-      lineCap: 'round',
+    addAmapOverlay(new AMap.Polyline({
+      map: amapMap,
+      path: tracePoints,
+      strokeColor: '#5f9eff',
+      strokeOpacity: 0.18,
+      strokeWeight: 14,
       lineJoin: 'round',
-      dashArray: '12 12'
-    }).addTo(map)
+      lineCap: 'round'
+    }))
 
-    routeFlowLayer = L.polyline(tracePoints, {
-      color: animateFlow ? 'rgba(154, 214, 255, 0.95)' : 'rgba(154, 214, 255, 0.68)',
-      weight: animateFlow ? 6 : 5,
-      opacity: animateFlow ? 0.94 : 0.72,
-      lineCap: 'round',
+    addAmapOverlay(new AMap.Polyline({
+      map: amapMap,
+      path: tracePoints,
+      strokeColor: '#496daa',
+      strokeOpacity: 0.32,
+      strokeWeight: 4,
+      strokeStyle: 'dashed',
       lineJoin: 'round',
-      dashArray: '18 14',
-      className: 'route-flow-line'
-    }).addTo(map)
+      lineCap: 'round'
+    }))
 
-    const flowElement = routeFlowLayer.getElement?.()
-    if (flowElement) {
-      flowElement.classList.toggle('is-animated', animateFlow)
-    }
+    addAmapOverlay(new AMap.Polyline({
+      map: amapMap,
+      path: tracePoints,
+      strokeColor: animateFlow ? '#9ad6ff' : '#7fc6f5',
+      strokeOpacity: animateFlow ? 0.94 : 0.72,
+      strokeWeight: animateFlow ? 6 : 5,
+      strokeStyle: 'dashed',
+      lineJoin: 'round',
+      lineCap: 'round',
+      extData: { className: 'route-flow-line' }
+    }))
   }
 
-  routeSegmentLayers = segmentMeta.value.map(segment => {
-    const layer = L.polyline(segment.pathPoints, buildSegmentStyle(segment)).addTo(map)
-    attachSegmentLayerEvents(layer, segment)
-    return layer
+  segmentMeta.value.forEach(segment => {
+    const style = buildSegmentStyle(segment)
+    const path = segment.pathPoints.map(toAmapLngLat).filter(Boolean)
+    if (path.length < 2) {
+      return
+    }
+    const layer = addAmapOverlay(new AMap.Polyline({
+      map: amapMap,
+      path,
+      strokeColor: style.color,
+      strokeOpacity: style.opacity ?? 0.8,
+      strokeWeight: style.weight ?? 5,
+      strokeStyle: style.dashArray ? 'dashed' : 'solid',
+      lineJoin: 'round',
+      lineCap: 'round'
+    }))
+    attachAmapSegmentEvents(layer, segment)
   })
 
-  const markerLayers = []
   if (normalizedDeparturePoint.value) {
-    markerLayers.push(
-      L.marker([normalizedDeparturePoint.value.latitude, normalizedDeparturePoint.value.longitude], {
-        icon: createDepartureMarkerIcon()
-      }).bindPopup(`
+    const position = [normalizedDeparturePoint.value.longitude, normalizedDeparturePoint.value.latitude]
+    const marker = addAmapOverlay(new AMap.Marker({
+      map: amapMap,
+      position,
+      content: buildAmapDepartureMarkerContent(),
+      anchor: 'center'
+    }))
+    marker.on?.('click', () => openAmapInfoWindow(AMap, `
         <div style="min-width: 220px;">
           <strong style="font-size: 15px; color: #163152;">${normalizedDeparturePoint.value.label}</strong>
-          <div style="margin-top: 8px; color: #5f6f82;">当前位置</div>
-          <div style="margin-top: 6px; color: #24c0a6; font-weight: 600;">路线将从这里开始</div>
+          <div style="margin-top: 8px; color: #5f6f82;">&#24403;&#21069;&#20301;&#32622;</div>
+          <div style="margin-top: 6px; color: #24c0a6; font-weight: 600;">&#36335;&#32447;&#23558;&#20174;&#36825;&#37324;&#24320;&#22987;</div>
         </div>
-      `)
-    )
+      `, position))
   }
 
   validNodes.value.forEach((node, index) => {
-    markerLayers.push(
-      L.marker(toLatLng(node), {
-        icon: createMarkerIcon(index + 1, node, index)
-      }).bindPopup(buildNodePopupHtml(node, index))
-    )
+    const position = toAmapLngLat(node)
+    if (!position) {
+      return
+    }
+    const marker = addAmapOverlay(new AMap.Marker({
+      map: amapMap,
+      position,
+      content: buildAmapPoiMarkerContent(index + 1, node, index),
+      anchor: 'center'
+    }))
+    marker.on?.('click', () => openAmapInfoWindow(AMap, buildNodePopupHtml(node, index), position))
   })
 
-  markersLayer = L.layerGroup(markerLayers).addTo(map)
-
-  const fitTarget = buildLeafletFitTarget(L, [routeHaloLayer, polylineLayer, routeFlowLayer, ...routeSegmentLayers, markersLayer])
-  const targetBounds = fitTarget?.getBounds?.()
-
-  if (targetBounds?.isValid?.()) {
-    fitMapToBounds(targetBounds, useFlyTo)
-  } else if (markerLayers.length) {
-    const center = normalizedDeparturePoint.value
-      ? [normalizedDeparturePoint.value.latitude, normalizedDeparturePoint.value.longitude]
-      : toLatLng(validNodes.value[0])
+  if (amapRouteOverlays.length) {
+    amapMap.setFitView(amapRouteOverlays, !useFlyTo, [72, 72, 96, 96], 15)
+  } else if (validNodes.value.length) {
+    const center = toAmapLngLat(validNodes.value[0])
     if (center) {
-      map.setView(center, 13)
+      amapMap.setZoomAndCenter(13, center)
     }
   }
-
-  map.invalidateSize(false)
-  invokeNextFrame(() => {
-    if (map) {
-      map.invalidateSize(false)
-    }
-  })
+  amapMap.resize?.()
 }
 
 const destroyMap = () => {
   disconnectMapResizeObserver()
-  clearRouteLayers()
-  if (map) {
-    map.remove()
-    map = null
-  }
+  destroyAmapMap()
 }
 
 onMounted(() => {
@@ -809,7 +815,7 @@ watch(() => props.motionToken, (token, previousToken) => {
 watch(
   () => [props.activeSegmentIndex, props.pinnedSegmentIndex],
   () => {
-    if (!map || !hasRenderableMap.value) {
+    if (!amapMap || !hasRenderableMap.value) {
       return
     }
     renderMap({
@@ -1399,18 +1405,6 @@ watch(
   margin-top: 18px;
 }
 
-:deep(.leaflet-control-zoom) {
-  border: none;
-  box-shadow: 0 14px 24px rgba(81, 120, 177, 0.16);
-}
-
-:deep(.leaflet-control-zoom a) {
-  width: 34px;
-  height: 34px;
-  line-height: 34px;
-  color: var(--text-strong);
-}
-
 :deep(.route-flow-line) {
   stroke-dashoffset: 0;
 }
@@ -1643,15 +1637,5 @@ watch(
     max-width: 86vw;
   }
 
-  :deep(.leaflet-popup-content) {
-    max-width: 260px;
-    min-width: 0;
-  }
-
-  :deep(.leaflet-control-zoom a) {
-    width: 32px;
-    height: 32px;
-    line-height: 32px;
-  }
 }
 </style>

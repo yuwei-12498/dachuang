@@ -112,7 +112,10 @@ public class OpenAiGatewayClient {
         if (!hasText(message) || !message.contains("OpenAI message content is empty")) {
             return false;
         }
-        return looksLikeVivoBaseUrl(options.getBaseUrl()) || LlmProperties.isVivoAllowedModel(request.getModel());
+        return looksLikeVivoBaseUrl(options.getBaseUrl())
+                || LlmProperties.isVivoAllowedModel(request.getModel())
+                || looksLikeMimoTarget(options.getBaseUrl())
+                || looksLikeMimoTarget(request.getModel());
     }
 
     private String retryWithoutStreaming(LlmProperties.ResolvedOpenAiOptions options,
@@ -142,6 +145,9 @@ public class OpenAiGatewayClient {
             connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
             connection.setRequestProperty("Accept", request.getStream() ? "text/event-stream" : "application/json");
             connection.setRequestProperty("Authorization", "Bearer " + apiKey.trim());
+            if (shouldSendApiKeyHeader(options.getBaseUrl(), request.getModel())) {
+                connection.setRequestProperty("api-key", apiKey.trim());
+            }
             connection.setRequestProperty("User-Agent", "CityTripBackend/1.0");
 
             byte[] requestBody = objectMapper.writeValueAsBytes(request);
@@ -366,6 +372,14 @@ public class OpenAiGatewayClient {
 
     private boolean looksLikeVivoBaseUrl(String baseUrl) {
         return hasText(baseUrl) && baseUrl.toLowerCase(Locale.ROOT).contains("api-ai.vivo.com.cn");
+    }
+
+    private boolean shouldSendApiKeyHeader(String baseUrl, String model) {
+        return looksLikeMimoTarget(baseUrl) || looksLikeMimoTarget(model);
+    }
+
+    private boolean looksLikeMimoTarget(String value) {
+        return hasText(value) && value.toLowerCase(Locale.ROOT).contains("mimo");
     }
 
     private String appendQueryParam(String endpoint, String key, String value) {

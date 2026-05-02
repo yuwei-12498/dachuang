@@ -115,6 +115,7 @@ import { ElMessage } from 'element-plus'
 import { useAuthState } from '@/store/auth'
 import { askChatQuestion, appendAssistantMessage, useChatState } from '@/store/chat'
 import { buildSharedChatContext } from '@/utils/chatContext'
+import { persistDepartureLocation, questionNeedsLocation, resolveCurrentLocation } from '@/utils/location'
 import { handleChatWorkflowAction } from '@/utils/chatWorkflowActions'
 
 const route = useRoute()
@@ -157,6 +158,42 @@ const buildContext = () => buildSharedChatContext({
   pageType: route.name ? String(route.name).toLowerCase() : 'page'
 })
 
+const buildLocationEnhancedContext = (context, location) => {
+  if (!location) {
+    return context
+  }
+  return {
+    ...context,
+    userLat: Number(location.latitude),
+    userLng: Number(location.longitude),
+    originalReq: {
+      ...(context?.originalReq || {}),
+      departureLatitude: Number(location.latitude),
+      departureLongitude: Number(location.longitude),
+      departurePlaceName: context?.originalReq?.departurePlaceName || 'CURRENT_LOCATION'
+    }
+  }
+}
+
+const ensureLocationAwareContext = async (question) => {
+  const context = buildContext()
+  if (Number.isFinite(Number(context?.userLat)) && Number.isFinite(Number(context?.userLng))) {
+    return context
+  }
+  if (!questionNeedsLocation(question)) {
+    return context
+  }
+
+  const location = await resolveCurrentLocation()
+  if (!location) {
+    ElMessage.info('未获取到定位权限，附近推荐和距离判断可能不准确')
+    return context
+  }
+
+  persistDepartureLocation(location, context?.originalReq?.departurePlaceName || 'CURRENT_LOCATION')
+  return buildLocationEnhancedContext(buildContext(), location)
+}
+
 const buildActionKey = (action, index) => `${index}:${action?.key || action?.type || action?.label || 'action'}`
 
 const resolveActionButtonType = style => {
@@ -195,7 +232,8 @@ const handleSend = async () => {
   inputVal.value = ''
 
   try {
-    await askChatQuestion(question, buildContext())
+    const context = await ensureLocationAwareContext(question)
+    await askChatQuestion(question, context)
   } catch (err) {
     if (err?.code === 401) {
       ElMessage.warning('登录状态已失效，请重新登录')

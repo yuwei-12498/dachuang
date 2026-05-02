@@ -4,7 +4,6 @@ import com.citytrip.annotation.LoginRequired;
 import com.citytrip.common.SystemBusyException;
 import com.citytrip.model.dto.ChatReqDTO;
 import com.citytrip.model.vo.ChatSkillPayloadVO;
-import com.citytrip.model.vo.ChatStatusVO;
 import com.citytrip.model.vo.ChatVO;
 import com.citytrip.service.ChatService;
 import com.citytrip.service.guard.AiRequestGuard;
@@ -16,7 +15,6 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.core.task.TaskRejectedException;
 import org.springframework.http.MediaType;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -48,13 +46,6 @@ public class ChatController {
     }
 
     @LoginRequired
-    @PostMapping
-    public ChatVO askQuestion(@Valid @RequestBody ChatReqDTO req, HttpServletRequest request) {
-        log.info("Received chat request. questionLength={}, hasContext={}", questionLength(req), hasContext(req));
-        return aiRequestGuard.call("chat", guardSubject(request), () -> chatService.answerQuestion(req));
-    }
-
-    @LoginRequired
     @PostMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter streamQuestion(@Valid @RequestBody ChatReqDTO req, HttpServletRequest request) {
         log.info("Received streaming chat request. questionLength={}, hasContext={}", questionLength(req), hasContext(req));
@@ -83,12 +74,6 @@ public class ChatController {
             throw new SystemBusyException("\u5f53\u524d\u804a\u5929\u8bf7\u6c42\u8f83\u591a\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5");
         }
         return emitter;
-    }
-
-    @LoginRequired
-    @GetMapping("/status")
-    public ChatStatusVO getStatus() {
-        return chatService.getStatus();
     }
 
     private void handleStreamingRequest(ChatReqDTO req,

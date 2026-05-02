@@ -52,80 +52,80 @@
           </div>
         </el-col>
 
-        <!-- 右半部分：视觉化模拟行程卡片 (产品感展现) -->
+        <!-- 右半部分：真实规划能力预览 -->
         <el-col :xs="24" :md="12" class="hero-visual-col">
-          <div class="mock-card-wrapper">
-            <!-- 悬浮小组件 1 -->
+          <div class="route-preview-wrapper">
+            <!-- 规划能力标签 1 -->
             <div class="float-badge badge-top">
               <el-icon color="#67C23A"><Filter /></el-icon>
-              <span>预算 ¥450 匹配</span>
+              <span>预算约束实时参与评分</span>
             </div>
-            <!-- 悬浮小组件 2 -->
+            <!-- 规划能力标签 2 -->
             <div class="float-badge badge-bottom">
               <el-icon color="#E6A23C"><Sunny /></el-icon>
-              <span>最适宜步行天气</span>
+              <span>高德路网耗时兜底可用</span>
             </div>
 
-            <!-- 核心假窗体：极简路线流 -->
-            <div class="mock-route-card">
-              <div class="mock-header">
-                <div class="mock-dots">
+            <!-- 核心规划链路预览 -->
+            <div class="route-preview-card">
+              <div class="route-preview-header">
+                <div class="route-preview-dots">
                   <span class="dot red"></span>
                   <span class="dot yellow"></span>
                   <span class="dot green"></span>
                 </div>
-                <div class="mock-title">✨ 成都文化探索一日游</div>
+                <div class="route-preview-title">真实路网 + 算法 + AI Critic</div>
               </div>
-              <div class="mock-body">
+              <div class="route-preview-body">
                 <el-timeline>
-                  <el-timeline-item 
-                    color="#409eff" 
-                    timestamp="09:00 - 11:30" 
+                  <el-timeline-item
+                    color="#409eff"
+                    timestamp="步骤 1"
                     placement="top">
-                    <div class="mock-node">
-                      <div class="node-title">武侯祠博物馆</div>
+                    <div class="planner-step">
+                      <div class="node-title">高德路网耗时估算</div>
                       <div class="node-tags">
-                        <span class="tag">历史文化</span>
-                        <span class="tag">￥50</span>
+                        <span class="tag">公交 / 打车 / 步行</span>
+                        <span class="tag">失败自动降级</span>
                       </div>
                     </div>
                   </el-timeline-item>
-                  <el-timeline-item 
-                    color="#e4e7ed" 
-                    timestamp="通行约 15 分钟" 
-                    placement="top" 
+                  <el-timeline-item
+                    color="#e4e7ed"
+                    timestamp="真实交通时间进入时间窗约束"
+                    placement="top"
                     class="travel-timeline">
                   </el-timeline-item>
-                  <el-timeline-item 
-                    color="#67c23a" 
-                    timestamp="11:45 - 13:30" 
+                  <el-timeline-item
+                    color="#67c23a"
+                    timestamp="步骤 2"
                     placement="top">
-                    <div class="mock-node">
-                      <div class="node-title">锦里古街 (午餐)</div>
+                    <div class="planner-step">
+                      <div class="node-title">Top 候选路线生成</div>
                       <div class="node-tags">
-                        <span class="tag">地道美食</span>
-                        <span class="tag">￥80</span>
+                        <span class="tag">DP / Beam Search</span>
+                        <span class="tag">权重可配置</span>
                       </div>
                     </div>
                   </el-timeline-item>
-                  <el-timeline-item 
-                    color="#409eff" 
-                    timestamp="14:00 - 17:00" 
+                  <el-timeline-item
+                    color="#409eff"
+                    timestamp="步骤 3"
                     placement="top">
-                    <div class="mock-node">
-                      <div class="node-title">杜甫草堂</div>
+                    <div class="planner-step">
+                      <div class="node-title">大模型交叉评估</div>
                       <div class="node-tags">
-                        <span class="tag">园林</span>
-                        <span class="tag">重点打卡</span>
+                        <span class="tag">常识判别</span>
+                        <span class="tag">说明淘汰理由</span>
                       </div>
                     </div>
                   </el-timeline-item>
                 </el-timeline>
-                
-                <div class="mock-bot-msg">
+
+                <div class="critic-note">
                   <div class="bot-avatar">AI</div>
                   <div class="bot-text">
-                    已避开今日下午可能降雨的高峰时段，午餐点离打卡地仅 500 米。
+                    后端先生成多条绝对可行路线，再由 AI Critic 结合用户自然语言需求选择最终展示方案。
                   </div>
                 </div>
               </div>
@@ -281,16 +281,16 @@ import { ChatDotRound, Filter, Sunny } from '@element-plus/icons-vue'
   align-items: center;
 }
 
-.mock-card-wrapper {
+.route-preview-wrapper {
   position: relative;
   width: 100%;
   max-width: 420px;
-  /* 倾斜一点创造空间感 */
+  /* 轻微透视营造产品层次 */
   transform: perspective(1000px) rotateY(-5deg) rotateX(2deg);
   transition: transform 0.5s ease;
 }
 
-.mock-card-wrapper:hover {
+.route-preview-wrapper:hover {
   transform: perspective(1000px) rotateY(0deg) rotateX(0deg);
 }
 
@@ -321,7 +321,7 @@ import { ChatDotRound, Filter, Sunny } from '@element-plus/icons-vue'
   animation: float 5s ease-in-out infinite reverse;
 }
 
-.mock-route-card {
+.route-preview-card {
   background: white;
   border-radius: 16px;
   box-shadow: 0 20px 60px rgba(0,0,0,0.08);
@@ -329,7 +329,7 @@ import { ChatDotRound, Filter, Sunny } from '@element-plus/icons-vue'
   overflow: hidden;
 }
 
-.mock-header {
+.route-preview-header {
   height: 48px;
   background: #fbfbfc;
   border-bottom: 1px solid #f0f2f5;
@@ -338,7 +338,7 @@ import { ChatDotRound, Filter, Sunny } from '@element-plus/icons-vue'
   padding: 0 16px;
 }
 
-.mock-dots {
+.route-preview-dots {
   display: flex;
   gap: 6px;
   margin-right: 16px;
@@ -353,24 +353,24 @@ import { ChatDotRound, Filter, Sunny } from '@element-plus/icons-vue'
 .yellow { background-color: #ffbd2e; }
 .green { background-color: #27c93f; }
 
-.mock-title {
+.route-preview-title {
   font-size: 14px;
   font-weight: 600;
   color: #606266;
 }
 
-.mock-body {
+.route-preview-body {
   padding: 30px 24px 20px;
 }
 
-.mock-node .node-title {
+.planner-step .node-title {
   font-size: 15px;
   font-weight: 600;
   color: #303133;
   margin-bottom: 6px;
 }
 
-.mock-node .tag {
+.planner-step .tag {
   font-size: 12px;
   color: #909399;
   background: #f4f4f5;
@@ -388,7 +388,7 @@ import { ChatDotRound, Filter, Sunny } from '@element-plus/icons-vue'
   color: #909399;
 }
 
-.mock-bot-msg {
+.critic-note {
   display: flex;
   align-items: flex-start;
   gap: 12px;

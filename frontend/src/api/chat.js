@@ -1,28 +1,3 @@
-import request from './request'
-
-export function reqAskChat(data) {
-  return request({
-    url: '/api/chat/messages',
-    method: 'post',
-    data
-  })
-}
-
-export function reqGetChatStatus() {
-  return request({
-    url: '/api/chat/messages/status',
-    method: 'get',
-    skipErrorMessage: true
-  }).then(payload => ({
-    ...payload,
-    toolReady: Boolean(payload?.toolReady),
-    geoReady: Boolean(payload?.geoReady),
-    embeddingReady: Boolean(payload?.embeddingReady),
-    rerankReady: Boolean(payload?.rerankReady),
-    warnings: Array.isArray(payload?.warnings) ? payload.warnings : []
-  }))
-}
-
 export async function reqStreamChat(data, handlers = {}) {
   const token = localStorage.getItem('jwt_token')
   const response = await fetch('/api/chat/messages/stream', {

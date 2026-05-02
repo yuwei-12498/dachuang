@@ -24,6 +24,21 @@ function Read-EnvFile {
   return $result
 }
 
+function Apply-ProcessEnvironment {
+  param([hashtable]$Variables)
+
+  if ($null -eq $Variables) {
+    return
+  }
+
+  foreach ($entry in $Variables.GetEnumerator()) {
+    if ([string]::IsNullOrWhiteSpace($entry.Key)) {
+      continue
+    }
+    Set-Item -Path ("Env:{0}" -f $entry.Key) -Value ([string]$entry.Value)
+  }
+}
+
 function Get-ListeningProcessId {
   param([int]$Port)
 
@@ -58,6 +73,7 @@ function Wait-ForListeningPort {
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $rootEnvPath = Join-Path $repoRoot '.env'
 $rootEnvMap = Read-EnvFile -Path $rootEnvPath
+Apply-ProcessEnvironment -Variables $rootEnvMap
 
 $backendPort = 8082
 if ($rootEnvMap.ContainsKey('SERVER_PORT')) {

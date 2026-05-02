@@ -6,6 +6,7 @@ import com.citytrip.model.vo.DepartureLegEstimateVO;
 import com.citytrip.model.vo.ItineraryRouteDecorationVO;
 import com.citytrip.model.vo.ItineraryNodeVO;
 import com.citytrip.model.vo.ItineraryOptionVO;
+import com.citytrip.model.vo.RouteCriticDecisionVO;
 import com.citytrip.model.vo.RouteNodeDecorationVO;
 import com.citytrip.model.vo.SegmentTransportAnalysisVO;
 import com.citytrip.model.vo.ItineraryVO;
@@ -28,6 +29,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -92,7 +94,10 @@ public class ItineraryAiDecorationService {
         AiBudget budget = new AiBudget(resolveEffectiveAiBudgetMs());
         Map<String, DepartureLegEstimateVO> departureLegCache = new HashMap<>();
         try {
-            decorateOptionRecommendations(req, itinerary, budget);
+            boolean criticApplied = applyRouteCriticDecision(req, itinerary, budget);
+            if (!criticApplied) {
+                decorateOptionRecommendations(req, itinerary, budget);
+            }
             decorateDepartureLeg(req, itinerary.getNodes(), departureLegCache, budget);
             ItineraryRouteDecorationVO routeDecoration = resolveRouteExperienceDecoration(req, itinerary.getNodes(), budget);
             if (hasUsefulRouteDecoration(routeDecoration)) {
@@ -134,6 +139,101 @@ public class ItineraryAiDecorationService {
         itinerary.setTips(normalizeSingleTip(keepChineseOrFallback(routeWarmTip, fallback), fallback));
     }
 
+    private boolean applyRouteCriticDecision(GenerateReqDTO req, ItineraryVO itinerary, AiBudget budget) {
+        if (itinerary == null || itinerary.getOptions() == null || itinerary.getOptions().size() < 2) {
+            return false;
+        }
+        RouteCriticDecisionVO decision = resolveValueWithFallback(
+                () -> llmService.criticSelectItineraryOption(req, itinerary.getOptions()),
+                "criticSelectItineraryOption",
+                budget
+        );
+        if (decision == null || !StringUtils.hasText(decision.getSelectedOptionKey())) {
+            return false;
+        }
+        ItineraryOptionVO selected = findSelectedOption(itinerary.getOptions(), decision.getSelectedOptionKey());
+        if (selected == null || !Objects.equals(selected.getOptionKey(), decision.getSelectedOptionKey())) {
+            return false;
+        }
+
+        itinerary.setSelectedOptionKey(selected.getOptionKey());
+        applySelectedOption(itinerary, selected);
+
+        String reason = normalizeRecommendationReason(decision.getReason(), selected.getRecommendReason());
+        if (StringUtils.hasText(reason)) {
+            selected.setRecommendReason(reason);
+            itinerary.setRecommendReason(reason);
+            itinerary.setCriticReason(reason);
+        }
+        applyCriticScores(itinerary.getOptions(), decision.getOptionScores());
+
+        Map<String, String> rejectedReasons = normalizeRejectedReasons(decision.getRejectedReasons());
+        rejectedReasons.remove(selected.getOptionKey());
+        if (!rejectedReasons.isEmpty()) {
+            itinerary.setRejectedOptionReasons(rejectedReasons);
+            for (ItineraryOptionVO option : itinerary.getOptions()) {
+                if (option == null || !StringUtils.hasText(option.getOptionKey())) {
+                    continue;
+                }
+                String rejectedReason = rejectedReasons.get(option.getOptionKey());
+                if (StringUtils.hasText(rejectedReason)) {
+                    option.setNotRecommendReason(rejectedReason);
+                }
+            }
+        }
+
+        String comparisonTips = buildComparisonHint(req, itinerary);
+        if (StringUtils.hasText(comparisonTips)) {
+            itinerary.setTips(comparisonTips);
+        }
+        return true;
+    }
+
+    private void applyCriticScores(List<ItineraryOptionVO> options, Map<String, Double> optionScores) {
+        if (options == null || options.isEmpty() || optionScores == null || optionScores.isEmpty()) {
+            return;
+        }
+        for (ItineraryOptionVO option : options) {
+            if (option == null || !StringUtils.hasText(option.getOptionKey())) {
+                continue;
+            }
+            Double rawScore = optionScores.get(option.getOptionKey());
+            if (rawScore == null || rawScore.isNaN() || rawScore.isInfinite()) {
+                continue;
+            }
+            option.setCriticScore(Math.max(0D, Math.min(100D, rawScore)));
+        }
+    }
+
+    private void applySelectedOption(ItineraryVO itinerary, ItineraryOptionVO option) {
+        if (itinerary == null || option == null) {
+            return;
+        }
+        itinerary.setNodes(option.getNodes());
+        itinerary.setTotalCost(option.getTotalCost());
+        itinerary.setTotalDuration(option.getTotalDuration());
+        itinerary.setRecommendReason(option.getRecommendReason());
+        itinerary.setAlerts(option.getAlerts());
+    }
+
+    private Map<String, String> normalizeRejectedReasons(Map<String, String> rawReasons) {
+        if (rawReasons == null || rawReasons.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, String> normalized = new LinkedHashMap<>();
+        for (Map.Entry<String, String> entry : rawReasons.entrySet()) {
+            if (!StringUtils.hasText(entry.getKey()) || !StringUtils.hasText(entry.getValue())) {
+                continue;
+            }
+            String reason = entry.getValue().replaceAll("[\\r\\n]+", " ").trim();
+            if (reason.length() > 120) {
+                reason = reason.substring(0, 120);
+            }
+            normalized.put(entry.getKey().trim(), reason);
+        }
+        return normalized;
+    }
+
     private void decorateOptionRecommendations(GenerateReqDTO req, ItineraryVO itinerary, AiBudget budget) {
         if (itinerary == null || itinerary.getOptions() == null || itinerary.getOptions().isEmpty()) {
             return;
@@ -144,13 +244,14 @@ public class ItineraryAiDecorationService {
             if (option == null) {
                 continue;
             }
-            String fallback = option.getRecommendReason();
+            String ruleFallback = option.getRecommendReason();
+            String narrativeFallback = buildFallbackOptionRecommendation(req, option);
             String generated = resolveTextWithFallback(
                     () -> llmService.explainOptionRecommendation(req, option),
                     "explainOptionRecommendation",
                     budget
             );
-            String resolved = normalizeRecommendationReason(keepChineseOrFallback(generated, fallback), fallback);
+            String resolved = resolveOptionRecommendationReason(generated, ruleFallback, narrativeFallback);
             if (StringUtils.hasText(resolved)) {
                 option.setRecommendReason(resolved);
             }
@@ -203,6 +304,95 @@ public class ItineraryAiDecorationService {
             value = value.substring(0, 160);
         }
         return value;
+    }
+
+    private String resolveOptionRecommendationReason(String generated, String ruleFallback, String narrativeFallback) {
+        if (StringUtils.hasText(generated)) {
+            if (isEnglishDominant(generated)) {
+                return normalizeRecommendationReason(ruleFallback, ruleFallback);
+            }
+            return normalizeRecommendationReason(generated, ruleFallback);
+        }
+        String fallback = StringUtils.hasText(narrativeFallback) ? narrativeFallback : ruleFallback;
+        return normalizeRecommendationReason(fallback, ruleFallback);
+    }
+
+    private String buildFallbackOptionRecommendation(GenerateReqDTO req, ItineraryOptionVO option) {
+        if (option == null) {
+            return null;
+        }
+        List<ItineraryNodeVO> nodes = option.getNodes();
+        if (nodes == null || nodes.isEmpty()) {
+            return null;
+        }
+
+        List<String> poiNames = new ArrayList<>();
+        String first = safePoiName(nodes.get(0));
+        if (StringUtils.hasText(first)) {
+            poiNames.add(first);
+        }
+        if (nodes.size() >= 3) {
+            String middle = safePoiName(nodes.get(nodes.size() / 2));
+            if (StringUtils.hasText(middle) && poiNames.stream().noneMatch(existing -> existing.equals(middle))) {
+                poiNames.add(middle);
+            }
+        } else if (nodes.size() == 2) {
+            String second = safePoiName(nodes.get(1));
+            if (StringUtils.hasText(second) && poiNames.stream().noneMatch(existing -> existing.equals(second))) {
+                poiNames.add(second);
+            }
+        }
+        String last = safePoiName(nodes.get(nodes.size() - 1));
+        if (StringUtils.hasText(last) && poiNames.stream().noneMatch(existing -> existing.equals(last))) {
+            poiNames.add(last);
+        }
+        poiNames = poiNames.stream().filter(StringUtils::hasText).limit(3).toList();
+        if (poiNames.isEmpty()) {
+            return null;
+        }
+
+        boolean hasExternal = nodes.stream().anyMatch(node -> node != null && "external".equalsIgnoreCase(node.getSourceType()));
+        boolean rainy = Boolean.TRUE.equals(req == null ? null : req.getIsRainy());
+        boolean night = Boolean.TRUE.equals(req == null ? null : req.getIsNight());
+
+        StringBuilder sb = new StringBuilder();
+        if (poiNames.size() >= 2) {
+            sb.append("从").append(poiNames.get(0)).append("出发，顺路串联");
+            sb.append(String.join("、", poiNames.subList(1, poiNames.size())));
+            sb.append("，节奏更连贯。");
+        } else {
+            sb.append("以").append(poiNames.get(0)).append("为主线，按时间窗顺走更省折返。");
+        }
+
+        if (rainy) {
+            sb.append("雨天尽量把室外停留分散在短段。");
+        } else if (night) {
+            sb.append("夜游建议把热闹点位放后段，回程更好衔接。");
+        }
+        if (hasExternal) {
+            sb.append("含地图候选点位，出发前请再确认营业状态。");
+        }
+
+        String result = sb.toString().replaceAll("[\\r\\n]+", " ").trim();
+        if (result.length() > 160) {
+            result = result.substring(0, 160);
+        }
+        return result;
+    }
+
+    private String safePoiName(ItineraryNodeVO node) {
+        if (node == null) {
+            return null;
+        }
+        String name = node.getPoiName();
+        if (!StringUtils.hasText(name)) {
+            return null;
+        }
+        name = name.trim();
+        if (name.length() > 18) {
+            name = name.substring(0, 18);
+        }
+        return name;
     }
 
     private ItineraryRouteDecorationVO resolveRouteExperienceDecoration(GenerateReqDTO req,

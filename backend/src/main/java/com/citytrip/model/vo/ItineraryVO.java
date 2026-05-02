@@ -6,6 +6,7 @@ import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Data
 public class ItineraryVO {
@@ -15,6 +16,8 @@ public class ItineraryVO {
     private Integer totalDuration;
     private BigDecimal totalCost;
     private String recommendReason;
+    private String criticReason;
+    private Map<String, String> rejectedOptionReasons;
     private String tips;
     private Boolean favorited;
     private LocalDateTime favoriteTime;

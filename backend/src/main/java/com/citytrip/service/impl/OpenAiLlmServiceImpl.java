@@ -5,6 +5,7 @@ import com.citytrip.model.vo.DepartureLegEstimateVO;
 import com.citytrip.model.vo.ItineraryRouteDecorationVO;
 import com.citytrip.model.vo.ItineraryNodeVO;
 import com.citytrip.model.vo.ItineraryOptionVO;
+import com.citytrip.model.vo.RouteCriticDecisionVO;
 import com.citytrip.model.vo.SegmentTransportAnalysisVO;
 import com.citytrip.model.vo.SmartFillVO;
 import com.citytrip.service.LlmService;
@@ -39,6 +40,11 @@ public class OpenAiLlmServiceImpl implements LlmService {
     @Override
     public String explainOptionRecommendation(GenerateReqDTO userReq, ItineraryOptionVO option) {
         return realLlmGatewayService.explainOptionRecommendation(userReq, option);
+    }
+
+    @Override
+    public RouteCriticDecisionVO criticSelectItineraryOption(GenerateReqDTO userReq, List<ItineraryOptionVO> options) {
+        return realLlmGatewayService.criticSelectItineraryOption(userReq, options);
     }
 
     @Override

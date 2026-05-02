@@ -14,9 +14,12 @@ import java.time.LocalDateTime;
 public class RoutePlanFactPublisher {
 
     private final ApplicationEventPublisher eventPublisher;
+    private final RouteRecommendationTelemetryLogger telemetryLogger;
 
-    public RoutePlanFactPublisher(ApplicationEventPublisher eventPublisher) {
+    public RoutePlanFactPublisher(ApplicationEventPublisher eventPublisher,
+                                  RouteRecommendationTelemetryLogger telemetryLogger) {
         this.eventPublisher = eventPublisher;
+        this.telemetryLogger = telemetryLogger;
     }
 
     public void publish(Long userId,
@@ -57,6 +60,7 @@ public class RoutePlanFactPublisher {
         if (planningStartedAt != null) {
             command.setCostMs((int) Math.max(0L, Duration.between(planningStartedAt, finishedAt).toMillis()));
         }
+        telemetryLogger.logRecommendation(command);
         eventPublisher.publishEvent(new RoutePlanFactTrackedEvent(command));
     }
 }

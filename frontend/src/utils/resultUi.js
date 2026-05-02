@@ -356,7 +356,6 @@ export const buildResultHeroContent = ({
   }
 
   const pills = dedupeStrings([
-    options.length > 1 ? '多方案对比' : '',
     plans.length > 1 ? `${plans.length}天节奏` : '',
     ...(Array.isArray(originalReq.themes) ? originalReq.themes.slice(0, 2) : []),
     originalReq.companionType ? `${originalReq.companionType}同行` : '',

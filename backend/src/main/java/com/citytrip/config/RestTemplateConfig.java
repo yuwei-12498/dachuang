@@ -25,4 +25,12 @@ public class RestTemplateConfig {
                 .setReadTimeout(Duration.ofMillis(Math.max(geoSearchProperties.getReadTimeoutMs(), 100)))
                 .build();
     }
+
+    @Bean(name = "amapRestTemplate")
+    public RestTemplate amapRestTemplate(RestTemplateBuilder builder, AmapProperties amapProperties) {
+        return builder
+                .setConnectTimeout(Duration.ofMillis(Math.max(amapProperties.getConnectTimeoutMs(), 100)))
+                .setReadTimeout(Duration.ofMillis(Math.max(amapProperties.getReadTimeoutMs(), 100)))
+                .build();
+    }
 }

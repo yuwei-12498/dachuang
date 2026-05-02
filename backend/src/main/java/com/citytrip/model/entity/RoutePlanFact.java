@@ -75,6 +75,12 @@ public class RoutePlanFact {
     @TableField("route_utility")
     private BigDecimal routeUtility;
 
+    @TableField("selected_route_feature_json")
+    private String selectedRouteFeatureJson;
+
+    @TableField("options_feature_json")
+    private String optionsFeatureJson;
+
     @TableField("trip_date")
     private LocalDate tripDate;
 

@@ -7,6 +7,30 @@ import static org.assertj.core.api.Assertions.assertThat;
 class LlmPropertiesTest {
 
     @Test
+    void shouldExposeFeatureFlagsWithSafeDefaults() {
+        LlmProperties properties = new LlmProperties();
+
+        assertThat(properties.getFeatures().isChatOnlineEnabled()).isTrue();
+        assertThat(properties.getFeatures().isToolLoopEnabled()).isTrue();
+        assertThat(properties.getFeatures().isPoiLiveEnabled()).isTrue();
+        assertThat(properties.getFeatures().isSemanticOnlineEnabled()).isTrue();
+        assertThat(properties.getFeatures().isEmbeddingOnlineEnabled()).isTrue();
+        assertThat(properties.getFeatures().isRerankOnlineEnabled()).isTrue();
+        assertThat(properties.getFeatures().isFailOpenEnabled()).isTrue();
+        assertThat(properties.getFeatures().isPreferAccuracyMode()).isTrue();
+    }
+
+    @Test
+    void shouldReplaceNullFeatureFlagsWithDefaults() {
+        LlmProperties properties = new LlmProperties();
+
+        properties.setFeatures(null);
+
+        assertThat(properties.getFeatures()).isNotNull();
+        assertThat(properties.getFeatures().isChatOnlineEnabled()).isTrue();
+    }
+
+    @Test
     void shouldReportToolConfigIssuesWhenToolSceneMissing() {
         LlmProperties properties = new LlmProperties();
         properties.getOpenai().setApiKey("sk-test");

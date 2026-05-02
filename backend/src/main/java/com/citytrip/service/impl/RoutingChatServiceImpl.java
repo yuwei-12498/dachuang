@@ -41,8 +41,12 @@ public class RoutingChatServiceImpl implements ChatService {
 
     @Override
     public ChatVO answerQuestion(ChatReqDTO req) {
+        if (!llmProperties.getFeatures().isChatOnlineEnabled()) {
+            log.info("Chat online feature is disabled, using local rule-based provider");
+            return mockChatService.answerQuestion(req);
+        }
         if (llmProperties.isMockOnly()) {
-            log.info("Chat service is forced to use mock provider");
+            log.info("Chat service is forced to use local rule-based provider");
             return mockChatService.answerQuestion(req);
         }
 
@@ -51,7 +55,7 @@ public class RoutingChatServiceImpl implements ChatService {
             if (llmProperties.isRealOnly()) {
                 return buildErrorResponse("Real model config is invalid: " + reason);
             }
-            log.info("Real chat model is not available, falling back to mock. provider={}, reason={}",
+            log.info("Real chat model is not available, falling back to local rule-based provider. provider={}, reason={}",
                     llmProperties.getProvider(), reason);
             return mockChatService.answerQuestion(req);
         }
@@ -67,7 +71,7 @@ public class RoutingChatServiceImpl implements ChatService {
             return result;
         } catch (Exception e) {
             if (llmProperties.isFallbackToMock()) {
-                log.warn("Real chat model failed, falling back to mock. reason={}", e.getMessage(), e);
+                log.warn("Real chat model failed, falling back to local rule-based provider. reason={}", e.getMessage(), e);
                 return mockChatService.answerQuestion(req);
             }
             log.error("Real chat model failed and fallback is disabled. reason={}", e.getMessage(), e);
@@ -77,6 +81,10 @@ public class RoutingChatServiceImpl implements ChatService {
 
     @Override
     public ChatVO streamAnswer(ChatReqDTO req, Consumer<String> tokenConsumer) {
+        if (!llmProperties.getFeatures().isChatOnlineEnabled()) {
+            log.info("Chat online feature is disabled, using local rule-based stream");
+            return mockChatService.streamAnswer(req, tokenConsumer);
+        }
         if (llmProperties.isMockOnly()) {
             return mockChatService.streamAnswer(req, tokenConsumer);
         }
@@ -86,7 +94,7 @@ public class RoutingChatServiceImpl implements ChatService {
             if (llmProperties.isRealOnly()) {
                 return buildErrorResponse("Real model config is invalid: " + reason);
             }
-            log.info("Real chat model is not available, falling back to mock stream. provider={}, reason={}",
+            log.info("Real chat model is not available, falling back to local rule-based stream. provider={}, reason={}",
                     llmProperties.getProvider(), reason);
             return mockChatService.streamAnswer(req, tokenConsumer);
         }
@@ -105,11 +113,11 @@ public class RoutingChatServiceImpl implements ChatService {
             return realChatService.streamAnswer(req, guardedConsumer);
         } catch (Exception e) {
             if (llmProperties.isFallbackToMock() && !emittedAnyToken.get()) {
-                log.warn("Real chat stream failed before any token, falling back to mock. reason={}", e.getMessage(), e);
+                log.warn("Real chat stream failed before any token, falling back to local rule-based provider. reason={}", e.getMessage(), e);
                 return mockChatService.streamAnswer(req, tokenConsumer);
             }
             if (llmProperties.isFallbackToMock()) {
-                log.warn("Real chat stream failed after partial output; mock fallback skipped. reason={}", e.getMessage(), e);
+                log.warn("Real chat stream failed after partial output; local rule-based fallback skipped. reason={}", e.getMessage(), e);
             } else {
                 log.error("Real chat stream failed and fallback is disabled. reason={}", e.getMessage(), e);
             }
@@ -120,22 +128,28 @@ public class RoutingChatServiceImpl implements ChatService {
     @Override
     public ChatStatusVO getStatus() {
         LlmProperties.ResolvedOpenAiOptions chatOptions = llmProperties.getOpenai().resolveChatOptions();
+        boolean chatOnlineEnabled = llmProperties.getFeatures().isChatOnlineEnabled();
         ChatStatusVO vo = new ChatStatusVO();
         vo.setProvider(llmProperties.getProvider());
-        vo.setConfigured(llmProperties.canTryRealChat());
-        vo.setRealModelAvailable(llmProperties.canTryRealChat());
+        vo.setConfigured(chatOnlineEnabled && llmProperties.canTryRealChat());
+        vo.setRealModelAvailable(chatOnlineEnabled && llmProperties.canTryRealChat());
         vo.setFallbackToMock(llmProperties.isFallbackToMock());
         vo.setTimeoutSeconds(llmProperties.resolveReadTimeoutSeconds());
         vo.setModel(chatOptions.getModel());
         vo.setBaseUrl(chatOptions.getBaseUrl());
-        vo.setToolReady(llmProperties.canTryRealTool());
+        vo.setToolReady(llmProperties.getFeatures().isToolLoopEnabled() && llmProperties.canTryRealTool());
         vo.setGeoReady(isGeoReady());
         vo.setEmbeddingReady(isEmbeddingReady());
         vo.setRerankReady(isRerankReady());
         vo.setWarnings(llmProperties.getRealModelConfigWarnings());
 
+        if (!chatOnlineEnabled) {
+            vo.setMessage("Chat online feature is disabled; current chat provider uses the local rule-based fallback.");
+            return vo;
+        }
+
         if (llmProperties.isMockOnly()) {
-            vo.setMessage("Current chat provider is mock (provider=mock).");
+            vo.setMessage("Current chat provider uses the local rule-based fallback.");
             return vo;
         }
 
@@ -153,29 +167,41 @@ public class RoutingChatServiceImpl implements ChatService {
         }
 
         if (llmProperties.isFallbackToMock()) {
-            vo.setMessage(buildReadyMessage("Real model is preferred; fallback to mock is enabled."));
+            vo.setMessage(buildReadyMessage("Real model is preferred; local rule-based fallback is enabled."));
             return vo;
         }
 
-        vo.setMessage(buildReadyMessage("Real model is preferred; fallback to mock is disabled."));
+        vo.setMessage(buildReadyMessage("Real model is preferred; local rule-based fallback is disabled."));
         return vo;
     }
 
     private boolean isGeoReady() {
+        if (!llmProperties.getFeatures().isPoiLiveEnabled()) {
+            return false;
+        }
         return geoSearchProperties != null
                 && geoSearchProperties.isEnabled()
                 && StringUtils.hasText(geoSearchProperties.getBaseUrl());
     }
 
     private boolean isEmbeddingReady() {
+        if (!llmProperties.getFeatures().isEmbeddingOnlineEnabled()) {
+            return false;
+        }
         return communitySemanticSearchService != null && communitySemanticSearchService.isEmbeddingReady();
     }
 
     private boolean isRerankReady() {
+        if (!llmProperties.getFeatures().isRerankOnlineEnabled()) {
+            return false;
+        }
         return communitySemanticSearchService != null && communitySemanticSearchService.isRerankReady();
     }
 
     private boolean isSemanticReady() {
+        if (!llmProperties.getFeatures().isSemanticOnlineEnabled()) {
+            return false;
+        }
         return communitySemanticSearchService != null && communitySemanticSearchService.isSemanticModelReady();
     }
 

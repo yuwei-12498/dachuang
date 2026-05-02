@@ -36,7 +36,8 @@ describe('mobile responsive style coverage', () => {
     expect(itineraryMapSource).toContain('height: 38vh')
     expect(itineraryMapSource).toContain('.segment-strip')
     expect(itineraryMapSource).toContain('overflow-x: auto')
-    expect(itineraryMapSource).toContain(':deep(.leaflet-popup-content)')
+    expect(itineraryMapSource).toContain('map-empty')
+    expect(itineraryMapSource).toContain('itinerary-map-marker')
   })
 
   it('turns the floating chat panel into a near-full-width phone panel', () => {

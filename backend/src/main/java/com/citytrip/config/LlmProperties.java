@@ -22,6 +22,7 @@ public class LlmProperties {
     private int timeoutSeconds = 20;
     private int connectTimeoutSeconds = 3;
     private int readTimeoutSeconds = 0;
+    private FeatureFlags features = new FeatureFlags();
     private OpenAiProperties openai = new OpenAiProperties();
 
     public String getProvider() {
@@ -64,12 +65,20 @@ public class LlmProperties {
         this.readTimeoutSeconds = readTimeoutSeconds;
     }
 
+    public FeatureFlags getFeatures() {
+        return features;
+    }
+
+    public void setFeatures(FeatureFlags features) {
+        this.features = features == null ? new FeatureFlags() : features;
+    }
+
     public OpenAiProperties getOpenai() {
         return openai;
     }
 
     public void setOpenai(OpenAiProperties openai) {
-        this.openai = openai;
+        this.openai = openai == null ? new OpenAiProperties() : openai;
     }
 
     public boolean isMockOnly() {
@@ -215,6 +224,81 @@ public class LlmProperties {
 
     private boolean looksLikeVivoBaseUrl(String value) {
         return hasText(value) && value.toLowerCase(Locale.ROOT).contains("api-ai.vivo.com.cn");
+    }
+
+    public static class FeatureFlags {
+        private boolean chatOnlineEnabled = true;
+        private boolean toolLoopEnabled = true;
+        private boolean poiLiveEnabled = true;
+        private boolean semanticOnlineEnabled = true;
+        private boolean embeddingOnlineEnabled = true;
+        private boolean rerankOnlineEnabled = true;
+        private boolean failOpenEnabled = true;
+        private boolean preferAccuracyMode = true;
+
+        public boolean isChatOnlineEnabled() {
+            return chatOnlineEnabled;
+        }
+
+        public void setChatOnlineEnabled(boolean chatOnlineEnabled) {
+            this.chatOnlineEnabled = chatOnlineEnabled;
+        }
+
+        public boolean isToolLoopEnabled() {
+            return toolLoopEnabled;
+        }
+
+        public void setToolLoopEnabled(boolean toolLoopEnabled) {
+            this.toolLoopEnabled = toolLoopEnabled;
+        }
+
+        public boolean isPoiLiveEnabled() {
+            return poiLiveEnabled;
+        }
+
+        public void setPoiLiveEnabled(boolean poiLiveEnabled) {
+            this.poiLiveEnabled = poiLiveEnabled;
+        }
+
+        public boolean isSemanticOnlineEnabled() {
+            return semanticOnlineEnabled;
+        }
+
+        public void setSemanticOnlineEnabled(boolean semanticOnlineEnabled) {
+            this.semanticOnlineEnabled = semanticOnlineEnabled;
+        }
+
+        public boolean isEmbeddingOnlineEnabled() {
+            return embeddingOnlineEnabled;
+        }
+
+        public void setEmbeddingOnlineEnabled(boolean embeddingOnlineEnabled) {
+            this.embeddingOnlineEnabled = embeddingOnlineEnabled;
+        }
+
+        public boolean isRerankOnlineEnabled() {
+            return rerankOnlineEnabled;
+        }
+
+        public void setRerankOnlineEnabled(boolean rerankOnlineEnabled) {
+            this.rerankOnlineEnabled = rerankOnlineEnabled;
+        }
+
+        public boolean isFailOpenEnabled() {
+            return failOpenEnabled;
+        }
+
+        public void setFailOpenEnabled(boolean failOpenEnabled) {
+            this.failOpenEnabled = failOpenEnabled;
+        }
+
+        public boolean isPreferAccuracyMode() {
+            return preferAccuracyMode;
+        }
+
+        public void setPreferAccuracyMode(boolean preferAccuracyMode) {
+            this.preferAccuracyMode = preferAccuracyMode;
+        }
     }
 
     public static class OpenAiProperties {

@@ -22,7 +22,7 @@ import static org.mockito.Mockito.when;
 class ItineraryComparisonAssemblerTest {
 
     @Test
-    void buildComparedItineraryKeepsOnlyOneDisplayedRoute() {
+    void buildComparedItineraryKeepsTopCandidateRoutesForAiCritic() {
         RouteAnalysisService routeAnalysisService = mock(RouteAnalysisService.class);
         ItineraryComparisonAssembler assembler = new ItineraryComparisonAssembler(routeAnalysisService);
 
@@ -60,11 +60,14 @@ class ItineraryComparisonAssemblerTest {
                 Set.of()
         );
 
-        assertThat(itinerary.getOptions()).hasSize(1);
+        assertThat(itinerary.getOptions()).hasSize(3);
         assertThat(itinerary.getSelectedOptionKey()).isEqualTo("balanced");
+        assertThat(itinerary.getOptions().get(0).getFeatureVector()).isNotNull();
+        assertThat(itinerary.getOptions().get(0).getFeatureVector().getTotalCostEstimated()).isEqualByComparingTo("80");
+        assertThat(itinerary.getOptions().get(0).getFeatureVector().getScoreBreakdown()).containsKey("utility");
         assertThat(itinerary.getRecommendReason()).isNotBlank();
-        assertThat(itinerary.getTips()).contains("1 条可执行路线");
-        assertThat(itinerary.getTips()).doesNotContain("切换");
+        assertThat(itinerary.getTips()).contains("3 套可执行方案");
+        assertThat(itinerary.getTips()).contains("切换");
     }
 
     private RouteAnalysisService.RouteAnalysis buildAnalysis(ItineraryRouteOptimizer.RouteOption route, String reason) {
@@ -77,6 +80,8 @@ class ItineraryComparisonAssemblerTest {
         node.setEndTime("10:30");
         node.setStayDuration(90);
         node.setTravelTime(0);
+        node.setTravelTransportMode("walk");
+        node.setTravelDistanceKm(BigDecimal.valueOf(1.2D));
         node.setCost(BigDecimal.valueOf(80));
         node.setSysReason(reason);
 

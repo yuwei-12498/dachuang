@@ -19,8 +19,11 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 @Service
@@ -73,6 +76,8 @@ public class RoutePlanFactPersistenceService {
         fact.setRouteUtility(selectedOption == null || selectedOption.getRouteUtility() == null
                 ? null
                 : BigDecimal.valueOf(selectedOption.getRouteUtility()));
+        fact.setSelectedRouteFeatureJson(selectedOption == null ? null : writeJson(selectedOption.getFeatureVector()));
+        fact.setOptionsFeatureJson(writeJson(buildOptionFeatureSnapshots(itinerary)));
         fillRequestSnapshot(fact, command.getRequest());
         fact.setReplanFromItineraryId(command.getReplanFromItineraryId());
         fact.setReplaceTargetPoiId(command.getReplaceTargetPoiId());
@@ -148,6 +153,26 @@ public class RoutePlanFactPersistenceService {
             return 0;
         }
         return itinerary.getOptions().size();
+    }
+
+    private List<Map<String, Object>> buildOptionFeatureSnapshots(ItineraryVO itinerary) {
+        if (itinerary == null || itinerary.getOptions() == null || itinerary.getOptions().isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<Map<String, Object>> snapshots = new ArrayList<>();
+        for (ItineraryOptionVO option : itinerary.getOptions()) {
+            if (option == null) {
+                continue;
+            }
+            Map<String, Object> snapshot = new LinkedHashMap<>();
+            snapshot.put("optionKey", option.getOptionKey());
+            snapshot.put("signature", option.getSignature());
+            snapshot.put("routeUtility", option.getRouteUtility());
+            snapshot.put("criticScore", option.getCriticScore());
+            snapshot.put("featureVector", option.getFeatureVector());
+            snapshots.add(snapshot);
+        }
+        return snapshots;
     }
 
     private int defaultInt(Integer value) {
