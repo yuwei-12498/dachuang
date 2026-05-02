@@ -18,6 +18,8 @@ public class ItineraryOptionVO {
     private Integer businessRiskScore;
     private Integer themeMatchCount;
     private Double routeUtility;
+    private Double criticScore;
+    private RouteFeatureVectorVO featureVector;
     private String summary;
     private String recommendReason;
     private String notRecommendReason;

@@ -163,6 +163,50 @@ class SafePromptBuilderTest {
     }
 
     @Test
+    void shouldBuildRouteCriticPromptWithCandidateFeatureVectors() {
+        GenerateReqDTO req = new GenerateReqDTO();
+        req.setNaturalLanguageRequirement("想要亲子友好、少走路，预算中等。");
+        req.setThemes(List.of("亲子", "文化"));
+
+        ItineraryNodeVO balancedNode = new ItineraryNodeVO();
+        balancedNode.setPoiName("成都博物馆");
+        balancedNode.setCategory("museum");
+        balancedNode.setDistrict("Qingyang");
+        balancedNode.setTravelTime(12);
+
+        ItineraryNodeVO efficientNode = new ItineraryNodeVO();
+        efficientNode.setPoiName("四川科技馆");
+        efficientNode.setCategory("museum");
+        efficientNode.setDistrict("Qingyang");
+        efficientNode.setTravelTime(6);
+
+        ItineraryOptionVO balanced = new ItineraryOptionVO();
+        balanced.setOptionKey("balanced");
+        balanced.setSummary("文化覆盖更强");
+        balanced.setTotalDuration(240);
+        balanced.setTotalCost(BigDecimal.valueOf(180));
+        balanced.setNodes(List.of(balancedNode));
+
+        ItineraryOptionVO efficient = new ItineraryOptionVO();
+        efficient.setOptionKey("efficient");
+        efficient.setSummary("步行更少");
+        efficient.setTotalDuration(210);
+        efficient.setTotalCost(BigDecimal.valueOf(220));
+        efficient.setNodes(List.of(efficientNode));
+
+        String prompt = safePromptBuilder.buildRouteCriticPrompt(req, List.of(balanced, efficient));
+
+        assertThat(prompt).contains("<natural_language_requirement>");
+        assertThat(prompt).contains("想要亲子友好、少走路，预算中等。");
+        assertThat(prompt).contains("\"selectedOptionKey\"");
+        assertThat(prompt).contains("\"rejectedReasons\"");
+        assertThat(prompt).contains("option_key=balanced");
+        assertThat(prompt).contains("option_key=efficient");
+        assertThat(prompt).contains("成都博物馆");
+        assertThat(prompt).contains("四川科技馆");
+    }
+
+    @Test
     void shouldBuildChineseSegmentTransportSchemaWithoutGarbledCopy() {
         GenerateReqDTO req = new GenerateReqDTO();
         req.setCityName("成都");

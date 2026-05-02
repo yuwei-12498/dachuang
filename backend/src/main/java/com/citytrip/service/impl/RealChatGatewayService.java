@@ -47,6 +47,8 @@ public class RealChatGatewayService {
     private SkillRouterService skillRouterService;
     @Autowired(required = false)
     private VivoFunctionCallingService vivoFunctionCallingService;
+    @Autowired(required = false)
+    private RealLlmGatewayService realLlmGatewayService;
 
     @Autowired
     public RealChatGatewayService(OpenAiGatewayClient openAiGatewayClient,
@@ -189,7 +191,9 @@ public class RealChatGatewayService {
         if (answer == null || answer.trim().isEmpty()) {
             throw new IllegalStateException("OpenAI returned empty chat answer");
         }
-        if (vivoFunctionCallingService != null && vivoFunctionCallingService.shouldEnterToolLoop(answer)) {
+        if (llmProperties.getFeatures().isToolLoopEnabled()
+                && vivoFunctionCallingService != null
+                && vivoFunctionCallingService.shouldEnterToolLoop(answer)) {
             VivoFunctionCallingService.ToolLoopResult toolLoopResult = vivoFunctionCallingService.runToolLoop(
                     answer,
                     messages,
@@ -223,7 +227,10 @@ public class RealChatGatewayService {
     }
 
     private String maybePrefetchToolPayload(ChatReqDTO req) {
-        if (vivoFunctionCallingService == null || req == null || !StringUtils.hasText(req.getQuestion())) {
+        if (!llmProperties.getFeatures().isPoiLiveEnabled()
+                || vivoFunctionCallingService == null
+                || req == null
+                || !StringUtils.hasText(req.getQuestion())) {
             return null;
         }
         String question = req.getQuestion().trim();
@@ -272,14 +279,48 @@ public class RealChatGatewayService {
 
     private List<String> buildRelatedTips(ChatReqDTO req) {
         String question = req == null ? "" : safe(req.getQuestion());
+        String cityName = req == null || req.getContext() == null ? "" : safe(req.getContext().getCityName());
+        if (realLlmGatewayService != null
+                && llmProperties.getFeatures().isChatOnlineEnabled()
+                && llmProperties.canTryRealText()) {
+            try {
+                List<String> onlineTips = sanitizeRelatedTips(
+                        realLlmGatewayService.generateChatFollowUpTips(question, cityName)
+                );
+                if (!onlineTips.isEmpty()) {
+                    return onlineTips;
+                }
+                log.warn("Online related tips returned empty result, fallback to local template tips.");
+            } catch (Exception ex) {
+                log.warn("Failed to generate online related tips, fallback to local template tips. reason={}", ex.getMessage());
+            }
+        }
+        return buildFallbackRelatedTips(question);
+    }
+
+    private List<String> sanitizeRelatedTips(List<String> tips) {
+        if (tips == null || tips.isEmpty()) {
+            return List.of();
+        }
+        return tips.stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .limit(3)
+                .toList();
+    }
+
+    private List<String> buildFallbackRelatedTips(String question) {
         List<String> tips = new ArrayList<>();
-        if (question.contains("拍照") || question.contains("机位")) {
+        String normalized = question == null ? "" : question.toLowerCase(Locale.ROOT);
+        if (question.contains("拍照") || question.contains("机位")
+                || normalized.contains("photo") || normalized.contains("camera")) {
             tips.add("成都有哪些适合拍照的点位？");
             tips.add("这些点位怎么安排半日路线？");
-        } else if (question.contains("雨")) {
+        } else if (question.contains("雨") || normalized.contains("rain")) {
             tips.add("雨天成都有哪些室内可逛点？");
             tips.add("雨天路线怎么减少步行？");
-        } else if (question.contains("亲子") || question.contains("孩子")) {
+        } else if (question.contains("亲子") || question.contains("孩子")
+                || normalized.contains("family") || normalized.contains("kids")) {
             tips.add("亲子行程适合哪些博物馆？");
             tips.add("带孩子出行怎样控制步行强度？");
         } else {

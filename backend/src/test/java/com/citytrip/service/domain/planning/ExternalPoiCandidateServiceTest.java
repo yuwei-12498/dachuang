@@ -24,23 +24,23 @@ class ExternalPoiCandidateServiceTest {
         ExternalPoiCandidateService service = new ExternalPoiCandidateService(geoSearchService);
 
         GenerateReqDTO request = new GenerateReqDTO();
-        request.setCityName("成都");
+        request.setCityName("Chengdu");
         request.setCityCode("CD");
 
         Poi local = new Poi();
-        local.setName("本地博物馆");
-        local.setCategory("博物馆");
-        local.setDistrict("锦江区");
+        local.setName("Local Museum");
+        local.setCategory("museum");
+        local.setDistrict("Jinjiang");
 
-        GeoPoiCandidate raw = candidate("外部新馆", "博物馆", "锦江区", "104.080001", "30.650001");
-        GeoPoiCandidate detail = candidate("外部新馆", "博物馆", "锦江区", "104.080001", "30.650001");
+        GeoPoiCandidate raw = candidate("Skyline Museum", "museum", "Jinjiang", "104.080001", "30.650001");
+        GeoPoiCandidate detail = candidate("Skyline Museum", "museum", "Jinjiang", "104.080001", "30.650001");
         setDetail(detail, "setOpeningHours", String.class, "10:30-21:45");
         setDetail(detail, "setAvgCost", BigDecimal.class, BigDecimal.valueOf(128));
         setDetail(detail, "setStayDurationMinutes", Integer.class, 75);
 
-        when(geoSearchService.searchByKeyword("博物馆", "成都", 8)).thenReturn(List.of(raw));
-        when(geoSearchService.searchByKeyword("锦江区 景点", "成都", 8)).thenReturn(List.of());
-        when(geoSearchService.searchByKeyword("外部新馆", "成都", 1)).thenReturn(List.of(detail));
+        when(geoSearchService.searchByKeyword("museum", "Chengdu", 8)).thenReturn(List.of(raw));
+        when(geoSearchService.searchByKeyword("Jinjiang 景点", "Chengdu", 8)).thenReturn(List.of());
+        when(geoSearchService.searchByKeyword("Skyline Museum", "Chengdu", 1)).thenReturn(List.of(detail));
 
         List<Poi> result = service.recallForReplan(List.of(local), request, 8);
 
@@ -51,8 +51,44 @@ class ExternalPoiCandidateServiceTest {
         assertThat(poi.getCloseTime()).isEqualTo(LocalTime.of(21, 45));
         assertThat(poi.getAvgCost()).isEqualByComparingTo("128");
         assertThat(poi.getStayDuration()).isEqualTo(75);
-        assertThat(poi.getAvailabilityNote()).contains("地图信息补全");
-        verify(geoSearchService).searchByKeyword("外部新馆", "成都", 1);
+        assertThat(poi.getAvailabilityNote()).contains("地图");
+        verify(geoSearchService).searchByKeyword("Skyline Museum", "Chengdu", 1);
+    }
+
+    @Test
+    void recallForReplanShouldInferRainSafeMallDefaultsForExternalPoi() throws Exception {
+        GeoSearchService geoSearchService = mock(GeoSearchService.class);
+        ExternalPoiCandidateService service = new ExternalPoiCandidateService(geoSearchService);
+
+        GenerateReqDTO request = new GenerateReqDTO();
+        request.setCityName("Chengdu");
+        request.setCityCode("CD");
+
+        Poi local = new Poi();
+        local.setName("Local Shopping Center");
+        local.setCategory("shopping mall");
+        local.setDistrict("Gaoxin");
+
+        GeoPoiCandidate raw = candidate("IFS Mall", "shopping mall", "Gaoxin", "104.070001", "30.660001");
+        GeoPoiCandidate detail = candidate("IFS Mall", "shopping mall", "Gaoxin", "104.070001", "30.660001");
+        setDetail(detail, "setAddress", String.class, "No. 1 Renmin Rd");
+        setDetail(detail, "setExternalId", String.class, "amap-ifs-001");
+        setDetail(detail, "setOpeningHours", String.class, "10:00-22:00");
+        setDetail(detail, "setAvgCost", BigDecimal.class, BigDecimal.valueOf(180));
+        setDetail(detail, "setStayDurationMinutes", Integer.class, 120);
+
+        when(geoSearchService.searchByKeyword("shopping mall", "Chengdu", 8)).thenReturn(List.of(raw));
+        when(geoSearchService.searchByKeyword("Gaoxin 景点", "Chengdu", 8)).thenReturn(List.of());
+        when(geoSearchService.searchByKeyword("IFS Mall", "Chengdu", 1)).thenReturn(List.of(detail));
+
+        Poi poi = service.recallForReplan(List.of(local), request, 8).get(0);
+
+        assertThat(poi.getIndoor()).isEqualTo(1);
+        assertThat(poi.getRainFriendly()).isEqualTo(1);
+        assertThat(poi.getNightAvailable()).isEqualTo(1);
+        assertThat(poi.getWalkingLevel()).isEqualTo("low");
+        assertThat(readGetter(poi, "getExternalDataCompleteness")).isEqualTo(1.0D);
+        assertThat(readGetter(poi, "getExternalBusinessDetailsProvided")).isEqualTo(true);
     }
 
     private GeoPoiCandidate candidate(String name,
@@ -64,7 +100,7 @@ class ExternalPoiCandidateServiceTest {
         candidate.setName(name);
         candidate.setCategory(category);
         candidate.setDistrict(district);
-        candidate.setCityName("成都");
+        candidate.setCityName("Chengdu");
         candidate.setLongitude(new BigDecimal(lng));
         candidate.setLatitude(new BigDecimal(lat));
         return candidate;
@@ -76,5 +112,14 @@ class ExternalPoiCandidateServiceTest {
                            Object value) throws Exception {
         Method method = GeoPoiCandidate.class.getMethod(setterName, parameterType);
         method.invoke(candidate, value);
+    }
+
+    private Object readGetter(Poi poi, String getterName) {
+        try {
+            Method method = Poi.class.getMethod(getterName);
+            return method.invoke(poi);
+        } catch (ReflectiveOperationException ex) {
+            return null;
+        }
     }
 }

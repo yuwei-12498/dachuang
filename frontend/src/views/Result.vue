@@ -127,69 +127,11 @@
           <p class="eyebrow">游客模式</p>
           <h2>先看路线，喜欢再登录</h2>
           <p class="guest-tip-copy">
-            你现在可以直接查看地图、切换天数、对比候选方案和导出海报；登录后再解锁收藏、历史记录和社区发布。
+            你现在可以直接查看地图、切换天数和导出海报；登录后再解锁收藏、历史记录和社区发布。
           </p>
         </div>
         <div class="guest-tip-actions">
           <el-button type="primary" round @click="goLoginForSavedActions">登录后继续</el-button>
-        </div>
-      </section>
-
-      <section v-if="showOptionPanel" class="option-panel">
-        <div class="panel-header">
-          <div>
-            <p class="eyebrow">方案对比</p>
-            <h2>先比较，再决定用哪条路线出发</h2>
-            <p class="panel-copy">
-              当前结果会保留多套候选路径，方便你在“顺路程度、预算、停靠密度”之间快速做取舍。
-            </p>
-          </div>
-          <div class="option-counter">候选方案 {{ displayOptions.length }}</div>
-        </div>
-
-        <div class="option-grid">
-          <button
-            v-for="option in displayOptions"
-            :key="option.optionKey"
-            type="button"
-            class="option-card"
-            :class="{ active: option.optionKey === activeOptionKey }"
-            @click="handleSelectOption(option.optionKey)"
-          >
-            <div class="option-head">
-              <div>
-                <p class="option-label">{{ option.title }}</p>
-                <h3>{{ option.subtitle }}</h3>
-              </div>
-              <span class="option-state">
-                {{ option.optionKey === activeOptionKey ? '当前展示' : '点击切换' }}
-              </span>
-            </div>
-
-            <p class="option-summary">{{ option.summary || option.recommendReason || '这套方案已根据当前时间窗完成优化。' }}</p>
-
-            <div class="option-metrics">
-              <span>总时长 {{ formatDuration(option.totalDuration) }}</span>
-              <span>预算 {{ formatCurrency(option.totalCost) }}</span>
-              <span>点位 {{ option.stopCount }}</span>
-            </div>
-
-            <div v-if="option.highlights?.length" class="option-tags">
-              <el-tag
-                v-for="item in option.highlights"
-                :key="`${option.optionKey}-${item}`"
-                size="small"
-                effect="plain"
-              >
-                {{ item }}
-              </el-tag>
-            </div>
-
-            <div class="option-insight-stack">
-              <p class="option-copy"><strong>推荐：</strong>{{ option.recommendReason || '顺路程度更高，适合作为当前主线。' }}</p>
-              <p class="option-copy option-copy-muted"><strong>取舍：</strong>{{ option.notRecommendReason || '如果你更在意另一种主题密度，可以切换别的方案。' }}</p>
-            </div>
-          </button>
         </div>
       </section>
 
@@ -684,7 +626,6 @@ const activeTimelineSegmentIndex = computed(() => {
   }
   return defaultTimelineSegmentIndex.value
 })
-const showOptionPanel = computed(() => displayOptions.value.length > 1)
 const detailActionText = computed(() => (isLoggedIn.value ? '查看详情并替换' : '登录后查看详情'))
 const activeAlerts = computed(() => {
   if (Array.isArray(activeOption.value?.alerts) && activeOption.value.alerts.length) {
@@ -1018,15 +959,6 @@ const ensureLogin = (actionText = '继续操作') => {
   return false
 }
 
-const handleSelectOption = optionKey => {
-  if (!itinerary.value) return
-  itinerary.value = ensureSeenRouteSignatures({
-    ...itinerary.value,
-    selectedOptionKey: optionKey
-  })
-  saveItinerarySnapshot(itinerary.value)
-}
-
 const handleFavorite = async () => {
   if (!ensureLogin('收藏这条路线')) return
   if (!itinerary.value?.id) return
@@ -1249,7 +1181,6 @@ const handleReplan = async () => {
 
 .hero-card,
 .guest-tip-card,
-.option-panel,
 .stat-card,
 .copy-card,
 .stop-card {
@@ -1275,15 +1206,13 @@ const handleReplan = async () => {
   letter-spacing: 0.08em;
 }
 
-.hero-card h1,
-.panel-header h2 {
+.hero-card h1 {
   margin: 0 0 8px;
   font-size: 34px;
   color: #1f2d3d;
 }
 
-.hero-copy,
-.panel-copy {
+.hero-copy {
   margin: 0;
   color: #627386;
   line-height: 1.8;
@@ -1326,59 +1255,17 @@ const handleReplan = async () => {
   flex-shrink: 0;
 }
 
-.option-panel {
-  padding: 24px;
-  margin-bottom: 20px;
-}
-
-.panel-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 18px;
-  align-items: flex-start;
-  margin-bottom: 18px;
-}
-
-.option-counter {
-  padding: 10px 14px;
-  border-radius: 999px;
-  background: linear-gradient(135deg, rgba(64, 158, 255, 0.12), rgba(102, 177, 255, 0.22));
-  color: #2d79c7;
-  font-size: 13px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.option-grid,
 .stats-grid,
 .copy-grid {
   display: grid;
   gap: 18px;
 }
 
-.option-grid,
 .stats-grid,
 .copy-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-.option-card {
-  width: 100%;
-  padding: 22px;
-  border-radius: 22px;
-  border: 1px solid rgba(223, 232, 244, 0.95);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 250, 255, 0.96));
-  box-shadow: 0 18px 32px rgba(31, 45, 61, 0.05);
-  cursor: pointer;
-  text-align: left;
-}
-
-.option-card.active {
-  border-color: rgba(64, 158, 255, 0.72);
-  box-shadow: 0 22px 42px rgba(64, 158, 255, 0.14);
-}
-
-.option-head,
 .stop-head {
   display: flex;
   justify-content: space-between;
@@ -1386,7 +1273,6 @@ const handleReplan = async () => {
   align-items: flex-start;
 }
 
-.option-label,
 .stop-index {
   margin: 0 0 6px;
   color: #2d79c7;
@@ -1394,24 +1280,11 @@ const handleReplan = async () => {
   font-weight: 700;
 }
 
-.option-head h3,
 .stop-head h3 {
   margin: 0;
   color: #1f2d3d;
 }
 
-.option-state {
-  flex-shrink: 0;
-  padding: 8px 12px;
-  border-radius: 999px;
-  background: rgba(64, 158, 255, 0.1);
-  color: #2d79c7;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.option-summary,
-.option-copy,
 .stop-copy,
 .stop-note,
 .travel-analysis-copy {
@@ -1419,7 +1292,6 @@ const handleReplan = async () => {
   color: #55687d;
 }
 
-.option-metrics,
 .meta-row {
   display: flex;
   flex-wrap: wrap;
@@ -1429,7 +1301,6 @@ const handleReplan = async () => {
   font-size: 13px;
 }
 
-.option-tags,
 .stop-tags,
 .alert-strip {
   display: flex;
@@ -1437,7 +1308,6 @@ const handleReplan = async () => {
   gap: 8px;
 }
 
-.option-copy-muted,
 .stop-note {
   color: #738498;
 }
@@ -1927,13 +1797,6 @@ const handleReplan = async () => {
   border-top: 1px dashed rgba(188, 214, 255, 0.74);
 }
 
-.option-insight-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 16px;
-}
-
 .stat-card.tone-primary {
   background:
     radial-gradient(circle at top right, rgba(95, 158, 255, 0.22), transparent 24%),
@@ -2030,7 +1893,6 @@ const handleReplan = async () => {
 @media (max-width: 1180px) {
   .hero-card,
   .result-focus-grid,
-  .option-grid,
   .stats-grid {
     grid-template-columns: 1fr;
   }
@@ -2039,7 +1901,6 @@ const handleReplan = async () => {
 @media (max-width: 900px) {
   .hero-card,
   .guest-tip-card,
-  .panel-header,
   .timeline-panel-head,
   .stop-head {
     flex-direction: column;
@@ -2076,7 +1937,6 @@ const handleReplan = async () => {
 
   .hero-card,
   .guest-tip-card,
-  .option-panel,
   .timeline-panel,
   .map-recommendation-card {
     border-radius: 20px;
@@ -2089,14 +1949,12 @@ const handleReplan = async () => {
   }
 
   .hero-main h1,
-  .timeline-panel-head h2,
-  .panel-header h2 {
+  .timeline-panel-head h2 {
     font-size: 26px;
     line-height: 1.18;
   }
 
   .hero-copy,
-  .panel-copy,
   .timeline-panel-copy {
     font-size: 14px;
     line-height: 1.75;
@@ -2130,20 +1988,6 @@ const handleReplan = async () => {
     width: 100%;
   }
 
-  .option-panel {
-    padding: 18px;
-  }
-
-  .panel-header {
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .option-counter {
-    align-self: flex-start;
-  }
-
-  .option-grid,
   .stats-grid,
   .copy-grid,
   .poster-summary,
@@ -2151,7 +1995,6 @@ const handleReplan = async () => {
     grid-template-columns: 1fr;
   }
 
-  .option-card,
   .stat-card,
   .copy-card,
   .stop-card {
@@ -2213,19 +2056,16 @@ const handleReplan = async () => {
   }
 
   .hero-card,
-  .option-panel,
   .timeline-panel {
     padding: 16px;
   }
 
   .hero-main h1,
-  .timeline-panel-head h2,
-  .panel-header h2 {
+  .timeline-panel-head h2 {
     font-size: 24px;
   }
 
   .hero-pill-row,
-  .option-tags,
   .stop-tags,
   .alert-strip {
     gap: 6px;

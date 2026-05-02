@@ -142,6 +142,9 @@ public class OpenAiGatewayClient {
             connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
             connection.setRequestProperty("Accept", request.getStream() ? "text/event-stream" : "application/json");
             connection.setRequestProperty("Authorization", "Bearer " + apiKey.trim());
+            if (shouldSendApiKeyHeader(options.getBaseUrl(), request.getModel())) {
+                connection.setRequestProperty("api-key", apiKey.trim());
+            }
             connection.setRequestProperty("User-Agent", "CityTripBackend/1.0");
 
             byte[] requestBody = objectMapper.writeValueAsBytes(request);
@@ -366,6 +369,14 @@ public class OpenAiGatewayClient {
 
     private boolean looksLikeVivoBaseUrl(String baseUrl) {
         return hasText(baseUrl) && baseUrl.toLowerCase(Locale.ROOT).contains("api-ai.vivo.com.cn");
+    }
+
+    private boolean shouldSendApiKeyHeader(String baseUrl, String model) {
+        return looksLikeMimoTarget(baseUrl) || looksLikeMimoTarget(model);
+    }
+
+    private boolean looksLikeMimoTarget(String value) {
+        return hasText(value) && value.toLowerCase(Locale.ROOT).contains("mimo");
     }
 
     private String appendQueryParam(String endpoint, String key, String value) {

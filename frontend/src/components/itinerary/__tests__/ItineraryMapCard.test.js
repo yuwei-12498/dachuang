@@ -31,16 +31,16 @@ describe('ItineraryMapCard advanced cockpit', () => {
   })
 
   it('renders enhanced route drawing layers and upgraded markers', () => {
-    expect(mapCardSource).toContain('routeHaloLayer')
-    expect(mapCardSource).toContain("color: 'rgba(95, 158, 255, 0.18)'")
-    expect(mapCardSource).toContain('html: `<span><i>${label}</i></span>`')
-    expect(mapCardSource).toContain('position: \'bottomright\'')
+    expect(mapCardSource).toContain('new AMap.Polyline')
+    expect(mapCardSource).toContain("strokeColor: '#5f9eff'")
+    expect(mapCardSource).toContain('buildAmapPoiMarkerContent')
+    expect(mapCardSource).toContain("anchor: 'center'")
   })
 
 
   it('segments the route and makes start/end/external POIs visually explicit', () => {
     expect(mapCardSource).toContain('const segmentMeta = computed(() =>')
-    expect(mapCardSource).toContain('routeSegmentLayers')
+    expect(mapCardSource).toContain('attachAmapSegmentEvents')
     expect(mapCardSource).toContain('active-segment')
     expect(mapCardSource).toContain('muted-segment')
     expect(mapCardSource).toContain('start-marker')
@@ -56,12 +56,11 @@ describe('ItineraryMapCard advanced cockpit', () => {
     expect(mapCardSource).toContain("'segment-hover'")
     expect(mapCardSource).toContain("'segment-leave'")
     expect(mapCardSource).toContain("'segment-pin'")
-    expect(mapCardSource).toContain("layer.on('mouseover'")
-    expect(mapCardSource).toContain("layer.on('mouseout'")
-    expect(mapCardSource).toContain("layer.on('click'")
-    expect(mapCardSource).toContain('routeFlowLayer')
+    expect(mapCardSource).toContain("overlay.on?.('mouseover'")
+    expect(mapCardSource).toContain("overlay.on?.('mouseout'")
+    expect(mapCardSource).toContain("overlay.on?.('click'")
     expect(mapCardSource).toContain("className: 'route-flow-line'")
-    expect(mapCardSource).toContain('map.flyToBounds')
+    expect(mapCardSource).toContain('amapMap.setFitView')
     expect(mapCardSource).toContain('motionToken')
   })
 
@@ -79,9 +78,8 @@ describe('ItineraryMapCard advanced cockpit', () => {
   it('keeps the map stable after layout changes by observing resize and using asymmetric fit padding', () => {
     expect(mapCardSource).toContain('ResizeObserver')
     expect(mapCardSource).toContain('ensureMapResizeObserver')
-    expect(mapCardSource).toContain('paddingTopLeft')
-    expect(mapCardSource).toContain('paddingBottomRight')
-    expect(mapCardSource).toContain('fitMapToBounds')
+    expect(mapCardSource).toContain('amapMap.resize')
+    expect(mapCardSource).toContain('amapMap.setFitView')
   })
 
   it('keeps legend and departure marker labels readable for current / first / last / external roles', () => {
@@ -91,5 +89,14 @@ describe('ItineraryMapCard advanced cockpit', () => {
     expect(mapCardSource).toContain('外部 POI')
     expect(mapCardSource).not.toContain('<small>??</small>')
     expect(mapCardSource).not.toContain('<i>??</i>')
+  })
+  it('uses AMap JS API v2 and no longer falls back to Leaflet/OpenStreetMap', () => {
+    expect(mapCardSource).toContain('ensureAmapJsApiLoaded')
+    expect(mapCardSource).toContain('isAmapJsConfigured')
+    expect(mapCardSource).toContain('new AMap.Map')
+    expect(mapCardSource).toContain('mapStyle: getAmapMapStyle()')
+    expect(mapCardSource).toContain('AMap JS API unavailable.')
+    expect(mapCardSource).not.toContain('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png')
+    expect(mapCardSource).not.toContain("from 'leaflet'")
   })
 })

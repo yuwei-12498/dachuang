@@ -79,6 +79,45 @@ class OpenAiGatewayClientTest {
     }
 
     @Test
+    void requestShouldSendApiKeyHeaderWhenCallingMimoModel() throws Exception {
+        AtomicReference<String> capturedAuthorization = new AtomicReference<>();
+        AtomicReference<String> capturedApiKey = new AtomicReference<>();
+        AtomicReference<String> capturedQuery = new AtomicReference<>();
+
+        try (HttpServerHandle server = HttpServerHandle.custom(exchange -> {
+            capturedAuthorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
+            capturedApiKey.set(exchange.getRequestHeaders().getFirst("api-key"));
+            capturedQuery.set(exchange.getRequestURI().getQuery());
+            HttpServerHandle.respondJson(exchange, """
+                    {"choices":[{"message":{"content":"ok","role":"assistant"}}]}
+                    """);
+        })) {
+            LlmProperties properties = new LlmProperties();
+            properties.setConnectTimeoutSeconds(2);
+            properties.setReadTimeoutSeconds(2);
+
+            OpenAiGatewayClient client = new OpenAiGatewayClient(properties, new ObjectMapper());
+            LlmProperties.ResolvedOpenAiOptions options = new LlmProperties.ResolvedOpenAiOptions(
+                    server.baseUrl(),
+                    "MiMo-V2-Omni",
+                    0.2D,
+                    128
+            );
+
+            String answer = client.request(
+                    options,
+                    "test-key",
+                    List.of(new OpenAiGatewayClient.OpenAiMessage("user", "hi"))
+            );
+
+            assertThat(answer).isEqualTo("ok");
+            assertThat(capturedAuthorization.get()).isEqualTo("Bearer test-key");
+            assertThat(capturedApiKey.get()).isEqualTo("test-key");
+            assertThat(capturedQuery.get()).isNull();
+        }
+    }
+
+    @Test
     void requestShouldSurfaceToolCallsForFollowUpLoop() throws Exception {
         try (HttpServerHandle server = HttpServerHandle.json("""
                 {

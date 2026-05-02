@@ -35,7 +35,6 @@ export default defineConfig({
         manualChunks: {
           vue: ['vue', 'vue-router'],
           elementPlus: ['element-plus'],
-          leaflet: ['leaflet'],
           axios: ['axios'],
           utils: ['lodash-es']
         }

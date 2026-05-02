@@ -6,6 +6,7 @@ import com.citytrip.model.vo.DepartureLegEstimateVO;
 import com.citytrip.model.vo.ItineraryRouteDecorationVO;
 import com.citytrip.model.vo.ItineraryNodeVO;
 import com.citytrip.model.vo.ItineraryOptionVO;
+import com.citytrip.model.vo.RouteCriticDecisionVO;
 import com.citytrip.model.vo.RouteNodeDecorationVO;
 import com.citytrip.model.vo.SegmentTransportAnalysisVO;
 import com.citytrip.model.vo.SmartFillVO;
@@ -17,7 +18,11 @@ import org.springframework.util.StringUtils;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class RealLlmGatewayService {
@@ -52,8 +57,31 @@ public class RealLlmGatewayService {
         return callText(safePromptBuilder.buildExplainOptionRecommendationPrompt(userReq, option));
     }
 
+    public RouteCriticDecisionVO criticSelectItineraryOption(GenerateReqDTO userReq, List<ItineraryOptionVO> options) {
+        String raw = callText(
+                safePromptBuilder.buildRouteCriticPrompt(userReq, options),
+                safePromptBuilder.buildSmartFillSystemPrompt()
+        );
+        return parseRouteCriticDecisionResponse(raw, options);
+    }
+
     public String explainPoiChoice(GenerateReqDTO userReq, ItineraryNodeVO node) {
         return callText(safePromptBuilder.buildExplainPoiChoicePrompt(userReq, node));
+    }
+
+    public List<String> generateChatFollowUpTips(String question, String cityName) {
+        String raw = callText(
+                safePromptBuilder.buildChatFollowUpTipsPrompt(question, cityName),
+                safePromptBuilder.buildChatSystemPrompt()
+        );
+        if (!StringUtils.hasText(raw)) {
+            return List.of();
+        }
+        return raw.lines()
+                .map(this::normalizeTipLine)
+                .filter(StringUtils::hasText)
+                .limit(3)
+                .toList();
     }
 
     public SmartFillVO parseSmartFill(String text, List<String> poiNameHints) {
@@ -244,6 +272,98 @@ public class RealLlmGatewayService {
         }
     }
 
+    private RouteCriticDecisionVO parseRouteCriticDecisionResponse(String raw, List<ItineraryOptionVO> options) {
+        if (!StringUtils.hasText(raw)) {
+            throw new IllegalStateException("route critic failed: model returned empty response");
+        }
+        String json = extractJsonObject(raw);
+        if (!StringUtils.hasText(json)) {
+            throw new IllegalStateException("route critic failed: response has no JSON object");
+        }
+        try {
+            JsonNode root = objectMapper.readTree(json);
+            RouteCriticDecisionVO decision = new RouteCriticDecisionVO();
+            String selectedOptionKey = root.path("selectedOptionKey").asText(null);
+            if (!StringUtils.hasText(selectedOptionKey) || !containsOptionKey(options, selectedOptionKey.trim())) {
+                throw new IllegalStateException("route critic selected unknown option: " + selectedOptionKey);
+            }
+            decision.setSelectedOptionKey(selectedOptionKey.trim());
+            String reason = root.path("reason").asText(null);
+            if (StringUtils.hasText(reason)) {
+                decision.setReason(normalizeShortText(reason, 160));
+            }
+            decision.setRejectedReasons(parseStringMap(root.path("rejectedReasons"), options));
+            decision.setOptionScores(parseScoreMap(root.path("optionScores"), options));
+            return decision;
+        } catch (IllegalStateException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new IllegalStateException("route critic failed: model output is not valid json", ex);
+        }
+    }
+
+    private boolean containsOptionKey(List<ItineraryOptionVO> options, String optionKey) {
+        if (!StringUtils.hasText(optionKey) || options == null) {
+            return false;
+        }
+        return options.stream()
+                .anyMatch(option -> option != null && optionKey.equals(option.getOptionKey()));
+    }
+
+    private Map<String, String> parseStringMap(JsonNode node, List<ItineraryOptionVO> options) {
+        if (node == null || !node.isObject()) {
+            return Map.of();
+        }
+        Set<String> allowedKeys = optionKeys(options);
+        Map<String, String> result = new LinkedHashMap<>();
+        node.fields().forEachRemaining(entry -> {
+            String key = entry.getKey();
+            if (!allowedKeys.contains(key)) {
+                return;
+            }
+            String value = entry.getValue() == null ? null : entry.getValue().asText(null);
+            if (StringUtils.hasText(value)) {
+                result.put(key, normalizeShortText(value, 120));
+            }
+        });
+        return result;
+    }
+
+    private Map<String, Double> parseScoreMap(JsonNode node, List<ItineraryOptionVO> options) {
+        if (node == null || !node.isObject()) {
+            return Map.of();
+        }
+        Set<String> allowedKeys = optionKeys(options);
+        Map<String, Double> result = new LinkedHashMap<>();
+        node.fields().forEachRemaining(entry -> {
+            String key = entry.getKey();
+            if (!allowedKeys.contains(key) || entry.getValue() == null || !entry.getValue().isNumber()) {
+                return;
+            }
+            double score = entry.getValue().asDouble();
+            result.put(key, Math.max(0D, Math.min(100D, score)));
+        });
+        return result;
+    }
+
+    private Set<String> optionKeys(List<ItineraryOptionVO> options) {
+        if (options == null) {
+            return Set.of();
+        }
+        return options.stream()
+                .filter(option -> option != null && StringUtils.hasText(option.getOptionKey()))
+                .map(ItineraryOptionVO::getOptionKey)
+                .collect(Collectors.toSet());
+    }
+
+    private String normalizeShortText(String raw, int maxChars) {
+        if (!StringUtils.hasText(raw)) {
+            return null;
+        }
+        String normalized = raw.replaceAll("[\\r\\n]+", " ").trim();
+        return normalized.length() <= maxChars ? normalized : normalized.substring(0, maxChars);
+    }
+
     private String extractJsonObject(String raw) {
         String trimmed = raw.trim();
         if (trimmed.startsWith("```")) {
@@ -259,5 +379,14 @@ public class RealLlmGatewayService {
             return null;
         }
         return trimmed.substring(left, right + 1);
+    }
+
+    private String normalizeTipLine(String line) {
+        if (!StringUtils.hasText(line)) {
+            return null;
+        }
+        String normalized = line.trim();
+        normalized = normalized.replaceFirst("^[\\-\\d\\s\\.,、：:）\\)]+", "").trim();
+        return normalized;
     }
 }

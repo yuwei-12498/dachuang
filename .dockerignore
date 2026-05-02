@@ -2,6 +2,10 @@
 .idea
 .vscode
 .m2
+.env
+.env.*
+backend/src/main/resources/application.yml
+backend/src/main/resources/application-*.yml
 tmp-compile
 git
 miniprogram_citytrip_ui

@@ -9,6 +9,14 @@ describe('Result view advanced layout', () => {
     expect(resultSource).toContain('class="timeline-panel"')
   })
 
+  it('does not render the route option comparison panel on the result page', () => {
+    expect(resultSource).not.toContain('class="option-panel"')
+    expect(resultSource).not.toContain('class="option-grid"')
+    expect(resultSource).not.toContain('class="option-card"')
+    expect(resultSource).not.toContain('showOptionPanel')
+    expect(resultSource).not.toContain('handleSelectOption')
+  })
+
   it('moves recommendation out of the hero side and into the left map column filler area', () => {
     expect(resultSource).not.toContain('<p class="hero-side-copy">{{ heroRecommendation }}</p>')
     expect(resultSource).not.toContain('<p class="hero-side-label">推荐理由</p>')

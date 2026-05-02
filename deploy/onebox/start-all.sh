@@ -5,6 +5,19 @@ log() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
 }
 
+require_secret_env() {
+  local name="$1"
+  local value="${!name:-}"
+  if [[ -z "${value}" ]]; then
+    log "ERROR: ${name} is required and must not be empty."
+    exit 64
+  fi
+  if [[ "${value}" == ChangeMe* ]] || [[ "${value}" == *replace-with* ]] || [[ "${value}" == your-* ]] || [[ "${value}" == example-* ]]; then
+    log "ERROR: ${name} looks like a placeholder. Set a strong unique value before starting."
+    exit 64
+  fi
+}
+
 cleanup() {
   local exit_code=$?
   log "Shutdown signal received. Stopping all processes..."
@@ -20,17 +33,22 @@ cleanup() {
 trap cleanup INT TERM EXIT
 
 export TZ="${TZ:-Asia/Shanghai}"
-export MYSQL_ROOT_PASSWORD="${MYSQL_ROOT_PASSWORD:-ChangeMe_MySQL_Root_2026}"
+export MYSQL_ROOT_PASSWORD="${MYSQL_ROOT_PASSWORD:-}"
 export APP_DB_NAME="${APP_DB_NAME:-city_trip_db}"
 export APP_DB_USERNAME="${APP_DB_USERNAME:-citytrip}"
-export APP_DB_PASSWORD="${APP_DB_PASSWORD:-ChangeMe_App_DB_2026}"
-export REDIS_PASSWORD="${REDIS_PASSWORD:-ChangeMe_Redis_2026}"
-export APP_JWT_SECRET="${APP_JWT_SECRET:-ChangeMe_JWT_Secret_Must_Be_At_Least_32_Chars}"
+export APP_DB_PASSWORD="${APP_DB_PASSWORD:-}"
+export REDIS_PASSWORD="${REDIS_PASSWORD:-}"
+export APP_JWT_SECRET="${APP_JWT_SECRET:-}"
 export OPENAI_BASE_URL="${OPENAI_BASE_URL:-https://api.openai.com/v1}"
 export OPENAI_MODEL="${OPENAI_MODEL:-gpt-5.4}"
 export JAVA_OPTS="${JAVA_OPTS:--Xms512m -Xmx1024m}"
 export APP_PORT="${APP_PORT:-8081}"
 export NGINX_PORT="${NGINX_PORT:-80}"
+
+require_secret_env MYSQL_ROOT_PASSWORD
+require_secret_env APP_DB_PASSWORD
+require_secret_env REDIS_PASSWORD
+require_secret_env APP_JWT_SECRET
 
 if [[ -z "${OPENAI_API_KEY:-}" ]]; then
   export LLM_PROVIDER="${LLM_PROVIDER:-mock}"
@@ -157,6 +175,7 @@ start_backend() {
   export REDIS_PORT="${REDIS_PORT}"
   export APP_REDIS_ENABLED="true"
   export REDIS_TIMEOUT="${REDIS_TIMEOUT:-3s}"
+  export APP_DB_VERIFY_ON_STARTUP="${APP_DB_VERIFY_ON_STARTUP:-true}"
   export APP_JWT_EXPIRATION_HOURS="${APP_JWT_EXPIRATION_HOURS:-24}"
   export SERVER_PORT="${APP_PORT}"
 

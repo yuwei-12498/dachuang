@@ -1,9 +1,18 @@
 package com.citytrip.service.impl;
 
+import com.citytrip.config.AlgorithmWeightsProperties;
 import com.citytrip.model.dto.GenerateReqDTO;
 import com.citytrip.model.entity.Poi;
 import com.citytrip.service.PoiService;
 import com.citytrip.service.TravelTimeService;
+import com.citytrip.service.domain.planning.CandidatePreparationService;
+import com.citytrip.service.domain.planning.ItineraryRequestNormalizer;
+import com.citytrip.service.domain.scoring.AlgorithmWeightProvider;
+import com.citytrip.service.domain.scoring.AlgorithmWeightsSnapshot;
+import com.citytrip.service.domain.scoring.DefaultPoiScoringStrategy;
+import com.citytrip.service.domain.scoring.DynamicAlgorithmWeightProvider;
+import com.citytrip.service.domain.routing.LegacyRouteSearchEngine;
+import com.citytrip.service.domain.routing.RouteSearchEngine;
 import com.citytrip.service.geo.CityResolverService;
 import com.citytrip.service.geo.GeoPoint;
 import com.citytrip.service.geo.GeoSearchService;
@@ -42,19 +51,6 @@ public class ItineraryRouteOptimizer {
     private static final int EXACT_DP_THRESHOLD = 15;
     private static final int BEAM_WIDTH = 80;
 
-    private static final double SCORE_WEIGHT = 6.0D;
-    private static final double WAIT_PENALTY_WEIGHT = 0.5D;
-    private static final double TRAVEL_PENALTY_WEIGHT = 1.0D;
-    private static final double CROWD_PENALTY_WEIGHT = 4.0D;
-    private static final double CANDIDATE_CROWD_SCORE_WEIGHT = 1.5D;
-    private static final double COMPANION_MATCH_SCORE = 2.5D;
-    private static final double GROUP_TRAVEL_FIT_SCORE = 3.0D;
-    private static final double GROUP_TRAVEL_MISMATCH_PENALTY = 1.5D;
-    private static final double RAIN_FRIENDLY_SCORE = 1.5D;
-    private static final double WALKING_FIT_SCORE = 1.0D;
-    private static final double FIRST_LEG_TIME_PENALTY_WEIGHT = 0.9D;
-    private static final double FIRST_LEG_DISTANCE_PENALTY_WEIGHT = 4.8D;
-    private static final double FIRST_LEG_TRANSFER_PENALTY_WEIGHT = 7.0D;
     private static final List<String> SOLO_COMPANION_KEYWORDS = List.of(
             "solo", "single", "alone", "\u72ec\u81ea", "\u5355\u4eba", "\u4e00\u4eba", "\u4e2a\u4eba"
     );
@@ -79,75 +75,56 @@ public class ItineraryRouteOptimizer {
 
     private final PoiService poiService;
     private final TravelTimeService travelTimeService;
+    private final ItineraryRequestNormalizer requestNormalizer;
+    private final DefaultPoiScoringStrategy scoringStrategy;
+    private final CandidatePreparationService candidatePreparationService;
+    private final RouteSearchEngine routeSearchEngine;
+    private final AlgorithmWeightProvider weightProvider;
     @Autowired(required = false)
     private GeoSearchService geoSearchService;
     @Autowired(required = false)
     private CityResolverService cityResolverService;
 
     public ItineraryRouteOptimizer(PoiService poiService, TravelTimeService travelTimeService) {
+        this(poiService, travelTimeService, new ItineraryRequestNormalizer(), null, null, null);
+    }
+
+    public ItineraryRouteOptimizer(PoiService poiService,
+                                   TravelTimeService travelTimeService,
+                                   ItineraryRequestNormalizer requestNormalizer,
+                                   DefaultPoiScoringStrategy scoringStrategy,
+                                   CandidatePreparationService candidatePreparationService) {
+        this(poiService, travelTimeService, requestNormalizer, scoringStrategy, candidatePreparationService, null);
+    }
+
+    @Autowired
+    public ItineraryRouteOptimizer(PoiService poiService,
+                                   TravelTimeService travelTimeService,
+                                   ItineraryRequestNormalizer requestNormalizer,
+                                   DefaultPoiScoringStrategy scoringStrategy,
+                                   CandidatePreparationService candidatePreparationService,
+                                   AlgorithmWeightProvider weightProvider) {
         this.poiService = poiService;
         this.travelTimeService = travelTimeService;
+        this.requestNormalizer = requestNormalizer == null ? new ItineraryRequestNormalizer() : requestNormalizer;
+        this.weightProvider = weightProvider == null
+                ? new DynamicAlgorithmWeightProvider(new AlgorithmWeightsProperties())
+                : weightProvider;
+        this.scoringStrategy = scoringStrategy == null
+                ? new DefaultPoiScoringStrategy(this.requestNormalizer, this.weightProvider)
+                : scoringStrategy;
+        this.candidatePreparationService = candidatePreparationService == null
+                ? new CandidatePreparationService(poiService, this.requestNormalizer, this.scoringStrategy)
+                : candidatePreparationService;
+        this.routeSearchEngine = new LegacyRouteSearchEngine(this::rankRoutesInternal);
     }
 
     public GenerateReqDTO normalizeRequest(GenerateReqDTO req) {
-        GenerateReqDTO normalized = new GenerateReqDTO();
-        String requestedCityName = req == null ? null : req.getCityName();
-        String requestedCityCode = req == null ? null : req.getCityCode();
-        String normalizedCityName = cityResolverService == null
-                ? textOrDefault(requestedCityName, DEFAULT_CITY_NAME)
-                : cityResolverService.resolveCityName(requestedCityName, requestedCityCode);
-        String normalizedCityCode = cityResolverService == null
-                ? textOrDefault(requestedCityCode, null)
-                : cityResolverService.resolveCityCode(requestedCityCode, normalizedCityName);
-        normalized.setCityName(normalizedCityName);
-        normalized.setCityCode(normalizedCityCode);
-        normalized.setTripDays(req == null || req.getTripDays() == null ? 1.0 : req.getTripDays());
-        normalized.setTripDate(textOrDefault(req == null ? null : req.getTripDate(), LocalDate.now().toString()));
-        normalized.setTotalBudget(req == null ? null : req.getTotalBudget());
-        normalized.setBudgetLevel(req == null ? null : req.getBudgetLevel());
-        normalized.setThemes(req == null || req.getThemes() == null
-                ? Collections.emptyList()
-                : new ArrayList<>(req.getThemes()));
-        normalized.setIsRainy(req != null && Boolean.TRUE.equals(req.getIsRainy()));
-        normalized.setIsNight(req != null && Boolean.TRUE.equals(req.getIsNight()));
-        normalized.setWalkingLevel(textOrDefault(req == null ? null : req.getWalkingLevel(), "medium"));
-        normalized.setCompanionType(req == null ? null : req.getCompanionType());
-        normalized.setStartTime(textOrDefault(req == null ? null : req.getStartTime(), "09:00"));
-        normalized.setEndTime(textOrDefault(req == null ? null : req.getEndTime(), "18:00"));
-        normalized.setMustVisitPoiNames(normalizeMustVisitPoiNames(req == null ? null : req.getMustVisitPoiNames()));
-        normalized.setDeparturePlaceName(req == null ? null : req.getDeparturePlaceName());
-        normalized.setDepartureLatitude(req == null ? null : req.getDepartureLatitude());
-        normalized.setDepartureLongitude(req == null ? null : req.getDepartureLongitude());
-        return normalized;
+        return requestNormalizer.normalize(req);
     }
 
     public List<Poi> prepareCandidates(List<Poi> source, GenerateReqDTO req, boolean applyLimit) {
-        if (source == null || source.isEmpty()) {
-            return Collections.emptyList();
-        }
-        GenerateReqDTO normalized = normalizeRequest(req);
-        List<Poi> filtered = source.stream()
-                .filter(Objects::nonNull)
-                .filter(poi -> matchesWeatherConstraint(normalized, poi))
-                .filter(poi -> matchesWalkingConstraint(normalized, poi))
-                .collect(Collectors.toCollection(ArrayList::new));
-        poiService.enrichOperatingStatus(filtered, resolveTripDate(normalized));
-        filtered.forEach(poi -> poi.setTempScore(scorePoi(normalized, poi)));
-        filtered.sort((left, right) -> {
-            int byScore = Double.compare(right.getTempScore(), left.getTempScore());
-            if (byScore != 0) {
-                return byScore;
-            }
-            BigDecimal rightPriority = right.getPriorityScore() == null ? BigDecimal.ZERO : right.getPriorityScore();
-            BigDecimal leftPriority = left.getPriorityScore() == null ? BigDecimal.ZERO : left.getPriorityScore();
-            return rightPriority.compareTo(leftPriority);
-        });
-        List<Poi> available = filtered.stream()
-                .filter(poi -> !Boolean.FALSE.equals(poi.getAvailableOnTripDate()))
-                .collect(Collectors.toCollection(ArrayList::new));
-        return applyLimit && available.size() > CANDIDATE_LIMIT
-                ? new ArrayList<>(available.subList(0, CANDIDATE_LIMIT))
-                : available;
+        return candidatePreparationService.prepareCandidates(source, req, applyLimit);
     }
 
     public RouteOption bestRoute(List<Poi> candidates, GenerateReqDTO req, int maxStops) {
@@ -156,6 +133,10 @@ public class ItineraryRouteOptimizer {
     }
 
     public List<RouteOption> rankRoutes(List<Poi> candidates, GenerateReqDTO req, int maxStops) {
+        return routeSearchEngine.rankRoutes(candidates, req, maxStops);
+    }
+
+    private List<RouteOption> rankRoutesInternal(List<Poi> candidates, GenerateReqDTO req, int maxStops) {
         if (candidates == null || candidates.isEmpty() || maxStops <= 0) {
             return Collections.emptyList();
         }
@@ -410,11 +391,12 @@ public class ItineraryRouteOptimizer {
             return null;
         }
 
+        AlgorithmWeightsSnapshot weights = weightProvider.current();
         double utility = state.utility
-                + resolveRouteValue(req, nextPoi) * SCORE_WEIGHT
-                - travelTime * TRAVEL_PENALTY_WEIGHT
-                - waitTime * WAIT_PENALTY_WEIGHT
-                - resolveVisitCrowdPenalty(nextPoi, req, visitStart) * CROWD_PENALTY_WEIGHT;
+                + resolveRouteValue(req, nextPoi) * weights.routeScoreWeight()
+                - travelTime * weights.routeTravelPenaltyWeight()
+                - waitTime * weights.routeWaitPenaltyWeight()
+                - resolveVisitCrowdPenalty(nextPoi, req, visitStart) * weights.routeCrowdPenaltyWeight();
         if (state.lastIndex < 0) {
             utility -= startAccessProfile.accessPenalty();
         }
@@ -450,11 +432,12 @@ public class ItineraryRouteOptimizer {
         }
         List<Integer> path = new ArrayList<>(state.path);
         path.add(nextIndex);
+        AlgorithmWeightsSnapshot weights = weightProvider.current();
         double utility = state.utility
-                + resolveRouteValue(req, nextPoi) * SCORE_WEIGHT
-                - travelTime * TRAVEL_PENALTY_WEIGHT
-                - waitTime * WAIT_PENALTY_WEIGHT
-                - resolveVisitCrowdPenalty(nextPoi, req, visitStart) * CROWD_PENALTY_WEIGHT;
+                + resolveRouteValue(req, nextPoi) * weights.routeScoreWeight()
+                - travelTime * weights.routeTravelPenaltyWeight()
+                - waitTime * weights.routeWaitPenaltyWeight()
+                - resolveVisitCrowdPenalty(nextPoi, req, visitStart) * weights.routeCrowdPenaltyWeight();
         if (state.lastIndex < 0) {
             utility -= startAccessProfile.accessPenalty();
         }
@@ -475,12 +458,13 @@ public class ItineraryRouteOptimizer {
         if (!hasDepartureCoordinate(req)) {
             return 0D;
         }
+        AlgorithmWeightsSnapshot weights = weightProvider.current();
         double normalizedDistanceKm = distanceKm == null ? 0D : Math.max(0D, distanceKm.doubleValue());
-        double distancePenalty = normalizedDistanceKm * FIRST_LEG_DISTANCE_PENALTY_WEIGHT;
+        double distancePenalty = normalizedDistanceKm * weights.firstLegDistancePenaltyWeight();
         double distanceThresholdPenalty = resolveStartDistanceThresholdPenalty(normalizedDistanceKm);
         double timeThresholdPenalty = resolveStartTimeThresholdPenalty(minutes);
         double transferPenalty = resolveStartModePenalty(req, transportMode);
-        return Math.max(0, minutes) * FIRST_LEG_TIME_PENALTY_WEIGHT
+        return Math.max(0, minutes) * weights.firstLegTimePenaltyWeight()
                 + distancePenalty
                 + distanceThresholdPenalty
                 + timeThresholdPenalty
@@ -488,53 +472,62 @@ public class ItineraryRouteOptimizer {
     }
 
     private double resolveStartModePenalty(GenerateReqDTO req, String transportMode) {
+        AlgorithmWeightsSnapshot weights = weightProvider.current();
         if (!StringUtils.hasText(transportMode)) {
-            return 2.0D;
+            return weights.startModeUnknownPenalty();
         }
         String normalizedMode = transportMode.trim().toLowerCase(Locale.ROOT);
         if (normalizedMode.contains("步行") || normalizedMode.contains("walk")) {
-            return "low".equalsIgnoreCase(req == null ? null : req.getWalkingLevel()) ? 1.5D : 0D;
+            return "low".equalsIgnoreCase(req == null ? null : req.getWalkingLevel())
+                    ? weights.startModeLowWalkingPenalty()
+                    : 0D;
         }
         if (normalizedMode.contains("骑行") || normalizedMode.contains("bike") || normalizedMode.contains("cycle")) {
-            return 1.5D;
+            return weights.startModeBikePenalty();
         }
         if (normalizedMode.contains("地铁") || normalizedMode.contains("metro") || normalizedMode.contains("subway")) {
-            return FIRST_LEG_TRANSFER_PENALTY_WEIGHT;
+            return weights.firstLegTransferPenaltyWeight();
         }
         if (normalizedMode.contains("公交") || normalizedMode.contains("bus") || normalizedMode.contains("transit")) {
-            return FIRST_LEG_TRANSFER_PENALTY_WEIGHT + 1.5D;
+            return weights.firstLegTransferPenaltyWeight() + weights.startModeBusExtraPenalty();
         }
         if (normalizedMode.contains("打车") || normalizedMode.contains("taxi") || normalizedMode.contains("drive")) {
-            return FIRST_LEG_TRANSFER_PENALTY_WEIGHT + 2.5D;
+            return weights.firstLegTransferPenaltyWeight() + weights.startModeTaxiExtraPenalty();
         }
-        return 3.0D;
+        return weights.startModeOtherPenalty();
     }
 
     private double resolveStartDistanceThresholdPenalty(double distanceKm) {
+        AlgorithmWeightsSnapshot weights = weightProvider.current();
         double penalty = 0D;
-        if (distanceKm > 2.5D) {
-            penalty += (distanceKm - 2.5D) * 2.4D;
+        if (distanceKm > weights.startDistanceSoftThresholdKm()) {
+            penalty += (distanceKm - weights.startDistanceSoftThresholdKm()) * weights.startDistanceSoftThresholdWeight();
         }
-        if (distanceKm > 5D) {
-            penalty += 10D + (distanceKm - 5D) * 3.6D;
+        if (distanceKm > weights.startDistanceMediumThresholdKm()) {
+            penalty += weights.startDistanceMediumBasePenalty()
+                    + (distanceKm - weights.startDistanceMediumThresholdKm()) * weights.startDistanceMediumWeight();
         }
-        if (distanceKm > 9D) {
-            penalty += 20D + (distanceKm - 9D) * 5.2D;
+        if (distanceKm > weights.startDistanceHardThresholdKm()) {
+            penalty += weights.startDistanceHardBasePenalty()
+                    + (distanceKm - weights.startDistanceHardThresholdKm()) * weights.startDistanceHardWeight();
         }
         return penalty;
     }
 
     private double resolveStartTimeThresholdPenalty(int minutes) {
+        AlgorithmWeightsSnapshot weights = weightProvider.current();
         int safeMinutes = Math.max(0, minutes);
         double penalty = 0D;
-        if (safeMinutes > 15) {
-            penalty += (safeMinutes - 15) * 0.9D;
+        if (safeMinutes > weights.startTimeSoftThresholdMinutes()) {
+            penalty += (safeMinutes - weights.startTimeSoftThresholdMinutes()) * weights.startTimeSoftThresholdWeight();
         }
-        if (safeMinutes > 28) {
-            penalty += 8D + (safeMinutes - 28) * 1.25D;
+        if (safeMinutes > weights.startTimeMediumThresholdMinutes()) {
+            penalty += weights.startTimeMediumBasePenalty()
+                    + (safeMinutes - weights.startTimeMediumThresholdMinutes()) * weights.startTimeMediumWeight();
         }
-        if (safeMinutes > 40) {
-            penalty += 16D + (safeMinutes - 40) * 1.8D;
+        if (safeMinutes > weights.startTimeHardThresholdMinutes()) {
+            penalty += weights.startTimeHardBasePenalty()
+                    + (safeMinutes - weights.startTimeHardThresholdMinutes()) * weights.startTimeHardWeight();
         }
         return penalty;
     }
@@ -734,73 +727,7 @@ public class ItineraryRouteOptimizer {
     }
 
     private double scorePoi(GenerateReqDTO req, Poi poi) {
-        GenerateReqDTO normalized = normalizeRequest(req);
-        double score = poi.getPriorityScore() == null ? 7.5 : poi.getPriorityScore().doubleValue() * 2.5;
-        if (normalized.getThemes() != null && poi.getTags() != null) {
-            score += normalized.getThemes().stream()
-                    .filter(theme -> StringUtils.hasText(theme) && poi.getTags().contains(theme))
-                    .count() * 3.5;
-        }
-        if (StringUtils.hasText(normalized.getCompanionType())
-                && StringUtils.hasText(poi.getSuitableFor())
-                && matchesCompanionPreference(normalized, poi)) {
-            score += COMPANION_MATCH_SCORE;
-        }
-        if (isMultiPersonTrip(normalized)) {
-            if (isGroupFriendlyPoi(poi)) {
-                score += GROUP_TRAVEL_FIT_SCORE;
-            } else if (isSoloFocusedPoi(poi)) {
-                score -= GROUP_TRAVEL_MISMATCH_PENALTY;
-            }
-        }
-        if (matchesMustVisitPoi(normalized, poi)) {
-            score += 120.0;
-        }
-        if (Boolean.TRUE.equals(normalized.getIsNight()) && Integer.valueOf(1).equals(poi.getNightAvailable())) {
-            score += 2.0;
-        }
-        if (Boolean.TRUE.equals(normalized.getIsRainy())
-                && (Integer.valueOf(1).equals(poi.getIndoor()) || Integer.valueOf(1).equals(poi.getRainFriendly()))) {
-            score += RAIN_FRIENDLY_SCORE;
-        }
-        if (walkingRank(normalized.getWalkingLevel()) >= walkingRank(poi.getWalkingLevel())) {
-            score += WALKING_FIT_SCORE;
-        }
-        if (StringUtils.hasText(normalized.getBudgetLevel()) && poi.getAvgCost() != null) {
-            double cost = poi.getAvgCost().doubleValue();
-            String budget = normalized.getBudgetLevel();
-            if (budget.contains("低") || budget.equalsIgnoreCase("low")) {
-                if (cost <= 20) {
-                    score += 2.0;
-                } else if (cost > 100) {
-                    score -= 15.0;
-                } else if (cost > 50) {
-                    score -= 8.0;
-                }
-            } else if (budget.contains("中") || budget.equalsIgnoreCase("medium")) {
-                if (cost > 300) {
-                    score -= 12.0;
-                } else if (cost > 150) {
-                    score -= 5.0;
-                }
-            } else if (budget.contains("高") || budget.equalsIgnoreCase("high")) {
-                if (cost >= 100) {
-                    score += 2.0;
-                }
-            }
-        }
-        if (Boolean.TRUE.equals(poi.getStatusStale())) {
-            score -= 2.0;
-        }
-        int stay = poi.getStayDuration() == null ? 90 : poi.getStayDuration();
-        if (stay > 180) {
-            score -= Math.min(3.0, (stay - 180) / 45.0);
-        }
-        if (poi.getOpenTime() == null || poi.getCloseTime() == null) {
-            score -= 1.0;
-        }
-        score -= resolveBaseCrowdPenalty(poi) * CANDIDATE_CROWD_SCORE_WEIGHT;
-        return Math.max(score, 1.0);
+        return scoringStrategy.scorePoi(req, poi);
     }
 
     private double resolveRouteValue(GenerateReqDTO req, Poi poi) {

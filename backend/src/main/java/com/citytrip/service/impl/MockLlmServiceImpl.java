@@ -5,6 +5,7 @@ import com.citytrip.model.vo.DepartureLegEstimateVO;
 import com.citytrip.model.vo.ItineraryRouteDecorationVO;
 import com.citytrip.model.vo.ItineraryNodeVO;
 import com.citytrip.model.vo.ItineraryOptionVO;
+import com.citytrip.model.vo.RouteCriticDecisionVO;
 import com.citytrip.model.vo.RouteNodeDecorationVO;
 import com.citytrip.model.vo.SegmentTransportAnalysisVO;
 import com.citytrip.model.vo.SmartFillVO;
@@ -16,9 +17,11 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 @Service
@@ -106,6 +109,43 @@ public class MockLlmServiceImpl implements LlmService {
             return explainItinerary(userReq, option.getNodes() == null ? Collections.emptyList() : option.getNodes());
         }
         return String.join("；", parts.stream().limit(2).toList()) + "。";
+    }
+
+    @Override
+    public RouteCriticDecisionVO criticSelectItineraryOption(GenerateReqDTO userReq, List<ItineraryOptionVO> options) {
+        if (options == null || options.isEmpty()) {
+            return null;
+        }
+        ItineraryOptionVO selected = options.stream()
+                .filter(option -> option != null && StringUtils.hasText(option.getOptionKey()))
+                .max((left, right) -> Double.compare(routeUtility(left), routeUtility(right)))
+                .orElse(options.get(0));
+        if (selected == null || !StringUtils.hasText(selected.getOptionKey())) {
+            return null;
+        }
+        RouteCriticDecisionVO decision = new RouteCriticDecisionVO();
+        decision.setSelectedOptionKey(selected.getOptionKey());
+        decision.setReason("AI Critic 已在候选路线中优先选择更贴合偏好、通行更稳的方案。");
+
+        Map<String, String> rejected = new LinkedHashMap<>();
+        Map<String, Double> scores = new LinkedHashMap<>();
+        for (ItineraryOptionVO option : options) {
+            if (option == null || !StringUtils.hasText(option.getOptionKey())) {
+                continue;
+            }
+            double score = Math.max(0D, Math.min(100D, routeUtility(option)));
+            scores.put(option.getOptionKey(), score);
+            if (!option.getOptionKey().equals(selected.getOptionKey())) {
+                rejected.put(option.getOptionKey(), "相比最终方案，整体偏好匹配或通行稳定性略弱。");
+            }
+        }
+        decision.setRejectedReasons(rejected);
+        decision.setOptionScores(scores);
+        return decision;
+    }
+
+    private double routeUtility(ItineraryOptionVO option) {
+        return option == null || option.getRouteUtility() == null ? 0D : option.getRouteUtility();
     }
 
     @Override

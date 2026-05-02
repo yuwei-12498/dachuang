@@ -26,6 +26,37 @@ public class ExternalPoiCandidateService {
     private static final LocalTime DEFAULT_CLOSE_TIME = LocalTime.of(21, 0);
     private static final BigDecimal DEFAULT_AVG_COST = BigDecimal.valueOf(80);
     private static final int DEFAULT_STAY_DURATION_MINUTES = 90;
+    private static final List<String> INDOOR_KEYWORDS = List.of(
+            "museum", "gallery", "mall", "shopping", "bookstore", "library", "cinema", "theater",
+            "art center", "exhibition", "aquarium", "cafe", "coffee", "restaurant",
+            "博物馆", "美术馆", "展览", "商场", "购物", "书店", "图书馆", "影院", "剧院", "咖啡", "餐厅"
+    );
+    private static final List<String> RAIN_FRIENDLY_KEYWORDS = List.of(
+            "museum", "gallery", "mall", "shopping", "bookstore", "library", "cinema", "theater",
+            "art center", "aquarium", "cafe", "coffee", "restaurant", "food hall",
+            "博物馆", "美术馆", "商场", "购物", "书店", "图书馆", "影院", "剧院", "咖啡", "餐厅", "美食"
+    );
+    private static final List<String> LOW_WALKING_KEYWORDS = List.of(
+            "museum", "gallery", "mall", "shopping", "bookstore", "library", "cinema", "theater",
+            "art center", "aquarium", "cafe", "restaurant", "tea", "market",
+            "博物馆", "美术馆", "商场", "购物", "书店", "图书馆", "影院", "剧院", "咖啡", "餐厅", "商圈"
+    );
+    private static final List<String> HIGH_WALKING_KEYWORDS = List.of(
+            "trail", "mountain", "hiking", "park", "forest", "camp", "scenic", "wetland", "lake",
+            "步道", "山", "徒步", "公园", "森林", "露营", "景区", "湿地", "湖"
+    );
+    private static final List<String> NIGHT_FRIENDLY_KEYWORDS = List.of(
+            "mall", "shopping", "cinema", "bar", "night market", "food", "restaurant", "street",
+            "商场", "购物", "影院", "酒吧", "夜市", "美食", "餐厅", "街区"
+    );
+    private static final List<String> FAMILY_FRIENDLY_KEYWORDS = List.of(
+            "museum", "gallery", "mall", "aquarium", "park", "zoo", "restaurant",
+            "博物馆", "美术馆", "商场", "海洋馆", "公园", "动物园", "餐厅"
+    );
+    private static final List<String> COUPLE_FRIENDLY_KEYWORDS = List.of(
+            "gallery", "cafe", "restaurant", "street", "park", "cinema",
+            "美术馆", "咖啡", "餐厅", "街区", "公园", "影院"
+    );
 
     private final GeoSearchService geoSearchService;
 
@@ -102,13 +133,12 @@ public class ExternalPoiCandidateService {
                     .toLowerCase(Locale.ROOT);
             unique.putIfAbsent(key, candidate);
         }
-        List<Poi> mapped = unique.values().stream()
+        return unique.values().stream()
                 .limit(limit)
                 .map(candidate -> enrichBusinessDefaults(candidate, request))
                 .map(candidate -> mapToPoi(candidate, fallbackCategory, request))
                 .filter(Objects::nonNull)
                 .collect(Collectors.toCollection(ArrayList::new));
-        return mapped;
     }
 
     private GeoPoiCandidate enrichBusinessDefaults(GeoPoiCandidate candidate, GenerateReqDTO request) {
@@ -186,6 +216,25 @@ public class ExternalPoiCandidateService {
         if (candidate == null || !StringUtils.hasText(candidate.getName())) {
             return null;
         }
+        String resolvedCategory = StringUtils.hasText(candidate.getCategory()) ? candidate.getCategory().trim() : fallbackCategory;
+        LocalTime openTime = resolveOpenTime(candidate);
+        LocalTime closeTime = resolveCloseTime(candidate);
+        BigDecimal avgCost = resolveAvgCost(candidate);
+        int stayDuration = resolveStayDuration(candidate);
+        String categoryText = normalizeMatchingText(String.join(" ",
+                nullToEmpty(candidate.getName()),
+                nullToEmpty(resolvedCategory),
+                nullToEmpty(candidate.getAddress())));
+        boolean businessDetailsProvided = hasBusinessDetails(candidate);
+        double completeness = computeDataCompleteness(candidate, resolvedCategory);
+        int indoor = inferIndoor(categoryText);
+        int rainFriendly = inferRainFriendly(categoryText, indoor);
+        int nightAvailable = inferNightAvailability(categoryText, closeTime);
+        String walkingLevel = inferWalkingLevel(categoryText);
+        String suitableFor = inferSuitableFor(categoryText);
+        BigDecimal priorityScore = computePriorityScore(candidate, completeness, businessDetailsProvided, indoor, rainFriendly);
+        BigDecimal crowdPenalty = computeCrowdPenalty(categoryText);
+
         Poi poi = new Poi();
         poi.setId(buildTemporaryPoiId(candidate));
         poi.setExternalId(candidate.getExternalId());
@@ -193,29 +242,31 @@ public class ExternalPoiCandidateService {
         poi.setCityCode(request == null ? null : request.getCityCode());
         poi.setCityName(StringUtils.hasText(candidate.getCityName()) ? candidate.getCityName() : (request == null ? null : request.getCityName()));
         poi.setName(candidate.getName().trim());
-        poi.setCategory(StringUtils.hasText(candidate.getCategory()) ? candidate.getCategory().trim() : fallbackCategory);
+        poi.setCategory(resolvedCategory);
         poi.setDistrict(candidate.getDistrict());
         poi.setAddress(candidate.getAddress());
         poi.setLatitude(candidate.getLatitude().setScale(6, RoundingMode.HALF_UP));
         poi.setLongitude(candidate.getLongitude().setScale(6, RoundingMode.HALF_UP));
-        poi.setOpenTime(resolveOpenTime(candidate));
-        poi.setCloseTime(resolveCloseTime(candidate));
-        poi.setAvgCost(resolveAvgCost(candidate));
-        poi.setStayDuration(resolveStayDuration(candidate));
-        poi.setIndoor(0);
-        poi.setNightAvailable(0);
-        poi.setRainFriendly(0);
-        poi.setWalkingLevel("中");
-        poi.setTags(StringUtils.hasText(candidate.getCategory()) ? candidate.getCategory() : fallbackCategory);
-        poi.setSuitableFor("朋友,情侣,独自");
-        poi.setDescription("External candidate from GEO API");
-        poi.setPriorityScore(BigDecimal.valueOf(5.8));
-        poi.setCrowdPenalty(BigDecimal.valueOf(0.15));
+        poi.setOpenTime(openTime);
+        poi.setCloseTime(closeTime);
+        poi.setAvgCost(avgCost);
+        poi.setStayDuration(stayDuration);
+        poi.setIndoor(indoor);
+        poi.setNightAvailable(nightAvailable);
+        poi.setRainFriendly(rainFriendly);
+        poi.setWalkingLevel(walkingLevel);
+        poi.setTags(StringUtils.hasText(resolvedCategory) ? resolvedCategory : candidate.getName().trim());
+        poi.setSuitableFor(suitableFor);
+        poi.setDescription(buildDescription(resolvedCategory, businessDetailsProvided));
+        poi.setPriorityScore(priorityScore);
+        poi.setCrowdPenalty(crowdPenalty);
         poi.setTempScore(candidate.getScore() == null ? 10D : 10D + candidate.getScore() * 5D);
         poi.setOperatingStatus("CHECK_REQUIRED");
-        poi.setAvailabilityNote(buildAvailabilityNote(candidate));
+        poi.setAvailabilityNote(buildAvailabilityNote(candidate, businessDetailsProvided));
         poi.setAvailableOnTripDate(Boolean.TRUE);
         poi.setStatusStale(Boolean.TRUE);
+        poi.setExternalDataCompleteness(roundDouble(completeness));
+        poi.setExternalBusinessDetailsProvided(businessDetailsProvided);
         return poi;
     }
 
@@ -253,20 +304,131 @@ public class ExternalPoiCandidateService {
         return minutes;
     }
 
-    private String buildAvailabilityNote(GeoPoiCandidate candidate) {
-        if (hasBusinessDefault(candidate)) {
-            return "外部POI，营业时间、人均消费或建议停留已按地图信息补全，出发前仍建议以地图实时信息为准。";
+    private String buildAvailabilityNote(GeoPoiCandidate candidate, boolean businessDetailsProvided) {
+        if (businessDetailsProvided) {
+            return "外部 POI，营业时间、消费或停留建议已按地图详情补全，出发前请以地图实时信息为准。";
         }
-        return "外部POI，地图未返回完整营业时间、人均消费和建议停留，已使用默认估算；出发前请以地图实时信息为准。";
+        return "外部 POI，地图未返回完整营业时间或消费信息，系统已使用保守估算，出发前请以地图实时信息为准。";
     }
 
-    private boolean hasBusinessDefault(GeoPoiCandidate candidate) {
+    private String buildDescription(String category, boolean businessDetailsProvided) {
+        StringBuilder builder = new StringBuilder("External candidate from GEO API");
+        if (StringUtils.hasText(category)) {
+            builder.append(" - ").append(category.trim());
+        }
+        if (businessDetailsProvided) {
+            builder.append(" with enriched business details");
+        }
+        return builder.toString();
+    }
+
+    private boolean hasBusinessDetails(GeoPoiCandidate candidate) {
         return candidate != null
                 && (StringUtils.hasText(candidate.getOpeningHours())
                 || StringUtils.hasText(candidate.getOpenTime())
                 || StringUtils.hasText(candidate.getCloseTime())
                 || candidate.getAvgCost() != null
                 || candidate.getStayDurationMinutes() != null);
+    }
+
+    private double computeDataCompleteness(GeoPoiCandidate candidate, String resolvedCategory) {
+        if (candidate == null) {
+            return 0D;
+        }
+        int totalSignals = 7;
+        int presentSignals = 0;
+        if (StringUtils.hasText(candidate.getExternalId())) {
+            presentSignals++;
+        }
+        if (StringUtils.hasText(candidate.getAddress())) {
+            presentSignals++;
+        }
+        if (StringUtils.hasText(candidate.getDistrict())) {
+            presentSignals++;
+        }
+        if (StringUtils.hasText(resolvedCategory)) {
+            presentSignals++;
+        }
+        if (StringUtils.hasText(candidate.getOpeningHours()) || StringUtils.hasText(candidate.getOpenTime()) || StringUtils.hasText(candidate.getCloseTime())) {
+            presentSignals++;
+        }
+        if (candidate.getAvgCost() != null) {
+            presentSignals++;
+        }
+        if (candidate.getStayDurationMinutes() != null) {
+            presentSignals++;
+        }
+        return Math.max(0D, Math.min(1D, presentSignals / (double) totalSignals));
+    }
+
+    private int inferIndoor(String categoryText) {
+        return hasAnyKeyword(categoryText, INDOOR_KEYWORDS) ? 1 : 0;
+    }
+
+    private int inferRainFriendly(String categoryText, int indoor) {
+        return indoor == 1 || hasAnyKeyword(categoryText, RAIN_FRIENDLY_KEYWORDS) ? 1 : 0;
+    }
+
+    private int inferNightAvailability(String categoryText, LocalTime closeTime) {
+        if (closeTime != null && !closeTime.isBefore(LocalTime.of(20, 0))) {
+            return 1;
+        }
+        return hasAnyKeyword(categoryText, NIGHT_FRIENDLY_KEYWORDS) ? 1 : 0;
+    }
+
+    private String inferWalkingLevel(String categoryText) {
+        if (hasAnyKeyword(categoryText, HIGH_WALKING_KEYWORDS)) {
+            return "high";
+        }
+        if (hasAnyKeyword(categoryText, LOW_WALKING_KEYWORDS)) {
+            return "low";
+        }
+        return "medium";
+    }
+
+    private String inferSuitableFor(String categoryText) {
+        List<String> audience = new ArrayList<>(List.of("friends", "solo"));
+        if (hasAnyKeyword(categoryText, FAMILY_FRIENDLY_KEYWORDS)) {
+            audience.add("family");
+        }
+        if (hasAnyKeyword(categoryText, COUPLE_FRIENDLY_KEYWORDS)) {
+            audience.add("couple");
+        }
+        if (!audience.contains("couple")) {
+            audience.add("couple");
+        }
+        return audience.stream().distinct().collect(Collectors.joining(","));
+    }
+
+    private BigDecimal computePriorityScore(GeoPoiCandidate candidate,
+                                            double completeness,
+                                            boolean businessDetailsProvided,
+                                            int indoor,
+                                            int rainFriendly) {
+        double providerScore = candidate == null || candidate.getScore() == null
+                ? 0D
+                : Math.max(0D, Math.min(candidate.getScore(), 5D));
+        double priority = 5.0D
+                + completeness * 1.2D
+                + (businessDetailsProvided ? 0.5D : 0D)
+                + (providerScore / 5D) * 0.6D
+                + (indoor == 1 ? 0.2D : 0D)
+                + (rainFriendly == 1 ? 0.2D : 0D);
+        return BigDecimal.valueOf(priority).setScale(1, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal computeCrowdPenalty(String categoryText) {
+        double penalty;
+        if (hasAnyKeyword(categoryText, List.of("mall", "shopping", "night market", "food", "商场", "购物", "夜市", "美食"))) {
+            penalty = 0.18D;
+        } else if (hasAnyKeyword(categoryText, List.of("museum", "gallery", "aquarium", "博物馆", "美术馆", "海洋馆"))) {
+            penalty = 0.10D;
+        } else if (hasAnyKeyword(categoryText, HIGH_WALKING_KEYWORDS)) {
+            penalty = 0.08D;
+        } else {
+            penalty = 0.12D;
+        }
+        return BigDecimal.valueOf(penalty).setScale(2, RoundingMode.HALF_UP);
     }
 
     private List<LocalTime> parseOpeningHours(String text) {
@@ -306,8 +468,34 @@ public class ExternalPoiCandidateService {
         }
     }
 
+    private boolean hasAnyKeyword(String normalizedText, List<String> keywords) {
+        if (!StringUtils.hasText(normalizedText) || keywords == null || keywords.isEmpty()) {
+            return false;
+        }
+        String haystack = normalizeMatchingText(normalizedText);
+        for (String keyword : keywords) {
+            String needle = normalizeMatchingText(keyword);
+            if (StringUtils.hasText(needle) && haystack.contains(needle)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String normalizeMatchingText(String value) {
+        return StringUtils.hasText(value) ? value.trim().toLowerCase(Locale.ROOT) : "";
+    }
+
     private String normalizeKey(String value) {
         return StringUtils.hasText(value) ? value.trim().toLowerCase(Locale.ROOT) : "";
+    }
+
+    private String nullToEmpty(String value) {
+        return value == null ? "" : value;
+    }
+
+    private double roundDouble(double value) {
+        return BigDecimal.valueOf(value).setScale(2, RoundingMode.HALF_UP).doubleValue();
     }
 
     private long buildTemporaryPoiId(GeoPoiCandidate candidate) {

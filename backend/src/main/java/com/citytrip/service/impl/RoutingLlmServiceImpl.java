@@ -6,6 +6,7 @@ import com.citytrip.model.vo.DepartureLegEstimateVO;
 import com.citytrip.model.vo.ItineraryRouteDecorationVO;
 import com.citytrip.model.vo.ItineraryNodeVO;
 import com.citytrip.model.vo.ItineraryOptionVO;
+import com.citytrip.model.vo.RouteCriticDecisionVO;
 import com.citytrip.model.vo.SegmentTransportAnalysisVO;
 import com.citytrip.model.vo.SmartFillVO;
 import com.citytrip.service.LlmService;
@@ -67,6 +68,15 @@ public class RoutingLlmServiceImpl implements LlmService {
                 () -> realLlmService.explainOptionRecommendation(userReq, option),
                 () -> mockLlmService.explainOptionRecommendation(userReq, option),
                 "explainOptionRecommendation"
+        );
+    }
+
+    @Override
+    public RouteCriticDecisionVO criticSelectItineraryOption(GenerateReqDTO userReq, List<ItineraryOptionVO> options) {
+        return routeCallGeneric(
+                () -> realLlmService.criticSelectItineraryOption(userReq, options),
+                () -> mockLlmService.criticSelectItineraryOption(userReq, options),
+                "criticSelectItineraryOption"
         );
     }
 

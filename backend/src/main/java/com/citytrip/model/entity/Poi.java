@@ -52,6 +52,12 @@ public class Poi {
     private Double tempScore;
 
     @TableField(exist = false)
+    private Double externalDataCompleteness;
+
+    @TableField(exist = false)
+    private Boolean externalBusinessDetailsProvided;
+
+    @TableField(exist = false)
     private String operatingStatus;
 
     @TableField(exist = false)

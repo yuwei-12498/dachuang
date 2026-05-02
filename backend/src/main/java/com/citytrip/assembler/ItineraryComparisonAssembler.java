@@ -5,15 +5,18 @@ import com.citytrip.model.entity.Poi;
 import com.citytrip.model.vo.ItineraryNodeVO;
 import com.citytrip.model.vo.ItineraryOptionVO;
 import com.citytrip.model.vo.ItineraryVO;
+import com.citytrip.model.vo.RouteFeatureVectorVO;
 import com.citytrip.service.domain.planning.RouteAnalysisService;
 import com.citytrip.service.impl.ItineraryRouteOptimizer;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -23,7 +26,7 @@ import java.util.stream.Collectors;
 @Component
 public class ItineraryComparisonAssembler {
 
-    private static final int MAX_OPTIONS = 1;
+    private static final int MAX_OPTIONS = 5;
 
     private final RouteAnalysisService routeAnalysisService;
 
@@ -100,6 +103,9 @@ public class ItineraryComparisonAssembler {
                     .orElse(options.get(0));
             if (selected.getAlerts() != null && !selected.getAlerts().isEmpty()) {
                 parts.add("当前默认方案提醒：" + selected.getAlerts().get(0));
+                if (options.size() > 1) {
+                    parts.add("你也可以切换查看其他候选路线。");
+                }
             } else if (options.size() == 1) {
                 parts.add("如需不同走法，可继续点击“换一版路线”重新生成。");
             } else {
@@ -239,6 +245,7 @@ public class ItineraryComparisonAssembler {
         option.setBusinessRiskScore(analysis.businessRiskScore());
         option.setThemeMatchCount(analysis.themeMatchCount());
         option.setRouteUtility(analysis.utility());
+        option.setFeatureVector(buildFeatureVector(analysis));
         option.setNodes(analysis.nodes());
         option.setAlerts(analysis.alerts());
         option.setSummary(buildOptionSummary(analysis, analyses));
@@ -247,6 +254,57 @@ public class ItineraryComparisonAssembler {
         option.setRecommendReason(buildRecommendReason(analysis, analyses, style));
         option.setNotRecommendReason(buildNotRecommendReason(analysis, analyses));
         return option;
+    }
+
+    private RouteFeatureVectorVO buildFeatureVector(RouteAnalysisService.RouteAnalysis analysis) {
+        RouteFeatureVectorVO vector = new RouteFeatureVectorVO();
+        vector.setSignature(analysis.route() == null ? "" : analysis.route().signature());
+        vector.setStopCount(analysis.stopCount());
+        vector.setTotalCostEstimated(analysis.totalCost());
+        vector.setTotalDurationMinutes(analysis.totalDuration());
+        vector.setTotalTravelTimeMinutes(analysis.totalTravelTime());
+        vector.setTotalWaitTimeMinutes(analysis.totalWaitTime());
+        vector.setTotalWalkingDistanceEstimatedKm(resolveWalkingDistance(analysis.nodes()));
+        vector.setThemeMatchCount(analysis.themeMatchCount());
+        vector.setCompanionMatchCount(analysis.companionMatchCount());
+        vector.setNightFriendlyCount(analysis.nightFriendlyCount());
+        vector.setIndoorFriendlyCount(analysis.indoorFriendlyCount());
+        vector.setBusinessRiskScore(analysis.businessRiskScore());
+        vector.setUniqueDistrictCount(analysis.uniqueDistrictCount());
+        vector.setRouteUtility(analysis.utility());
+        Map<String, Object> breakdown = new LinkedHashMap<>();
+        breakdown.put("utility", analysis.utility());
+        breakdown.put("themeMatchCount", analysis.themeMatchCount());
+        breakdown.put("companionMatchCount", analysis.companionMatchCount());
+        breakdown.put("businessRiskScore", analysis.businessRiskScore());
+        breakdown.put("totalWaitTimeMinutes", analysis.totalWaitTime());
+        breakdown.put("totalTravelTimeMinutes", analysis.totalTravelTime());
+        breakdown.put("totalCostEstimated", analysis.totalCost());
+        breakdown.put("uniqueDistrictCount", analysis.uniqueDistrictCount());
+        vector.setScoreBreakdown(breakdown);
+        return vector;
+    }
+
+    private BigDecimal resolveWalkingDistance(List<ItineraryNodeVO> nodes) {
+        if (nodes == null || nodes.isEmpty()) {
+            return BigDecimal.ZERO.setScale(1, RoundingMode.HALF_UP);
+        }
+        BigDecimal total = BigDecimal.ZERO;
+        for (ItineraryNodeVO node : nodes) {
+            if (node == null || node.getTravelDistanceKm() == null || !isWalkingMode(node.getTravelTransportMode())) {
+                continue;
+            }
+            total = total.add(node.getTravelDistanceKm());
+        }
+        return total.setScale(1, RoundingMode.HALF_UP);
+    }
+
+    private boolean isWalkingMode(String mode) {
+        if (!StringUtils.hasText(mode)) {
+            return false;
+        }
+        String normalized = mode.trim().toLowerCase();
+        return normalized.contains("walk") || normalized.contains("步行");
     }
 
     private String buildOptionSummary(RouteAnalysisService.RouteAnalysis analysis,

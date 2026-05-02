@@ -190,7 +190,7 @@ describe('hero and travel helpers', () => {
     expect(hero.summary).toContain('经典慢逛线')
     expect(hero.departureSummary).toContain('首段')
     expect(hero.departureSummary).toContain('20 分钟')
-    expect(hero.pills).toContain('多方案对比')
+    expect(hero.pills).not.toContain('多方案对比')
     expect(hero.pills).toContain('2天节奏')
     expect(hero.pills).toContain('雨天友好')
     expect(hero.recommendation).toBe('热门点位密度合适，顺路程度更高。')

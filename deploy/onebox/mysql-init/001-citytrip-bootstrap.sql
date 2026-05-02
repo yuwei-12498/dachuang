@@ -321,3 +321,10 @@ SET `password_hash` = '$2a$12$0iBMMrl5YgHO.R.BvPUAc.xi3ZIdm7VzHeY2sVgiDEkrysD2DR
     `role` = 1,
     `status` = 1
 WHERE `username` = 'admin';
+
+-- Production safety: this dump used to carry fixed demo/admin accounts.
+-- Do not ship any predictable login to a cloud VM. If an admin account is
+-- needed, set APP_BOOTSTRAP_ADMIN_ENABLED=true and provide
+-- APP_BOOTSTRAP_ADMIN_PASSWORD as a strong unique secret.
+DELETE FROM `trip_user`;
+ALTER TABLE `trip_user` AUTO_INCREMENT = 1;

@@ -1,9 +1,11 @@
 package com.citytrip.service.impl;
 
+import com.citytrip.config.AlgorithmWeightsProperties;
 import com.citytrip.model.dto.GenerateReqDTO;
 import com.citytrip.model.entity.Poi;
 import com.citytrip.service.PoiService;
 import com.citytrip.service.TravelTimeService;
+import com.citytrip.service.domain.scoring.DynamicAlgorithmWeightProvider;
 import com.citytrip.service.geo.GeoPoint;
 import org.junit.jupiter.api.Test;
 
@@ -408,6 +410,40 @@ class ItineraryRouteOptimizerDpTest {
 
         assertThat(ranked).isNotEmpty();
         assertThat(ranked.get(0).path()).extracting(Poi::getName).containsExactly("Near Museum");
+    }
+
+    @Test
+    void routeSearchReadsUpdatedRouteWeightsAtRuntime() {
+        PoiService poiService = mock(PoiService.class);
+        DynamicAlgorithmWeightProvider provider = new DynamicAlgorithmWeightProvider(new AlgorithmWeightsProperties());
+        Poi poi = createPoi(1201L, "Weight Probe Museum", "museum", "Qingyang",
+                "09:00", "18:00", 60, 0, 3.0D, 0.0D, "culture");
+        poi.setTempScore(10.0D);
+        TravelTimeService travelTimeService = new MatrixTravelTimeService(
+                buildIndexByPoiId(List.of(poi)),
+                new int[][]{{0}}
+        );
+        ItineraryRouteOptimizer optimizer = new ItineraryRouteOptimizer(
+                poiService,
+                travelTimeService,
+                null,
+                null,
+                null,
+                provider
+        );
+        GenerateReqDTO request = new GenerateReqDTO();
+        request.setTripDays(1.0D);
+        request.setTripDate("2026-04-25");
+        request.setStartTime("09:00");
+        request.setEndTime("18:00");
+
+        double before = optimizer.rankRoutes(List.of(poi), request, 1).get(0).utility();
+
+        provider.update(provider.current().withRouteScoreWeight(3.0D));
+        double after = optimizer.rankRoutes(List.of(poi), request, 1).get(0).utility();
+
+        assertThat(before).isEqualTo(60.0D);
+        assertThat(after).isEqualTo(30.0D);
     }
 
     private GenerateReqDTO buildRequest() {
